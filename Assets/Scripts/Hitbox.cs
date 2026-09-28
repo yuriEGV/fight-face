@@ -86,7 +86,7 @@ namespace FightFace
                 Vector2 knockbackDir = new Vector2(facingDir * knockbackPower, knockbackPower * 0.35f);
 
                 // 1. Aplicar daño y reacción de impacto / Hitstun
-                target.RecibirImpacto(damage, knockbackPower, attackerOriginX);
+                target.RecibirImpacto(damage, knockbackPower, attackerOriginX, ownerFighter, isHeavyAttack);
 
                 // 2. Activar el Hitstop profesional y Screen Shake
                 float hitstopDuration = isHeavyAttack ? 0.09f : 0.06f;

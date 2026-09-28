@@ -605,7 +605,7 @@ namespace FightFace
             return null;
         }
 
-        public static Sprite LoadModularPartSprite(string characterName, string partName)
+        public static Sprite LoadModularPartSprite(string characterName, string partName, Vector2 pivot, float pixelsPerUnit = 220f)
         {
             string path = Path.Combine(Application.dataPath, "Sprites", "Modular", characterName, $"{partName}.png");
             if (File.Exists(path))
@@ -616,10 +616,22 @@ namespace FightFace
                 {
                     tex.filterMode = FilterMode.Bilinear;
                     tex.wrapMode = TextureWrapMode.Clamp;
-                    return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                    return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), pivot, pixelsPerUnit);
                 }
             }
             return null;
+        }
+
+        public static Sprite LoadModularPartSprite(string characterName, string partName)
+        {
+            Vector2 pivot = new Vector2(0.5f, 0.5f);
+            if (partName.Contains("Torso")) pivot = new Vector2(0.5f, 0.05f);
+            else if (partName.Contains("Pelvis")) pivot = new Vector2(0.5f, 0.55f);
+            else if (partName.Contains("Upper") || partName.Contains("Forearm") || partName.Contains("Thigh") || partName.Contains("Calf")) pivot = new Vector2(0.5f, 0.90f);
+            else if (partName.Contains("Hand")) pivot = new Vector2(0.5f, 0.85f);
+            else if (partName.Contains("Head")) pivot = new Vector2(0.5f, 0.15f);
+
+            return LoadModularPartSprite(characterName, partName, pivot, 220f);
         }
 
         public static Sprite LoadStageStreetSprite()

@@ -180,13 +180,25 @@ namespace FightFace
             transform.localScale = initialLocalScale;
         }
 
+        public bool isRageLocked = false;
+
+        public void SetRageMode(bool active)
+        {
+            isRageLocked = active;
+            if (active && currentEmotion != FaceType.KO)
+            {
+                SetFace(FaceType.Enojo);
+            }
+        }
+
         /// <summary>
-        /// Vuelve la cabeza a la pose neutra.
+        /// Vuelve la cabeza a la pose neutra (o a Rabia si está en modo Rage).
         /// </summary>
         public void ResetToBaseFace()
         {
-            currentEmotion = FaceType.Base;
-            ApplyEmotion(FaceType.Base);
+            FaceType target = isRageLocked ? FaceType.Enojo : FaceType.Base;
+            currentEmotion = target;
+            ApplyEmotion(target);
             transform.localPosition = initialLocalPosition;
             transform.localScale = initialLocalScale;
         }

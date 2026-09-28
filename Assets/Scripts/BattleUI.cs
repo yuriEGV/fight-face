@@ -5,13 +5,14 @@ using UnityEngine.UI;
 namespace FightFace
 {
     /// <summary>
-    /// Interfaz gráfica de combate completa:
-    /// - Barras de vida con interpolación suave.
-    /// - Miniaturas de rostros reactivas a las 4 emociones en tiempo real.
-    /// - Temporizador estilo arcade 99s.
-    /// - Banners de ¡K.O.! y Victoria.
-    /// - Panel de personalización de caras y webcam.
-    /// - Guía interactiva de controles en pantalla.
+    /// Interfaz gráfica de combate estilo Street Fighter II:
+    /// - Barras de vida estilo retro arcade amarillas con ghosting rojo.
+    /// - Barras de Stun (aturdimiento) dinámicas.
+    /// - Indicadores RAGE READY pulsantes al caer bajo el 20% de HP.
+    /// - Retratos faciales reactivos en tiempo real con las fotos del jugador.
+    /// - Temporizador central y logotipo K.O.
+    /// - Notificaciones de combo dinámicas (🔥 X HITS! 💥 Y DAMAGE).
+    /// - Pantalla Modal de Victoria K.O. con la FOTO GANADOR (Foto 4).
     /// </summary>
     public class BattleUI : MonoBehaviour
     {
@@ -20,6 +21,9 @@ namespace FightFace
         [Header("Jugador 1")]
         public Image p1HealthFill;
         public Image p1HealthGhost;
+        public Image p1StunFill;
+        public GameObject p1StunBadge;
+        public GameObject p1RageBadge;
         public Image p1FacePortrait;
         public Text p1NameText;
         public Text p1HealthText;
@@ -27,16 +31,34 @@ namespace FightFace
         [Header("Jugador 2")]
         public Image p2HealthFill;
         public Image p2HealthGhost;
+        public Image p2StunFill;
+        public GameObject p2StunBadge;
+        public GameObject p2RageBadge;
         public Image p2FacePortrait;
         public Text p2NameText;
         public Text p2HealthText;
 
-        [Header("Temporizador y Mensajes")]
+        [Header("Temporizador y Banners Arcade")]
         public Text timerText;
         public Text centerBannerText;
         public GameObject centerBannerPanel;
 
-        [Header("Paneles y Modales")]
+        [Header("Contador de Combos")]
+        public GameObject comboPanel;
+        public Text comboHitsText;
+        public Text comboDamageText;
+        private Coroutine hideComboCoroutine;
+
+        [Header("Pantalla Modal de Victoria (Winner Screen)")]
+        public GameObject winnerModalPanel;
+        public Image winnerPortraitImage;
+        public Text winnerTitleText;
+        public Text winnerNameText;
+        public Text winnerStatsText;
+        public Button winnerRematchButton;
+        public Button winnerSelectButton;
+
+        [Header("Paneles y Navegación")]
         public GameObject characterSelectPanel;
         public GameObject faceCustomizerPanel;
         public GameObject controlsGuidePanel;
@@ -48,6 +70,8 @@ namespace FightFace
 
         private float p1TargetFill = 1f;
         private float p2TargetFill = 1f;
+        private float p1TargetStun = 0f;
+        private float p2TargetStun = 0f;
 
         private void Awake()
         {
@@ -68,8 +92,26 @@ namespace FightFace
             {
                 rematchButton.onClick.AddListener(() =>
                 {
-                    if (BattleManager.Instance != null)
-                        BattleManager.Instance.RestartMatch();
+                    if (winnerModalPanel != null) winnerModalPanel.SetActive(false);
+                    if (BattleManager.Instance != null) BattleManager.Instance.RestartMatch();
+                });
+            }
+
+            if (winnerRematchButton != null)
+            {
+                winnerRematchButton.onClick.AddListener(() =>
+                {
+                    if (winnerModalPanel != null) winnerModalPanel.SetActive(false);
+                    if (BattleManager.Instance != null) BattleManager.Instance.RestartMatch();
+                });
+            }
+
+            if (winnerSelectButton != null)
+            {
+                winnerSelectButton.onClick.AddListener(() =>
+                {
+                    if (winnerModalPanel != null) winnerModalPanel.SetActive(false);
+                    ShowCharacterSelectMenu();
                 });
             }
 
@@ -92,17 +134,27 @@ namespace FightFace
                 closeCustomizerButton.onClick.AddListener(ToggleFaceCustomizer);
             }
 
-            if (centerBannerPanel != null)
+            if (openSelectMenuButton != null)
             {
-                centerBannerPanel.SetActive(false);
+                openSelectMenuButton.onClick.AddListener(ToggleCharacterSelectMenu);
             }
+
+            if (centerBannerPanel != null) centerBannerPanel.SetActive(false);
+            if (comboPanel != null) comboPanel.SetActive(false);
+            if (winnerModalPanel != null) winnerModalPanel.SetActive(false);
+            if (p1StunBadge != null) p1StunBadge.SetActive(false);
+            if (p2StunBadge != null) p2StunBadge.SetActive(false);
+            if (p1RageBadge != null) p1RageBadge.SetActive(false);
+            if (p2RageBadge != null) p2RageBadge.SetActive(false);
         }
 
         private void Update()
         {
-            // Atajos de teclado rápidos
+            // Atajos de teclado
             if (FightInput.GetRestart())
             {
+                if (winnerModalPanel != null && winnerModalPanel.activeSelf)
+                    winnerModalPanel.SetActive(false);
                 if (BattleManager.Instance != null)
                     BattleManager.Instance.RestartMatch();
             }
@@ -123,26 +175,23 @@ namespace FightFace
                 ToggleCharacterSelectMenu();
             }
 
-            // Suavizado de barras de vida usando unscaledDeltaTime (inmune a pausas de Hitstop)
+            // Suavizado de barras de vida y stun
             if (p1HealthFill != null)
-            {
                 p1HealthFill.fillAmount = Mathf.Lerp(p1HealthFill.fillAmount, p1TargetFill, Time.unscaledDeltaTime * 14f);
-            }
             if (p1HealthGhost != null)
-            {
                 p1HealthGhost.fillAmount = Mathf.Lerp(p1HealthGhost.fillAmount, p1TargetFill, Time.unscaledDeltaTime * 4f);
-            }
 
             if (p2HealthFill != null)
-            {
                 p2HealthFill.fillAmount = Mathf.Lerp(p2HealthFill.fillAmount, p2TargetFill, Time.unscaledDeltaTime * 14f);
-            }
             if (p2HealthGhost != null)
-            {
                 p2HealthGhost.fillAmount = Mathf.Lerp(p2HealthGhost.fillAmount, p2TargetFill, Time.unscaledDeltaTime * 4f);
-            }
 
-            // Actualizar retratos de caras en tiempo real
+            if (p1StunFill != null)
+                p1StunFill.fillAmount = Mathf.Lerp(p1StunFill.fillAmount, p1TargetStun, Time.unscaledDeltaTime * 10f);
+            if (p2StunFill != null)
+                p2StunFill.fillAmount = Mathf.Lerp(p2StunFill.fillAmount, p2TargetStun, Time.unscaledDeltaTime * 10f);
+
+            // Actualizar retratos
             UpdateFacePortraits();
         }
 
@@ -183,6 +232,75 @@ namespace FightFace
             {
                 p2TargetFill = fill;
                 if (p2HealthText != null) p2HealthText.text = $"{Mathf.Max(0, current)} / {max}";
+            }
+        }
+
+        public void UpdateStun(int playerId, float current, float max)
+        {
+            float fill = Mathf.Clamp01(current / Mathf.Max(1f, max));
+            if (playerId == 1) p1TargetStun = fill;
+            else p2TargetStun = fill;
+        }
+
+        public void ShowStunBadge(int playerId, bool active)
+        {
+            if (playerId == 1 && p1StunBadge != null) p1StunBadge.SetActive(active);
+            else if (playerId == 2 && p2StunBadge != null) p2StunBadge.SetActive(active);
+        }
+
+        public void SetRageBadge(int playerId, bool active)
+        {
+            if (playerId == 1 && p1RageBadge != null) p1RageBadge.SetActive(active);
+            else if (playerId == 2 && p2RageBadge != null) p2RageBadge.SetActive(active);
+        }
+
+        public void ShowComboNotification(int attackerPlayerId, int hits, int damage)
+        {
+            if (comboPanel == null || comboHitsText == null || comboDamageText == null) return;
+
+            comboHitsText.text = $"🔥 {hits} HITS!";
+            comboDamageText.text = $"💥 {damage} DAMAGE";
+            comboPanel.SetActive(true);
+
+            if (hideComboCoroutine != null) StopCoroutine(hideComboCoroutine);
+            hideComboCoroutine = StartCoroutine(HideComboRoutine(1.3f));
+        }
+
+        private IEnumerator HideComboRoutine(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            if (comboPanel != null) comboPanel.SetActive(false);
+            hideComboCoroutine = null;
+        }
+
+        /// <summary>
+        /// Muestra la pantalla oficial de ganador usando la FOTO GANADOR (Foto 4).
+        /// </summary>
+        public void ShowWinnerScreen(FighterController winner, FighterController loser)
+        {
+            if (winnerModalPanel == null) return;
+
+            winnerModalPanel.SetActive(true);
+
+            if (winnerTitleText != null) winnerTitleText.text = "🏆 WINNER 🏆";
+            if (winnerNameText != null && winner != null) winnerNameText.text = winner.fighterName.ToUpper();
+
+            if (winnerStatsText != null && winner != null)
+            {
+                int healthPct = Mathf.RoundToInt(winner.HealthPercent * 100f);
+                int maxHits = winner.maxComboHits > 0 ? winner.maxComboHits : 1;
+                winnerStatsText.text = $"❤️ {healthPct}% SALUD RESTANTE\n🔥 MAX COMBO: {maxHits} HITS";
+            }
+
+            // Foto Ganador
+            if (winnerPortraitImage != null && winner != null && winner.faceController != null)
+            {
+                var prof = winner.faceController.Profile;
+                if (prof != null)
+                {
+                    Sprite winSprite = prof.faceWinner != null ? prof.faceWinner : prof.GetSprite(FaceType.Ganador);
+                    if (winSprite != null) winnerPortraitImage.sprite = winSprite;
+                }
             }
         }
 

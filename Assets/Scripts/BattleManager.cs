@@ -182,13 +182,28 @@ namespace FightFace
 
             Debug.Log($"[BattleManager] ¡Fin del combate! Ganador: {winnerName}");
 
+            if (winner != null)
+            {
+                winner.TriggerVictory();
+            }
+
             if (TournamentManager.Instance != null && TournamentManager.Instance.isTournamentModeActive)
             {
                 TournamentManager.Instance.OnMatchWonBy(winner);
             }
             else if (BattleUI.Instance != null)
             {
-                BattleUI.Instance.ShowBanner($"¡K.O.!\n¡GANADOR: {winnerName.ToUpper()}!", 5f);
+                BattleUI.Instance.ShowBanner("¡K.O.!", 2.0f);
+                StartCoroutine(ShowWinnerModalDelayed(winner, defeated, 1.2f));
+            }
+        }
+
+        private IEnumerator ShowWinnerModalDelayed(FighterController winner, FighterController loser, float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            if (BattleUI.Instance != null)
+            {
+                BattleUI.Instance.ShowWinnerScreen(winner, loser);
             }
         }
 

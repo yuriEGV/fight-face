@@ -5,8 +5,11 @@ using UnityEngine;
 namespace FightFace
 {
     /// <summary>
-    /// Perfil facial de un luchador con las 4 expresiones clave.
-    /// Soporta carga desde archivos locales, guardado en disco y asignación en tiempo de ejecución.
+    /// Perfil facial de un luchador con las 4 expresiones clave según el diseño completo:
+    /// 1. Foto Normal (Foto_Base.png): Mirando a cámara, boca relajada.
+    /// 2. Foto Dolor (Foto_Dolor.png): Expresión de dolor, rostro contraído.
+    /// 3. Foto Rabia (Foto_Rabia.png o Foto_Enojo.png): Expresión agresiva / Rage.
+    /// 4. Foto Ganador (Foto_Ganador.png): Sonrisa / celebración de victoria.
     /// </summary>
     [Serializable]
     public class FaceProfile
@@ -14,10 +17,11 @@ namespace FightFace
         public int fighterId = 1;
         public string fighterName = "Luchador";
 
-        public Sprite faceBase;
-        public Sprite faceAngry;
-        public Sprite faceHurt;
-        public Sprite faceKO;
+        public Sprite faceBase;     // 1. Normal
+        public Sprite faceHurt;     // 2. Dolor
+        public Sprite faceAngry;    // 3. Rabia / Enojo
+        public Sprite faceWinner;   // 4. Ganador (¡Celebración de Victoria!)
+        public Sprite faceKO;       // Derrota / K.O.
 
         public Sprite GetSprite(FaceType type)
         {
@@ -25,12 +29,14 @@ namespace FightFace
             {
                 case FaceType.Base:
                     return faceBase;
-                case FaceType.Enojo:
-                    return faceAngry != null ? faceAngry : faceBase;
                 case FaceType.Dolor:
                     return faceHurt != null ? faceHurt : faceBase;
+                case FaceType.Enojo:
+                    return faceAngry != null ? faceAngry : faceBase;
+                case FaceType.Ganador:
+                    return faceWinner != null ? faceWinner : (faceBase != null ? faceBase : faceAngry);
                 case FaceType.KO:
-                    return faceKO != null ? faceKO : faceBase;
+                    return faceKO != null ? faceKO : (faceHurt != null ? faceHurt : faceBase);
                 default:
                     return faceBase;
             }
@@ -43,11 +49,14 @@ namespace FightFace
                 case FaceType.Base:
                     faceBase = sprite;
                     break;
+                case FaceType.Dolor:
+                    faceHurt = sprite;
+                    break;
                 case FaceType.Enojo:
                     faceAngry = sprite;
                     break;
-                case FaceType.Dolor:
-                    faceHurt = sprite;
+                case FaceType.Ganador:
+                    faceWinner = sprite;
                     break;
                 case FaceType.KO:
                     faceKO = sprite;
@@ -57,7 +66,6 @@ namespace FightFace
 
         /// <summary>
         /// Carga las 4 caras desde una carpeta específica del disco.
-        /// Busca Foto_Base.png, Foto_Enojo.png, Foto_Dolor.png, Foto_KO.png.
         /// </summary>
         public bool LoadFromDirectory(string directoryPath)
         {
@@ -68,8 +76,12 @@ namespace FightFace
             }
 
             string basePath = Path.Combine(directoryPath, "Foto_Base.png");
-            string angryPath = Path.Combine(directoryPath, "Foto_Enojo.png");
             string hurtPath = Path.Combine(directoryPath, "Foto_Dolor.png");
+
+            string angryPath = Path.Combine(directoryPath, "Foto_Rabia.png");
+            if (!File.Exists(angryPath)) angryPath = Path.Combine(directoryPath, "Foto_Enojo.png");
+
+            string winnerPath = Path.Combine(directoryPath, "Foto_Ganador.png");
             string koPath = Path.Combine(directoryPath, "Foto_KO.png");
 
             bool anyLoaded = false;
@@ -79,14 +91,19 @@ namespace FightFace
                 faceBase = FaceLoader.LoadSpriteFromFile(basePath);
                 anyLoaded = true;
             }
+            if (File.Exists(hurtPath))
+            {
+                faceHurt = FaceLoader.LoadSpriteFromFile(hurtPath);
+                anyLoaded = true;
+            }
             if (File.Exists(angryPath))
             {
                 faceAngry = FaceLoader.LoadSpriteFromFile(angryPath);
                 anyLoaded = true;
             }
-            if (File.Exists(hurtPath))
+            if (File.Exists(winnerPath))
             {
-                faceHurt = FaceLoader.LoadSpriteFromFile(hurtPath);
+                faceWinner = FaceLoader.LoadSpriteFromFile(winnerPath);
                 anyLoaded = true;
             }
             if (File.Exists(koPath))
@@ -99,7 +116,7 @@ namespace FightFace
         }
 
         /// <summary>
-        /// Guarda las 4 texturas de las caras en una carpeta del disco.
+        /// Guarda las texturas de las caras en disco.
         /// </summary>
         public void SaveToDirectory(string directoryPath)
         {
@@ -109,9 +126,12 @@ namespace FightFace
             }
 
             SaveSpriteToFile(faceBase, Path.Combine(directoryPath, "Foto_Base.png"));
-            SaveSpriteToFile(faceAngry, Path.Combine(directoryPath, "Foto_Enojo.png"));
             SaveSpriteToFile(faceHurt, Path.Combine(directoryPath, "Foto_Dolor.png"));
+            SaveSpriteToFile(faceAngry, Path.Combine(directoryPath, "Foto_Rabia.png"));
+            SaveSpriteToFile(faceAngry, Path.Combine(directoryPath, "Foto_Enojo.png"));
+            SaveSpriteToFile(faceWinner, Path.Combine(directoryPath, "Foto_Ganador.png"));
             SaveSpriteToFile(faceKO, Path.Combine(directoryPath, "Foto_KO.png"));
+
             Debug.Log($"[FaceProfile] Caras guardadas exitosamente en: {directoryPath}");
         }
 

@@ -49,7 +49,46 @@ namespace FightFace
             StartCoroutine(CameraShakeRoutine(isHeavy ? 0.2f : 0.1f, isHeavy ? 0.18f : 0.08f));
         }
 
-        private void CreateComicTextEffect(Vector2 pos, string word, bool isHeavy)
+        public void SpawnBlockEffect(Vector2 position)
+        {
+            CreateComicTextEffect(position, "¡BLOCK!", false, new Color(0.2f, 0.7f, 1f));
+            StartCoroutine(HitStopRoutine(0.03f));
+            StartCoroutine(CameraShakeRoutine(0.08f, 0.04f));
+        }
+
+        public void SpawnStunStars(Transform targetHead, float duration = 2.0f)
+        {
+            if (targetHead == null) return;
+            StartCoroutine(StunStarsRoutine(targetHead, duration));
+        }
+
+        private IEnumerator StunStarsRoutine(Transform head, float duration)
+        {
+            GameObject starsObj = new GameObject("StunStars");
+            starsObj.transform.SetParent(head, false);
+            starsObj.transform.localPosition = new Vector3(0, 0.65f, -0.5f);
+
+            var tm = starsObj.AddComponent<TextMesh>();
+            tm.text = "★  💫  ★";
+            tm.fontSize = 42;
+            tm.alignment = TextAlignment.Center;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.color = new Color(1f, 0.95f, 0.2f);
+
+            float elapsed = 0f;
+            while (elapsed < duration && head != null)
+            {
+                elapsed += Time.deltaTime;
+                float angle = elapsed * 360f;
+                starsObj.transform.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(angle * Mathf.Deg2Rad) * 20f);
+                starsObj.transform.localPosition = new Vector3(Mathf.Cos(angle * Mathf.Deg2Rad) * 0.25f, 0.65f + Mathf.Sin(angle * Mathf.Deg2Rad * 2f) * 0.08f, -0.5f);
+                yield return null;
+            }
+
+            Destroy(starsObj);
+        }
+
+        private void CreateComicTextEffect(Vector2 pos, string word, bool isHeavy, Color? customColor = null)
         {
             GameObject textObj = new GameObject("HitPopup_" + word);
             textObj.transform.position = new Vector3(pos.x, pos.y + 0.3f, -1f);
@@ -59,7 +98,7 @@ namespace FightFace
             textMesh.fontSize = isHeavy ? 48 : 36;
             textMesh.alignment = TextAlignment.Center;
             textMesh.anchor = TextAnchor.MiddleCenter;
-            textMesh.color = isHeavy ? new Color(1f, 0.2f, 0.1f) : new Color(1f, 0.9f, 0.2f);
+            textMesh.color = customColor.HasValue ? customColor.Value : (isHeavy ? new Color(1f, 0.2f, 0.1f) : new Color(1f, 0.9f, 0.2f));
 
             // Orientar y escalar
             float initialScale = isHeavy ? 0.025f : 0.018f;

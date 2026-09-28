@@ -2,17 +2,19 @@ namespace FightFace
 {
     /// <summary>
     /// Tipos de expresiones faciales para los luchadores.
-    /// Incluye las 4 caras del sistema:
-    /// - Base: Expresión neutra / en reposo / caminando.
-    /// - Enojo: ¡Nueva cara! Expresión de odio, furia y ataque al golpear.
-    /// - Dolor: Expresión de quejido, daño o mueca al recibir golpes.
-    /// - KO: Expresión derrotada (ojos cerrados / noqueado) al llegar a 0 de vida.
+    /// Incluye las 4 fotos clave del sistema:
+    /// - Base: Expresión normal / relajada / mirando a cámara.
+    /// - Dolor: Expresión de daño / golpe crítico o aturdimiento (Stun).
+    /// - Enojo / Rabia: Expresión agresiva / ceño fruncido (activada en Rage y ataques especiales).
+    /// - Ganador: Expresión de victoria / celebración / sonrisa.
+    /// - KO: Expresión derrotada / ojos cerrados.
     /// </summary>
     public enum FaceType
     {
-        Base,   // Foto_Base.png - Rostro neutral / pose de pelea
-        Enojo,  // Foto_Enojo.png - Rostro de enojo / odio / ataque (¡4ta cara!)
-        Dolor,  // Foto_Dolor.png - Rostro de dolor / golpe recibido
-        KO      // Foto_KO.png - Rostro de derrota / noqueado
+        Base,       // Foto_Base.png - Rostro neutral / mirando de frente
+        Dolor,      // Foto_Dolor.png - Rostro de dolor / mueca de golpe
+        Enojo,      // Foto_Enojo.png o Foto_Rabia.png - Rostro de furia / Rage / Super
+        Ganador,    // Foto_Ganador.png - Rostro de victoria / celebración (¡4ta foto!)
+        KO          // Foto_KO.png - Rostro de derrota / noqueado
     }
 }

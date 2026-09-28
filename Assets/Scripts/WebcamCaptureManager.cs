@@ -6,11 +6,11 @@ using UnityEngine.UI;
 namespace FightFace
 {
     /// <summary>
-    /// Gestiona la captura de rostros con Webcam:
-    /// - Soporte para Jugador 1, Jugador 2 y todos los luchadores del Campeonato (1 a 8).
-    /// - Recorte automático ovalado con borde cómic (Sticker).
-    /// - Corrección de orientación (Invertir verticalmente / Espejo horizontal).
-    /// - Persistencia de las 4 fotos (Base, Enojo, Dolor, KO).
+    /// Gestiona la captura de rostros con Webcam según la estructura completa:
+    /// 1. 📷 FOTO NORMAL: Mirando directamente a cámara, boca relajada.
+    /// 2. 📷 FOTO DOLOR: Expresión de dolor, rostro ligeramente contraído (se activa al recibir daño fuerte / Stun).
+    /// 3. 📷 FOTO RABIA: Expresión agresiva, ceño fruncido (se activa en estado RAGE y ataques especiales).
+    /// 4. 📷 FOTO GANADOR: Sonrisa / celebración de victoria (se muestra en la pantalla de WINNER al noquear).
     /// </summary>
     public class WebcamCaptureManager : MonoBehaviour
     {
@@ -20,19 +20,25 @@ namespace FightFace
         public RawImage cameraPreviewUI;
 
         [Header("Miniaturas de las 4 Caras")]
-        public Image previewThumbBase;
-        public Image previewThumbAngry;
-        public Image previewThumbHurt;
-        public Image previewThumbKO;
+        public Image previewThumbBase;     // 1. Normal
+        public Image previewThumbHurt;     // 2. Dolor
+        public Image previewThumbAngry;    // 3. Rabia
+        public Image previewThumbWinner;   // 4. Ganador
+        public Image previewThumbKO;       // KO (opcional o compatibilidad)
 
-        [Header("Luchador Activo")]
+        [Header("Luchador Activo y Nombre")]
         public int targetFighterId = 1;
         public Text targetFighterLabel;
+        public InputField fighterNameInput;
+
+        [Header("Guía Visual")]
+        public Text guideTitleText;
+        public Text guideDescriptionText;
 
         [Header("Orientación y Zoom")]
-        public bool flipVertical = true; // Por defecto TRUE en Windows DirectX para que las fotos queden derechas
+        public bool flipVertical = false; // Por defecto FALSE en Windows para que las fotos queden perfectamente derechas
         public bool flipHorizontal = false;
-        public float faceZoom = 1.45f; // Zoom por defecto para encuadrar directamente el rostro sin espacios en blanco
+        public float faceZoom = 1.45f;    // Zoom óptimo para encuadrar directamente el rostro sin huecos vacíos
         public Text flipStatusText;
 
         private WebCamTexture webcamTexture;
@@ -61,6 +67,11 @@ namespace FightFace
         private void Start()
         {
             SetTargetFighter(1);
+
+            if (fighterNameInput != null)
+            {
+                fighterNameInput.onValueChanged.AddListener(OnFighterNameChanged);
+            }
         }
 
         public void SetTargetFighter(int fighterId)
@@ -93,9 +104,26 @@ namespace FightFace
             {
                 targetFighterLabel.text = $"Editando: <b>Luchador {targetFighterId} ({activeProfile.fighterName})</b>";
             }
+            if (fighterNameInput != null)
+            {
+                fighterNameInput.text = activeProfile.fighterName;
+            }
 
+            SetGuideForEmotion(FaceType.Base);
             UpdateThumbnailPreviews();
             UpdateFlipStatusText();
+        }
+
+        public void OnFighterNameChanged(string newName)
+        {
+            if (activeProfile != null && !string.IsNullOrEmpty(newName))
+            {
+                activeProfile.fighterName = newName;
+                if (targetFighterLabel != null)
+                {
+                    targetFighterLabel.text = $"Editando: <b>Luchador {targetFighterId} ({newName})</b>";
+                }
+            }
         }
 
         public string GetFighterDefaultName(int id)
@@ -137,14 +165,12 @@ namespace FightFace
         {
             faceZoom = Mathf.Min(2.5f, faceZoom + 0.15f);
             UpdateFlipStatusText();
-            Debug.Log($"[WebcamCapture] Zoom: {faceZoom:F2}x");
         }
 
         public void ZoomOut()
         {
             faceZoom = Mathf.Max(1.0f, faceZoom - 0.15f);
             UpdateFlipStatusText();
-            Debug.Log($"[WebcamCapture] Zoom: {faceZoom:F2}x");
         }
 
         private void UpdateFlipStatusText()
@@ -152,6 +178,32 @@ namespace FightFace
             if (flipStatusText != null)
             {
                 flipStatusText.text = $"Giro: {(flipVertical ? "180°" : "0°")} | Espejo: {(flipHorizontal ? "ON" : "OFF")} | Zoom: {faceZoom:F1}x";
+            }
+        }
+
+        public void SetGuideForEmotion(FaceType emotion)
+        {
+            if (guideTitleText == null || guideDescriptionText == null) return;
+
+            switch (emotion)
+            {
+                case FaceType.Base:
+                    guideTitleText.text = "1. 📷 FOTO NORMAL";
+                    guideDescriptionText.text = "Mirando directamente a la cámara • Boca relajada • Rostro centrado en el círculo verde";
+                    break;
+                case FaceType.Dolor:
+                    guideTitleText.text = "2. 📷 FOTO DOLOR";
+                    guideDescriptionText.text = "Expresión de dolor o golpe • Rostro ligeramente contraído • Ojos apretados";
+                    break;
+                case FaceType.Enojo:
+                    guideTitleText.text = "3. 📷 FOTO RABIA (RAGE / SUPER)";
+                    guideDescriptionText.text = "Expresión agresiva • Ceño fruncido • Boca gritando o enseñando los dientes";
+                    break;
+                case FaceType.Ganador:
+                case FaceType.KO:
+                    guideTitleText.text = "4. 📷 FOTO GANADOR (VICTORIA)";
+                    guideDescriptionText.text = "Gran sonrisa o celebración triunfal • Actitud de campeón para la pantalla de victoria";
+                    break;
             }
         }
 
@@ -194,9 +246,31 @@ namespace FightFace
             }
         }
 
-        /// <summary>
-        /// Captura el fotograma actual de la webcam para una emoción y lo recorta como cabeza ovalada cómica.
-        /// </summary>
+        // Métodos de captura directos para los 4 botones
+        public void CaptureFotoNormal()
+        {
+            SetGuideForEmotion(FaceType.Base);
+            CaptureCurrentFrameAs(FaceType.Base);
+        }
+
+        public void CaptureFotoDolor()
+        {
+            SetGuideForEmotion(FaceType.Dolor);
+            CaptureCurrentFrameAs(FaceType.Dolor);
+        }
+
+        public void CaptureFotoRabia()
+        {
+            SetGuideForEmotion(FaceType.Enojo);
+            CaptureCurrentFrameAs(FaceType.Enojo);
+        }
+
+        public void CaptureFotoGanador()
+        {
+            SetGuideForEmotion(FaceType.Ganador);
+            CaptureCurrentFrameAs(FaceType.Ganador);
+        }
+
         public void CaptureCurrentFrameAs(FaceType emotion)
         {
             Texture2D snapshot = null;
@@ -225,11 +299,23 @@ namespace FightFace
             string fullPath = Path.Combine(saveFolderPath, filename);
             FaceLoader.SaveTextureToFile(snapshot, fullPath);
 
+            // Guardar también con nombres alternativos de compatibilidad
+            if (emotion == FaceType.Enojo)
+            {
+                FaceLoader.SaveTextureToFile(snapshot, Path.Combine(saveFolderPath, "Foto_Rabia.png"));
+                FaceLoader.SaveTextureToFile(snapshot, Path.Combine(saveFolderPath, "Foto_Enojo.png"));
+            }
+            else if (emotion == FaceType.Ganador)
+            {
+                FaceLoader.SaveTextureToFile(snapshot, Path.Combine(saveFolderPath, "Foto_Ganador.png"));
+                FaceLoader.SaveTextureToFile(snapshot, Path.Combine(saveFolderPath, "Foto_KO.png"));
+            }
+
             string altDir = Path.Combine(Application.persistentDataPath, "Luchadores", $"Luchador_{targetFighterId}");
             if (!Directory.Exists(altDir)) Directory.CreateDirectory(altDir);
             FaceLoader.SaveTextureToFile(snapshot, Path.Combine(altDir, filename));
 
-            Debug.Log($"[WebcamCapture] Foto {emotion} capturada y guardada en {fullPath}");
+            Debug.Log($"[WebcamCapture] Foto {emotion} guardada erguida en: {fullPath}");
 
             UpdateThumbnailPreviews();
             ApplyToActiveFighters();
@@ -240,16 +326,14 @@ namespace FightFace
             switch (emotion)
             {
                 case FaceType.Base: return "Foto_Base.png";
-                case FaceType.Enojo: return "Foto_Enojo.png";
                 case FaceType.Dolor: return "Foto_Dolor.png";
+                case FaceType.Enojo: return "Foto_Rabia.png";
+                case FaceType.Ganador: return "Foto_Ganador.png";
                 case FaceType.KO: return "Foto_KO.png";
                 default: return "Foto_Base.png";
             }
         }
 
-        /// <summary>
-        /// Captura desde la webcam y aplica el recorte ovalado con borde blanco para sticker.
-        /// </summary>
         private Texture2D CaptureStickerFromWebcam(WebCamTexture cam)
         {
             int w = cam.width;
@@ -260,19 +344,14 @@ namespace FightFace
             rawFrame.SetPixels32(pixels);
             rawFrame.Apply();
 
-            // Detectar si la webcam está invertida por hardware
-            bool shouldFlipY = flipVertical ^ cam.videoVerticallyMirrored;
+            // En Windows, flipVertical = false garantiza fotos erguidas y derechas
+            bool shouldFlipY = flipVertical;
 
-            // Recortar en forma de óvalo con zoom cerrado y borde sticker limpio
             Texture2D sticker = FaceLoader.MaskAsOvalHead(rawFrame, shouldFlipY, flipHorizontal, faceZoom);
-
             Destroy(rawFrame);
             return sticker;
         }
 
-        /// <summary>
-        /// Aplica el perfil facial capturado al luchador activo si está en combate.
-        /// </summary>
         public void ApplyToActiveFighters()
         {
             if (BattleManager.Instance != null)
@@ -280,10 +359,12 @@ namespace FightFace
                 if (BattleManager.Instance.player1 != null && BattleManager.Instance.player1.playerId == targetFighterId)
                 {
                     BattleManager.Instance.player1.faceController.SetProfile(activeProfile);
+                    BattleManager.Instance.player1.fighterName = activeProfile.fighterName;
                 }
                 else if (BattleManager.Instance.player2 != null && BattleManager.Instance.player2.playerId == targetFighterId)
                 {
                     BattleManager.Instance.player2.faceController.SetProfile(activeProfile);
+                    BattleManager.Instance.player2.fighterName = activeProfile.fighterName;
                 }
             }
         }
@@ -293,11 +374,15 @@ namespace FightFace
             if (previewThumbBase != null && activeProfile.faceBase != null)
                 previewThumbBase.sprite = activeProfile.faceBase;
 
+            if (previewThumbHurt != null && activeProfile.faceHurt != null)
+                previewThumbHurt.sprite = activeProfile.faceHurt;
+
             if (previewThumbAngry != null && activeProfile.faceAngry != null)
                 previewThumbAngry.sprite = activeProfile.faceAngry;
 
-            if (previewThumbHurt != null && activeProfile.faceHurt != null)
-                previewThumbHurt.sprite = activeProfile.faceHurt;
+            Sprite winnerSprite = activeProfile.faceWinner != null ? activeProfile.faceWinner : activeProfile.faceKO;
+            if (previewThumbWinner != null && winnerSprite != null)
+                previewThumbWinner.sprite = winnerSprite;
 
             if (previewThumbKO != null && activeProfile.faceKO != null)
                 previewThumbKO.sprite = activeProfile.faceKO;
