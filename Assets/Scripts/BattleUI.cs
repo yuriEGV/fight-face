@@ -357,6 +357,14 @@ namespace FightFace
             }
         }
 
+        public void ToggleTournamentMenu()
+        {
+            if (TournamentManager.Instance != null)
+            {
+                TournamentManager.Instance.StartNewTournament(1);
+            }
+        }
+
         public void RefreshFacePortraits()
         {
             UpdateFacePortraits();

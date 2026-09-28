@@ -138,7 +138,11 @@ namespace FightFace
             // Atajos rápidos
             if (FightInput.GetTournamentStart())
             {
-                if (BattleUI.Instance != null) BattleUI.Instance.ToggleTournamentMenu();
+                if (TournamentManager.Instance != null)
+                {
+                    TournamentManager.Instance.StartNewTournament(1);
+                    gameObject.SetActive(false);
+                }
             }
 
             if (FightInput.GetToggleCustomizer())
