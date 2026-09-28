@@ -35,6 +35,11 @@ namespace FightFace
         public Hitbox punchHitbox;
         public Hitbox kickHitbox;
 
+        [Header("Estado y Hitstun")]
+        public bool estaEnStun = false;
+        private Coroutine activeAttackRoutine;
+        private Coroutine activeHitstunRoutine;
+
         private Rigidbody2D rb;
         private bool isGrounded = true;
         private bool isAlive = true;
@@ -58,6 +63,7 @@ namespace FightFace
 
             currentHealth = maxHealth;
             isAlive = true;
+            estaEnStun = false;
         }
 
         private void Start()
@@ -76,14 +82,19 @@ namespace FightFace
 
         private void SetupHitboxes()
         {
+            // Registrar Hurtbox corporal para detección de impacto estilo Street Fighter
+            var hurtbox = GetComponent<Hurtbox>();
+            if (hurtbox == null) hurtbox = gameObject.AddComponent<Hurtbox>();
+            hurtbox.ownerFighter = this;
+
             // Si no hay hitboxes asignadas en el inspector, las creamos automáticamente
             if (punchHitbox == null)
             {
                 GameObject punchObj = new GameObject("PunchHitbox");
                 punchObj.transform.SetParent(transform, false);
-                punchObj.transform.localPosition = new Vector3(0.7f, 0.8f, 0);
+                punchObj.transform.localPosition = new Vector3(0.85f, 0.85f, 0);
                 var box = punchObj.AddComponent<BoxCollider2D>();
-                box.size = new Vector2(0.6f, 0.5f);
+                box.size = new Vector2(0.8f, 0.6f);
                 box.isTrigger = true;
                 punchHitbox = punchObj.AddComponent<Hitbox>();
                 punchHitbox.Initialize(this);
@@ -97,9 +108,9 @@ namespace FightFace
             {
                 GameObject kickObj = new GameObject("KickHitbox");
                 kickObj.transform.SetParent(transform, false);
-                kickObj.transform.localPosition = new Vector3(0.8f, 0.2f, 0);
+                kickObj.transform.localPosition = new Vector3(0.95f, 0.35f, 0);
                 var box = kickObj.AddComponent<BoxCollider2D>();
-                box.size = new Vector2(0.7f, 0.5f);
+                box.size = new Vector2(0.9f, 0.6f);
                 box.isTrigger = true;
                 kickHitbox = kickObj.AddComponent<Hitbox>();
                 kickHitbox.Initialize(this);
@@ -114,16 +125,23 @@ namespace FightFace
         {
             if (!isAlive) return;
 
-            // Mirar siempre hacia el oponente
-            UpdateFacingDirection();
-
-            if (isAI)
+            // Mirar siempre hacia el oponente mientras no ataque ni esté aturdido
+            if (!estaEnStun)
             {
-                HandleAIUpdate();
+                UpdateFacingDirection();
             }
-            else
+
+            // Si está en Hitstun (aturdido por un impacto), no puede moverse ni atacar
+            if (!estaEnStun)
             {
-                HandlePlayerInput();
+                if (isAI)
+                {
+                    HandleAIUpdate();
+                }
+                else
+                {
+                    HandlePlayerInput();
+                }
             }
 
             // Actualizar animaciones del cuerpo
@@ -135,7 +153,7 @@ namespace FightFace
 
         private void UpdateFacingDirection()
         {
-            if (opponent == null || isAttacking) return;
+            if (opponent == null || isAttacking || estaEnStun) return;
 
             float dirToOpponent = opponent.position.x - transform.position.x;
             if (Mathf.Abs(dirToOpponent) > 0.3f)
@@ -147,6 +165,8 @@ namespace FightFace
 
         private void HandlePlayerInput()
         {
+            if (estaEnStun || !isAlive) return;
+
             float horizontal = 0f;
             bool jumpPressed = false;
             bool punchPressed = false;
@@ -182,7 +202,7 @@ namespace FightFace
                 isGrounded = false;
             }
 
-            // Ataques
+            // Ataques con Frame Data
             if (Time.time >= nextAttackTime && !isAttacking)
             {
                 if (punchPressed)
@@ -198,23 +218,23 @@ namespace FightFace
 
         private void HandleAIUpdate()
         {
-            if (opponent == null) return;
+            if (opponent == null || estaEnStun || !isAlive) return;
 
             float dist = Mathf.Abs(opponent.position.x - transform.position.x);
 
             if (Time.time >= aiNextDecisionTime)
             {
-                aiNextDecisionTime = Time.time + Random.Range(0.2f, 0.6f);
+                aiNextDecisionTime = Time.time + Random.Range(0.2f, 0.5f);
 
-                // Si está lejos, acercarse
+                // Si está lejos, acercase
                 if (dist > 1.6f)
                 {
                     aiMoveDir = (opponent.position.x > transform.position.x) ? 1f : -1f;
                 }
-                // Si está cerca, pelear
+                // Si está cerca, golpear
                 else
                 {
-                    aiMoveDir = Random.value < 0.3f ? ((opponent.position.x > transform.position.x) ? -1f : 1f) : 0f;
+                    aiMoveDir = Random.value < 0.25f ? ((opponent.position.x > transform.position.x) ? -1f : 1f) : 0f;
 
                     if (Time.time >= nextAttackTime && !isAttacking)
                     {
@@ -223,7 +243,7 @@ namespace FightFace
                         {
                             ExecutePunch();
                         }
-                        else if (atkRoll < 0.85f)
+                        else if (atkRoll < 0.90f)
                         {
                             ExecuteKick();
                         }
@@ -245,146 +265,198 @@ namespace FightFace
         }
 
         /// <summary>
-        /// Ejecuta un Puñetazo:
-        /// 1. Activa la cara de ENOJO y ODIO durante el golpe.
-        /// 2. Dispara la animación de puño del cuerpo.
-        /// 3. Habilita la hitbox de puño.
+        /// Puñetazo basado en Frame Data:
+        /// 1. Startup: Fotogramas de preparación (viento atrás, sin daño).
+        /// 2. Active: Fotogramas donde el golpe colisiona (Hitbox activa, extremidad articulada extendida).
+        /// 3. Recovery: Fotogramas de vulnerabilidad donde el personaje vuelve a guardia.
         /// </summary>
         public void ExecutePunch()
         {
-            if (isAttacking || !isAlive) return;
+            if (isAttacking || estaEnStun || !isAlive) return;
 
+            float startup = 0.08f;
+            float active = 0.10f;
+            float recovery = 0.14f;
+
+            nextAttackTime = Time.time + startup + active + recovery + 0.08f;
+
+            if (activeAttackRoutine != null) StopCoroutine(activeAttackRoutine);
+            activeAttackRoutine = StartCoroutine(PunchFrameDataRoutine(startup, active, recovery));
+        }
+
+        private IEnumerator PunchFrameDataRoutine(float startup, float active, float recovery)
+        {
             isAttacking = true;
-            nextAttackTime = Time.time + punchDuration + 0.1f;
 
-            // 1. CARA DE ENOJO Y ODIO
-            if (faceController != null)
+            // 1. STARTUP: Viento atrás y cara de enojo
+            if (punchHitbox != null) punchHitbox.DeactivateHitbox();
+            if (faceController != null) faceController.ShowTemporaryFace(FaceType.Enojo, startup + active);
+            if (bodyController != null) bodyController.PlayPunchAnimation(startup, active, recovery);
+
+            yield return new WaitForSeconds(startup);
+
+            // 2. ACTIVE: Impacto, extremidad visible extendida y colisión activa
+            if (punchHitbox != null && isAlive && !estaEnStun)
             {
-                faceController.ShowTemporaryFace(FaceType.Enojo, punchDuration);
+                punchHitbox.ActivateHitbox(punchDamage, 5.5f, false);
             }
 
-            // 2. Animación del cuerpo
-            if (bodyController != null)
-            {
-                bodyController.PlayPunchAnimation(punchDuration);
-            }
+            yield return new WaitForSeconds(active);
 
-            // 3. Activar Hitbox
-            if (punchHitbox != null)
-            {
-                punchHitbox.ActivateHitbox(punchDamage, 5f, false);
-            }
+            // 3. RECOVERY: Apagar hitbox y volver a guardia
+            if (punchHitbox != null) punchHitbox.DeactivateHitbox();
 
-            StartCoroutine(EndAttackRoutine(punchDuration, punchHitbox));
+            yield return new WaitForSeconds(recovery);
+
+            isAttacking = false;
+            activeAttackRoutine = null;
         }
 
         /// <summary>
-        /// Ejecuta una Patada:
-        /// 1. Activa la cara de ENOJO y ODIO con mayor intensidad.
-        /// 2. Dispara la animación de patada.
-        /// 3. Habilita la hitbox de patada.
+        /// Patada pesada basada en Frame Data.
         /// </summary>
         public void ExecuteKick()
         {
-            if (isAttacking || !isAlive) return;
+            if (isAttacking || estaEnStun || !isAlive) return;
 
-            isAttacking = true;
-            nextAttackTime = Time.time + kickDuration + 0.15f;
+            float startup = 0.12f;
+            float active = 0.12f;
+            float recovery = 0.18f;
 
-            // 1. CARA DE ENOJO Y ODIO
-            if (faceController != null)
-            {
-                faceController.ShowTemporaryFace(FaceType.Enojo, kickDuration);
-            }
+            nextAttackTime = Time.time + startup + active + recovery + 0.10f;
 
-            // 2. Animación del cuerpo
-            if (bodyController != null)
-            {
-                bodyController.PlayKickAnimation(kickDuration);
-            }
-
-            // 3. Activar Hitbox
-            if (kickHitbox != null)
-            {
-                kickHitbox.ActivateHitbox(kickDamage, 8f, true);
-            }
-
-            StartCoroutine(EndAttackRoutine(kickDuration, kickHitbox));
+            if (activeAttackRoutine != null) StopCoroutine(activeAttackRoutine);
+            activeAttackRoutine = StartCoroutine(KickFrameDataRoutine(startup, active, recovery));
         }
 
-        private IEnumerator EndAttackRoutine(float duration, Hitbox hitbox)
+        private IEnumerator KickFrameDataRoutine(float startup, float active, float recovery)
         {
-            yield return new WaitForSeconds(duration);
-            if (hitbox != null)
+            isAttacking = true;
+
+            // 1. STARTUP: Cargar pierna
+            if (kickHitbox != null) kickHitbox.DeactivateHitbox();
+            if (faceController != null) faceController.ShowTemporaryFace(FaceType.Enojo, startup + active);
+            if (bodyController != null) bodyController.PlayKickAnimation(startup, active, recovery);
+
+            yield return new WaitForSeconds(startup);
+
+            // 2. ACTIVE: Patada extendida
+            if (kickHitbox != null && isAlive && !estaEnStun)
             {
-                hitbox.DeactivateHitbox();
+                kickHitbox.ActivateHitbox(kickDamage, 8.5f, true);
             }
+
+            yield return new WaitForSeconds(active);
+
+            // 3. RECOVERY: Bajar pierna
+            if (kickHitbox != null) kickHitbox.DeactivateHitbox();
+
+            yield return new WaitForSeconds(recovery);
+
             isAttacking = false;
+            activeAttackRoutine = null;
         }
 
         /// <summary>
-        /// Aplica daño al recibir un golpe:
-        /// 1. Resta vida.
-        /// 2. Activa la cara de DOLOR.
-        /// 3. Aplica retroceso físico.
-        /// 4. Dispara animación de daño.
-        /// 5. Si la vida llega a 0, activa la cara de KO.
+        /// Aplica daño al recibir un impacto rival con sistema de Hitstun y empuje horizontal.
         /// </summary>
-        public void TakeDamage(int amount, Vector2 knockback)
+        public void RecibirImpacto(int danio, float fuerzaEmpuje, float origenX)
         {
             if (!isAlive) return;
 
-            currentHealth = Mathf.Max(0, currentHealth - amount);
+            currentHealth = Mathf.Max(0, currentHealth - danio);
 
             // Cancelar ataque si estaba golpeando
             if (isAttacking)
             {
                 isAttacking = false;
+                if (activeAttackRoutine != null)
+                {
+                    StopCoroutine(activeAttackRoutine);
+                    activeAttackRoutine = null;
+                }
                 if (punchHitbox != null) punchHitbox.DeactivateHitbox();
                 if (kickHitbox != null) kickHitbox.DeactivateHitbox();
             }
 
-            // Aplicar retroceso físico
-            rb.linearVelocity = Vector2.zero;
-            rb.AddForce(knockback, ForceMode2D.Impulse);
-
-            if (currentHealth > 0)
-            {
-                // 1. CARA DE DOLOR
-                float hurtTime = 0.35f;
-                if (faceController != null)
-                {
-                    faceController.ShowTemporaryFace(FaceType.Dolor, hurtTime);
-                }
-
-                if (bodyController != null)
-                {
-                    bodyController.PlayHurtAnimation(hurtTime);
-                }
-            }
-            else
+            if (currentHealth <= 0)
             {
                 Die();
             }
+            else
+            {
+                if (activeHitstunRoutine != null)
+                {
+                    StopCoroutine(activeHitstunRoutine);
+                }
+                activeHitstunRoutine = StartCoroutine(RutinaHitstun(0.35f, fuerzaEmpuje, origenX));
+            }
 
-            // Notificar a la UI
+            // Notificar inmediatamente a la interfaz gráfica
             if (BattleUI.Instance != null)
             {
                 BattleUI.Instance.UpdateHealth(playerId, currentHealth, maxHealth);
             }
         }
 
+        private IEnumerator RutinaHitstun(float duracion, float fuerza, float origenX)
+        {
+            estaEnStun = true;
+
+            // Cara de DOLOR durante todo el aturdimiento
+            if (faceController != null)
+            {
+                faceController.SetFace(FaceType.Dolor);
+            }
+
+            if (bodyController != null)
+            {
+                bodyController.PlayHurtAnimation(duracion);
+            }
+
+            // Calcular dirección opuesta al atacante (empuje horizontal)
+            float direccion = transform.position.x > origenX ? 1f : -1f;
+            rb.linearVelocity = new Vector2(direccion * fuerza, rb.linearVelocity.y * 0.5f);
+
+            yield return new WaitForSeconds(duracion);
+
+            rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
+
+            // Retorno a cara normal si sigue con vida
+            if (faceController != null && isAlive)
+            {
+                faceController.ResetToBaseFace();
+            }
+
+            estaEnStun = false;
+            activeHitstunRoutine = null;
+        }
+
+        public void TakeDamage(int amount, Vector2 knockback)
+        {
+            float originX = transform.position.x - Mathf.Sign(knockback.x);
+            RecibirImpacto(amount, knockback.magnitude, originX);
+        }
+
         /// <summary>
         /// El luchador ha sido derrotado (K.O.):
-        /// 1. Activa permanentemente la cara de KO (ojos cerrados/en cruz).
-        /// 2. Se detiene el movimiento.
-        /// 3. Se reproduce animación de caída cómica.
-        /// 4. Se declara el ganador en el BattleManager.
+        /// 1. Activa permanentemente la cara de KO.
+        /// 2. Detiene movimiento y desactiva colisiones ofensivas.
+        /// 3. Reproduce animación cómica de caída.
+        /// 4. Dispara el zoom dramático de cámara.
+        /// 5. Declara el ganador en el BattleManager.
         /// </summary>
         private void Die()
         {
             isAlive = false;
+            estaEnStun = false;
             currentHealth = 0;
+
+            if (activeAttackRoutine != null) StopCoroutine(activeAttackRoutine);
+            if (activeHitstunRoutine != null) StopCoroutine(activeHitstunRoutine);
+
+            if (punchHitbox != null) punchHitbox.DeactivateHitbox();
+            if (kickHitbox != null) kickHitbox.DeactivateHitbox();
 
             // 1. CARA DE KO
             if (faceController != null)
@@ -401,6 +473,12 @@ namespace FightFace
             rb.linearVelocity = Vector2.zero;
 
             Debug.Log($"¡[K.O.] {fighterName} (Jugador {playerId}) ha sido noqueado!");
+
+            // 3. Zoom dramático de cámara sobre el ganador
+            if (DynamicFightCamera.Instance != null && opponent != null)
+            {
+                DynamicFightCamera.Instance.TriggerKOZoom(opponent);
+            }
 
             if (BattleManager.Instance != null)
             {
@@ -427,7 +505,14 @@ namespace FightFace
             currentHealth = maxHealth;
             isAlive = true;
             isAttacking = false;
+            estaEnStun = false;
             rb.linearVelocity = Vector2.zero;
+
+            if (activeAttackRoutine != null) { StopCoroutine(activeAttackRoutine); activeAttackRoutine = null; }
+            if (activeHitstunRoutine != null) { StopCoroutine(activeHitstunRoutine); activeHitstunRoutine = null; }
+
+            if (punchHitbox != null) punchHitbox.DeactivateHitbox();
+            if (kickHitbox != null) kickHitbox.DeactivateHitbox();
 
             if (faceController != null)
             {

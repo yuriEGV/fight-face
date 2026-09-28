@@ -137,6 +137,18 @@ namespace FightFace
                 GameObject fxObj = new GameObject("CombatEffectsManager");
                 fxObj.AddComponent<CombatEffectsManager>();
             }
+
+            if (FightImpactManager.Instance == null)
+            {
+                GameObject impactObj = new GameObject("FightImpactManager");
+                impactObj.AddComponent<FightImpactManager>();
+            }
+
+            // Configurar Cámara Dinámica con zoom automático cuerpo a cuerpo y K.O.
+            if (Camera.main != null && Camera.main.GetComponent<DynamicFightCamera>() == null)
+            {
+                Camera.main.gameObject.AddComponent<DynamicFightCamera>();
+            }
         }
 
         private void SetupFighters(out FighterController p1, out FighterController p2)
@@ -333,6 +345,8 @@ namespace FightFace
             var p1BgImg = p1HpBg.AddComponent<Image>();
             p1BgImg.color = new Color(0.15f, 0.15f, 0.2f, 0.9f);
 
+            Sprite whiteSprite = CreateWhiteUiSprite();
+
             // P1 Ghost Bar
             GameObject p1GhostObj = new GameObject("P1_Hp_Ghost");
             p1GhostObj.transform.SetParent(p1HpBg.transform, false);
@@ -341,10 +355,11 @@ namespace FightFace
             p1GhostRect.anchorMax = Vector2.one;
             p1GhostRect.sizeDelta = Vector2.zero;
             ui.p1HealthGhost = p1GhostObj.AddComponent<Image>();
+            ui.p1HealthGhost.sprite = whiteSprite;
             ui.p1HealthGhost.color = new Color(1f, 0.3f, 0.1f, 0.8f);
             ui.p1HealthGhost.type = Image.Type.Filled;
             ui.p1HealthGhost.fillMethod = Image.FillMethod.Horizontal;
-            ui.p1HealthGhost.fillOrigin = 1;
+            ui.p1HealthGhost.fillOrigin = 0; // (int)Image.OriginHorizontal.Left (se vacía hacia el retrato en la izquierda)
 
             // P1 Fill Bar
             GameObject p1FillObj = new GameObject("P1_Hp_Fill");
@@ -354,10 +369,29 @@ namespace FightFace
             p1FillRect.anchorMax = Vector2.one;
             p1FillRect.sizeDelta = Vector2.zero;
             ui.p1HealthFill = p1FillObj.AddComponent<Image>();
+            ui.p1HealthFill.sprite = whiteSprite;
             ui.p1HealthFill.color = new Color(0.2f, 0.9f, 0.3f);
             ui.p1HealthFill.type = Image.Type.Filled;
             ui.p1HealthFill.fillMethod = Image.FillMethod.Horizontal;
-            ui.p1HealthFill.fillOrigin = 1;
+            ui.p1HealthFill.fillOrigin = 0; // (int)Image.OriginHorizontal.Left
+
+            // P1 HP Texto numérico
+            GameObject p1HpTxtObj = new GameObject("P1_Hp_Text");
+            p1HpTxtObj.transform.SetParent(p1HpBg.transform, false);
+            var p1HpTxtRect = p1HpTxtObj.AddComponent<RectTransform>();
+            p1HpTxtRect.anchorMin = Vector2.zero;
+            p1HpTxtRect.anchorMax = Vector2.one;
+            p1HpTxtRect.sizeDelta = Vector2.zero;
+            ui.p1HealthText = p1HpTxtObj.AddComponent<Text>();
+            ui.p1HealthText.text = "100 / 100";
+            ui.p1HealthText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            ui.p1HealthText.fontSize = 17;
+            ui.p1HealthText.fontStyle = FontStyle.Bold;
+            ui.p1HealthText.alignment = TextAnchor.MiddleCenter;
+            ui.p1HealthText.color = Color.white;
+            var p1Outline = p1HpTxtObj.AddComponent<Outline>();
+            p1Outline.effectColor = Color.black;
+            p1Outline.effectDistance = new Vector2(1, -1);
 
             // P1 Nombre
             GameObject p1NameObj = new GameObject("P1_Name");
@@ -407,10 +441,11 @@ namespace FightFace
             p2GhostRect.anchorMax = Vector2.one;
             p2GhostRect.sizeDelta = Vector2.zero;
             ui.p2HealthGhost = p2GhostObj.AddComponent<Image>();
+            ui.p2HealthGhost.sprite = whiteSprite;
             ui.p2HealthGhost.color = new Color(1f, 0.3f, 0.1f, 0.8f);
             ui.p2HealthGhost.type = Image.Type.Filled;
             ui.p2HealthGhost.fillMethod = Image.FillMethod.Horizontal;
-            ui.p2HealthGhost.fillOrigin = 0;
+            ui.p2HealthGhost.fillOrigin = 1; // (int)Image.OriginHorizontal.Right (se vacía hacia el retrato en la derecha)
 
             // P2 Fill Bar
             GameObject p2FillObj = new GameObject("P2_Hp_Fill");
@@ -420,10 +455,29 @@ namespace FightFace
             p2FillRect.anchorMax = Vector2.one;
             p2FillRect.sizeDelta = Vector2.zero;
             ui.p2HealthFill = p2FillObj.AddComponent<Image>();
+            ui.p2HealthFill.sprite = whiteSprite;
             ui.p2HealthFill.color = new Color(0.2f, 0.9f, 0.3f);
             ui.p2HealthFill.type = Image.Type.Filled;
             ui.p2HealthFill.fillMethod = Image.FillMethod.Horizontal;
-            ui.p2HealthFill.fillOrigin = 0;
+            ui.p2HealthFill.fillOrigin = 1; // (int)Image.OriginHorizontal.Right
+
+            // P2 HP Texto numérico
+            GameObject p2HpTxtObj = new GameObject("P2_Hp_Text");
+            p2HpTxtObj.transform.SetParent(p2HpBg.transform, false);
+            var p2HpTxtRect = p2HpTxtObj.AddComponent<RectTransform>();
+            p2HpTxtRect.anchorMin = Vector2.zero;
+            p2HpTxtRect.anchorMax = Vector2.one;
+            p2HpTxtRect.sizeDelta = Vector2.zero;
+            ui.p2HealthText = p2HpTxtObj.AddComponent<Text>();
+            ui.p2HealthText.text = "100 / 100";
+            ui.p2HealthText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            ui.p2HealthText.fontSize = 17;
+            ui.p2HealthText.fontStyle = FontStyle.Bold;
+            ui.p2HealthText.alignment = TextAnchor.MiddleCenter;
+            ui.p2HealthText.color = Color.white;
+            var p2Outline = p2HpTxtObj.AddComponent<Outline>();
+            p2Outline.effectColor = Color.black;
+            p2Outline.effectDistance = new Vector2(1, -1);
 
             // P2 Nombre
             GameObject p2NameObj = new GameObject("P2_Name");
@@ -832,7 +886,7 @@ namespace FightFace
             btnFlipV.transform.SetParent(container.transform, false);
             var vRect = btnFlipV.AddComponent<RectTransform>();
             vRect.anchorMin = new Vector2(0, 0);
-            vRect.anchorMax = new Vector2(0.48f, 1);
+            vRect.anchorMax = new Vector2(0.23f, 1);
             vRect.offsetMin = Vector2.zero;
             vRect.offsetMax = Vector2.zero;
             var vImg = btnFlipV.AddComponent<Image>();
@@ -847,9 +901,9 @@ namespace FightFace
             vTRect.anchorMax = Vector2.one;
             vTRect.sizeDelta = Vector2.zero;
             var vTxt = vTextObj.AddComponent<Text>();
-            vTxt.text = "🔄 Girar 180°";
+            vTxt.text = "🔄 Girar";
             vTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            vTxt.fontSize = 14;
+            vTxt.fontSize = 13;
             vTxt.fontStyle = FontStyle.Bold;
             vTxt.alignment = TextAnchor.MiddleCenter;
             vTxt.color = Color.white;
@@ -858,8 +912,8 @@ namespace FightFace
             GameObject btnFlipH = new GameObject("Btn_FlipH");
             btnFlipH.transform.SetParent(container.transform, false);
             var hRect = btnFlipH.AddComponent<RectTransform>();
-            hRect.anchorMin = new Vector2(0.52f, 0);
-            hRect.anchorMax = new Vector2(1f, 1);
+            hRect.anchorMin = new Vector2(0.25f, 0);
+            hRect.anchorMax = new Vector2(0.48f, 1);
             hRect.offsetMin = Vector2.zero;
             hRect.offsetMax = Vector2.zero;
             var hImg = btnFlipH.AddComponent<Image>();
@@ -876,10 +930,80 @@ namespace FightFace
             var hTxt = hTextObj.AddComponent<Text>();
             hTxt.text = "↔️ Espejo";
             hTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            hTxt.fontSize = 14;
+            hTxt.fontSize = 13;
             hTxt.fontStyle = FontStyle.Bold;
             hTxt.alignment = TextAnchor.MiddleCenter;
             hTxt.color = Color.white;
+
+            // Botón Zoom + (Acercar más la foto al rostro)
+            GameObject btnZoomIn = new GameObject("Btn_ZoomIn");
+            btnZoomIn.transform.SetParent(container.transform, false);
+            var zInRect = btnZoomIn.AddComponent<RectTransform>();
+            zInRect.anchorMin = new Vector2(0.52f, 0);
+            zInRect.anchorMax = new Vector2(0.74f, 1);
+            zInRect.offsetMin = Vector2.zero;
+            zInRect.offsetMax = Vector2.zero;
+            var zInImg = btnZoomIn.AddComponent<Image>();
+            zInImg.color = new Color(0.25f, 0.65f, 0.35f);
+            var zInBtn = btnZoomIn.AddComponent<Button>();
+            zInBtn.onClick.AddListener(mgr.ZoomIn);
+
+            GameObject zInTxtObj = new GameObject("Text");
+            zInTxtObj.transform.SetParent(btnZoomIn.transform, false);
+            var zInTRect = zInTxtObj.AddComponent<RectTransform>();
+            zInTRect.anchorMin = Vector2.zero;
+            zInTRect.anchorMax = Vector2.one;
+            zInTRect.sizeDelta = Vector2.zero;
+            var zInTxt = zInTxtObj.AddComponent<Text>();
+            zInTxt.text = "🔍 Zoom +";
+            zInTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            zInTxt.fontSize = 13;
+            zInTxt.fontStyle = FontStyle.Bold;
+            zInTxt.alignment = TextAnchor.MiddleCenter;
+            zInTxt.color = Color.white;
+
+            // Botón Zoom - (Alejar foto)
+            GameObject btnZoomOut = new GameObject("Btn_ZoomOut");
+            btnZoomOut.transform.SetParent(container.transform, false);
+            var zOutRect = btnZoomOut.AddComponent<RectTransform>();
+            zOutRect.anchorMin = new Vector2(0.76f, 0);
+            zOutRect.anchorMax = new Vector2(0.99f, 1);
+            zOutRect.offsetMin = Vector2.zero;
+            zOutRect.offsetMax = Vector2.zero;
+            var zOutImg = btnZoomOut.AddComponent<Image>();
+            zOutImg.color = new Color(0.55f, 0.45f, 0.25f);
+            var zOutBtn = btnZoomOut.AddComponent<Button>();
+            zOutBtn.onClick.AddListener(mgr.ZoomOut);
+
+            GameObject zOutTxtObj = new GameObject("Text");
+            zOutTxtObj.transform.SetParent(btnZoomOut.transform, false);
+            var zOutTRect = zOutTxtObj.AddComponent<RectTransform>();
+            zOutTRect.anchorMin = Vector2.zero;
+            zOutTRect.anchorMax = Vector2.one;
+            zOutTRect.sizeDelta = Vector2.zero;
+            var zOutTxt = zOutTxtObj.AddComponent<Text>();
+            zOutTxt.text = "🔍 Zoom -";
+            zOutTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            zOutTxt.fontSize = 13;
+            zOutTxt.fontStyle = FontStyle.Bold;
+            zOutTxt.alignment = TextAnchor.MiddleCenter;
+            zOutTxt.color = Color.white;
+
+            // Estado de Giro y Zoom
+            GameObject statusObj = new GameObject("Status_OrientationZoom");
+            statusObj.transform.SetParent(parent, false);
+            var sRect = statusObj.AddComponent<RectTransform>();
+            sRect.anchorMin = new Vector2(0.04f, 0.11f);
+            sRect.anchorMax = new Vector2(0.50f, 0.16f);
+            sRect.offsetMin = Vector2.zero;
+            sRect.offsetMax = Vector2.zero;
+            var sTxt = statusObj.AddComponent<Text>();
+            sTxt.text = $"Giro: ON | Espejo: OFF | Zoom: {mgr.faceZoom:F1}x";
+            sTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            sTxt.fontSize = 14;
+            sTxt.alignment = TextAnchor.MiddleCenter;
+            sTxt.color = new Color(0.9f, 0.9f, 0.95f);
+            mgr.flipStatusText = sTxt;
         }
 
         private void CreateCaptureButton(Transform parent, WebcamCaptureManager mgr, string label, FaceType emotion, Vector2 pos, out Image thumb)
@@ -1347,6 +1471,16 @@ namespace FightFace
             }
             tex.Apply();
             return Sprite.Create(tex, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 100f);
+        }
+
+        private static Sprite CreateWhiteUiSprite()
+        {
+            Texture2D tex = new Texture2D(4, 4, TextureFormat.RGBA32, false);
+            Color[] cols = new Color[16];
+            for (int i = 0; i < 16; i++) cols[i] = Color.white;
+            tex.SetPixels(cols);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, 4, 4), Vector2.one * 0.5f, 100f);
         }
     }
 }

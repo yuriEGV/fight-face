@@ -47,6 +47,12 @@ namespace FightFace
         public Transform neckPointRight;
         public bool isUsingClassicSpriteBody = true;
 
+        [Header("Extremidades Articuladas Dinámicas")]
+        public Transform articulatedPunchFist;
+        public SpriteRenderer articulatedPunchSr;
+        public Transform articulatedKickFoot;
+        public SpriteRenderer articulatedKickSr;
+
         private SpriteRenderer[] allRenderers;
         private Color[] originalColors;
         private float walkCycle = 0f;
@@ -195,6 +201,86 @@ namespace FightFace
             }
 
             CacheRenderers();
+            EnsureArticulatedLimbs();
+        }
+
+        public void EnsureArticulatedLimbs()
+        {
+            if (articulatedPunchFist == null)
+            {
+                Transform existingFist = transform.Find("ArticulatedPunchFist");
+                if (existingFist != null)
+                {
+                    articulatedPunchFist = existingFist;
+                    articulatedPunchSr = existingFist.GetComponent<SpriteRenderer>();
+                }
+                else
+                {
+                    GameObject fistObj = new GameObject("ArticulatedPunchFist");
+                    fistObj.transform.SetParent(transform, false);
+                    fistObj.transform.localPosition = new Vector3(0.35f, 0.75f, 0);
+                    articulatedPunchFist = fistObj.transform;
+                    articulatedPunchSr = fistObj.AddComponent<SpriteRenderer>();
+                    articulatedPunchSr.sprite = CreateProBoxingGlove(56, gloveColor, false);
+                    articulatedPunchSr.sortingOrder = 16;
+                }
+            }
+
+            if (punchTrailObj == null && articulatedPunchFist != null)
+            {
+                Transform pt = articulatedPunchFist.Find("PunchTrail");
+                if (pt != null) punchTrailObj = pt.gameObject;
+                else
+                {
+                    GameObject ptObj = new GameObject("PunchTrail");
+                    ptObj.transform.SetParent(articulatedPunchFist, false);
+                    ptObj.transform.localPosition = new Vector3(-0.35f, 0, 0);
+                    var sr = ptObj.AddComponent<SpriteRenderer>();
+                    sr.sprite = CreateSpeedTrailSprite(80, 40);
+                    sr.sortingOrder = 15;
+                    punchTrailObj = ptObj;
+                }
+            }
+            if (punchTrailObj != null) punchTrailObj.SetActive(false);
+            if (articulatedPunchFist != null) articulatedPunchFist.gameObject.SetActive(false);
+
+            if (articulatedKickFoot == null)
+            {
+                Transform existingFoot = transform.Find("ArticulatedKickFoot");
+                if (existingFoot != null)
+                {
+                    articulatedKickFoot = existingFoot;
+                    articulatedKickSr = existingFoot.GetComponent<SpriteRenderer>();
+                }
+                else
+                {
+                    GameObject footObj = new GameObject("ArticulatedKickFoot");
+                    footObj.transform.SetParent(transform, false);
+                    footObj.transform.localPosition = new Vector3(0.35f, 0.35f, 0);
+                    articulatedKickFoot = footObj.transform;
+                    articulatedKickSr = footObj.AddComponent<SpriteRenderer>();
+                    articulatedKickSr.sprite = CreateProWrestlingBoot(54, 32, bootColor);
+                    articulatedKickSr.sortingOrder = 16;
+                }
+            }
+
+            if (kickTrailObj == null && articulatedKickFoot != null)
+            {
+                Transform kt = articulatedKickFoot.Find("KickTrail");
+                if (kt != null) kickTrailObj = kt.gameObject;
+                else
+                {
+                    GameObject ktObj = new GameObject("KickTrail");
+                    ktObj.transform.SetParent(articulatedKickFoot, false);
+                    ktObj.transform.localPosition = new Vector3(-0.35f, 0, 0);
+                    var sr = ktObj.AddComponent<SpriteRenderer>();
+                    sr.sprite = CreateSpeedTrailSprite(90, 45);
+                    sr.sortingOrder = 15;
+                    kickTrailObj = ktObj;
+                }
+            }
+            if (kickTrailObj != null) kickTrailObj.SetActive(false);
+            if (articulatedKickFoot != null) articulatedKickFoot.gameObject.SetActive(false);
         }
 
         /// <summary>
@@ -644,103 +730,84 @@ namespace FightFace
         /// </summary>
         public void PlayPunchAnimation(float duration)
         {
-            if (isKO) return;
-            StartCoroutine(PunchRoutine(duration));
+            PlayPunchAnimation(duration * 0.22f, duration * 0.38f, duration * 0.40f);
         }
 
-        private IEnumerator PunchRoutine(float duration)
+        public void PlayPunchAnimation(float startup, float active, float recovery)
+        {
+            if (isKO) return;
+            EnsureArticulatedLimbs();
+            StartCoroutine(PunchRoutine(startup, active, recovery));
+        }
+
+        private IEnumerator PunchRoutine(float startup, float active, float recovery)
         {
             isAttacking = true;
+            EnsureArticulatedLimbs();
 
-            float anticipation = duration * 0.2f;
-            float strike = duration * 0.4f;
-            float recovery = duration * 0.4f;
+            Vector3 bodyOrigPos = Vector3.zero;
+            Vector3 fistPrepPos = new Vector3(0.12f, 0.70f, 0);
+            Vector3 fistStrikePos = new Vector3(0.95f, 0.85f, 0);
 
-            if (isUsingClassicSpriteBody && bodySpriteRenderer != null)
+            if (articulatedPunchFist != null)
             {
-                Vector3 originalPos = Vector3.zero;
-                float lunge = 0.40f;
-
-                // 1. Anticipación
-                float t1 = 0f;
-                while (t1 < anticipation)
-                {
-                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(originalPos, originalPos + new Vector3(-0.12f, 0.02f, 0), t1 / anticipation);
-                    t1 += Time.deltaTime;
-                    yield return null;
-                }
-
-                // 2. Golpe explosivo hacia adelante
-                if (punchTrailObj != null) punchTrailObj.SetActive(true);
-                float t2 = 0f;
-                while (t2 < strike)
-                {
-                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(originalPos + new Vector3(-0.12f, 0.02f, 0), originalPos + new Vector3(lunge, 0.06f, 0), t2 / strike);
-                    t2 += Time.deltaTime;
-                    yield return null;
-                }
-                if (punchTrailObj != null) punchTrailObj.SetActive(false);
-
-                // 3. Retorno a guardia
-                float t3 = 0f;
-                while (t3 < recovery)
-                {
-                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(originalPos + new Vector3(lunge, 0.06f, 0), originalPos, t3 / recovery);
-                    t3 += Time.deltaTime;
-                    yield return null;
-                }
-
-                bodySpriteRenderer.transform.localPosition = originalPos;
-                isAttacking = false;
-                yield break;
+                articulatedPunchFist.gameObject.SetActive(true);
+                articulatedPunchFist.localPosition = fistPrepPos;
+                articulatedPunchFist.localRotation = Quaternion.Euler(0, 0, 15f);
             }
 
-            if (rightArm == null || rightFist == null)
-            {
-                isAttacking = false;
-                yield break;
-            }
-
-            Vector3 armOriginal = rightArm.localPosition;
-            Vector3 fistOriginal = rightFist.localPosition;
-
-            // 1. Anticipación (echar brazo atrás)
+            // 1. STARTUP (Preparación)
             float t = 0f;
-            while (t < anticipation)
+            while (t < startup)
             {
-                rightArm.localPosition = Vector3.Lerp(armOriginal, armOriginal + new Vector3(-0.2f, 0.05f, 0), t / anticipation);
-                rightArm.localRotation = Quaternion.Euler(0, 0, 25f);
+                float frac = t / startup;
+                if (bodySpriteRenderer != null)
+                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(bodyOrigPos, bodyOrigPos + new Vector3(-0.12f, 0.02f, 0), frac);
+                if (articulatedPunchFist != null)
+                    articulatedPunchFist.localPosition = Vector3.Lerp(fistPrepPos, fistPrepPos + new Vector3(-0.10f, -0.05f, 0), frac);
                 t += Time.deltaTime;
                 yield return null;
             }
 
-            // 2. Golpe explosivo hacia adelante + Estela
+            // 2. ACTIVE (Impacto con estela de velocidad)
             if (punchTrailObj != null) punchTrailObj.SetActive(true);
             t = 0f;
-            while (t < strike)
+            while (t < active)
             {
-                rightArm.localPosition = Vector3.Lerp(armOriginal, armOriginal + new Vector3(0.65f, 0.12f, 0), t / strike);
-                rightFist.localPosition = Vector3.Lerp(fistOriginal, fistOriginal + new Vector3(0.55f, 0.08f, 0), t / strike);
-                rightArm.localRotation = Quaternion.Euler(0, 0, -20f);
+                float frac = t / active;
+                if (bodySpriteRenderer != null)
+                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(bodyOrigPos + new Vector3(-0.12f, 0.02f, 0), bodyOrigPos + new Vector3(0.38f, 0.05f, 0), frac);
+                if (articulatedPunchFist != null)
+                {
+                    articulatedPunchFist.localPosition = Vector3.Lerp(fistPrepPos + new Vector3(-0.10f, -0.05f, 0), fistStrikePos, frac);
+                    articulatedPunchFist.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 15f), Quaternion.Euler(0, 0, -10f), frac);
+                }
                 t += Time.deltaTime;
                 yield return null;
             }
 
-            // 3. Recuperación a guardia
+            // 3. RECOVERY (Retorno a guardia)
             if (punchTrailObj != null) punchTrailObj.SetActive(false);
             t = 0f;
             while (t < recovery)
             {
-                rightArm.localPosition = Vector3.Lerp(armOriginal + new Vector3(0.65f, 0.12f, 0), armOriginal, t / recovery);
-                rightFist.localPosition = Vector3.Lerp(fistOriginal + new Vector3(0.55f, 0.08f, 0), fistOriginal, t / recovery);
-                rightArm.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -20f), Quaternion.identity, t / recovery);
+                float frac = t / recovery;
+                if (bodySpriteRenderer != null)
+                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(bodyOrigPos + new Vector3(0.38f, 0.05f, 0), bodyOrigPos, frac);
+                if (articulatedPunchFist != null)
+                {
+                    articulatedPunchFist.localPosition = Vector3.Lerp(fistStrikePos, fistPrepPos, frac);
+                    articulatedPunchFist.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -10f), Quaternion.identity, frac);
+                }
                 t += Time.deltaTime;
                 yield return null;
             }
 
-            rightArm.localPosition = armOriginal;
-            rightFist.localPosition = fistOriginal;
-            rightArm.localRotation = Quaternion.identity;
+            if (bodySpriteRenderer != null)
+                bodySpriteRenderer.transform.localPosition = bodyOrigPos;
+            if (articulatedPunchFist != null)
+                articulatedPunchFist.gameObject.SetActive(false);
+
             isAttacking = false;
         }
 
@@ -749,80 +816,101 @@ namespace FightFace
         /// </summary>
         public void PlayKickAnimation(float duration)
         {
-            if (isKO) return;
-            StartCoroutine(KickRoutine(duration));
+            PlayKickAnimation(duration * 0.25f, duration * 0.35f, duration * 0.40f);
         }
 
-        private IEnumerator KickRoutine(float duration)
+        public void PlayKickAnimation(float startup, float active, float recovery)
+        {
+            if (isKO) return;
+            EnsureArticulatedLimbs();
+            StartCoroutine(KickRoutine(startup, active, recovery));
+        }
+
+        private IEnumerator KickRoutine(float startup, float active, float recovery)
         {
             isAttacking = true;
-            float strike = duration * 0.45f;
-            float recovery = duration * 0.55f;
+            EnsureArticulatedLimbs();
 
-            if (isUsingClassicSpriteBody && bodySpriteRenderer != null)
+            Vector3 bodyOrigPos = Vector3.zero;
+            Quaternion bodyOrigRot = Quaternion.identity;
+            Vector3 footPrepPos = new Vector3(0.18f, 0.45f, 0);
+            Vector3 footStrikePos = new Vector3(1.10f, 0.42f, 0);
+
+            if (articulatedKickFoot != null)
             {
-                Vector3 originalPos = Vector3.zero;
-                Quaternion originalRot = Quaternion.identity;
-                float lunge = 0.50f;
-
-                if (kickTrailObj != null) kickTrailObj.SetActive(true);
-
-                // Strike
-                float t1 = 0f;
-                while (t1 < strike)
-                {
-                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(originalPos, originalPos + new Vector3(lunge, 0.12f, 0), t1 / strike);
-                    bodySpriteRenderer.transform.localRotation = Quaternion.Lerp(originalRot, Quaternion.Euler(0, 0, -12f), t1 / strike);
-                    t1 += Time.deltaTime;
-                    yield return null;
-                }
-
-                if (kickTrailObj != null) kickTrailObj.SetActive(false);
-
-                // Recovery
-                float t2 = 0f;
-                while (t2 < recovery)
-                {
-                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(originalPos + new Vector3(lunge, 0.12f, 0), originalPos, t2 / recovery);
-                    bodySpriteRenderer.transform.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -12f), originalRot, t2 / recovery);
-                    t2 += Time.deltaTime;
-                    yield return null;
-                }
-
-                bodySpriteRenderer.transform.localPosition = originalPos;
-                bodySpriteRenderer.transform.localRotation = originalRot;
-                isAttacking = false;
-                yield break;
+                articulatedKickFoot.gameObject.SetActive(true);
+                articulatedKickFoot.localPosition = footPrepPos;
+                articulatedKickFoot.localRotation = Quaternion.Euler(0, 0, 35f);
             }
 
-            if (rightLeg == null)
-            {
-                isAttacking = false;
-                yield break;
-            }
-
-            Quaternion legOriginal = rightLeg.localRotation;
-            if (kickTrailObj != null) kickTrailObj.SetActive(true);
-
+            // 1. STARTUP
             float t = 0f;
-            while (t < strike)
+            while (t < startup)
             {
-                rightLeg.localRotation = Quaternion.Lerp(legOriginal, Quaternion.Euler(0, 0, 95f), t / strike);
+                float frac = t / startup;
+                if (bodySpriteRenderer != null)
+                {
+                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(bodyOrigPos, bodyOrigPos + new Vector3(-0.15f, 0.04f, 0), frac);
+                    bodySpriteRenderer.transform.localRotation = Quaternion.Lerp(bodyOrigRot, Quaternion.Euler(0, 0, 10f), frac);
+                }
+                if (articulatedKickFoot != null)
+                {
+                    articulatedKickFoot.localPosition = Vector3.Lerp(footPrepPos, footPrepPos + new Vector3(-0.08f, 0.08f, 0), frac);
+                }
                 t += Time.deltaTime;
                 yield return null;
             }
 
-            if (kickTrailObj != null) kickTrailObj.SetActive(false);
+            // 2. ACTIVE
+            if (kickTrailObj != null) kickTrailObj.SetActive(true);
+            t = 0f;
+            while (t < active)
+            {
+                float frac = t / active;
+                if (bodySpriteRenderer != null)
+                {
+                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(bodyOrigPos + new Vector3(-0.15f, 0.04f, 0), bodyOrigPos + new Vector3(0.42f, 0.10f, 0), frac);
+                    bodySpriteRenderer.transform.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 10f), Quaternion.Euler(0, 0, -14f), frac);
+                }
+                if (articulatedKickFoot != null)
+                {
+                    articulatedKickFoot.localPosition = Vector3.Lerp(footPrepPos + new Vector3(-0.08f, 0.08f, 0), footStrikePos, frac);
+                    articulatedKickFoot.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 35f), Quaternion.Euler(0, 0, -20f), frac);
+                }
+                t += Time.deltaTime;
+                yield return null;
+            }
 
+            // 3. RECOVERY
+            if (kickTrailObj != null) kickTrailObj.SetActive(false);
             t = 0f;
             while (t < recovery)
             {
-                rightLeg.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 95f), legOriginal, t / recovery);
+                float frac = t / recovery;
+                if (bodySpriteRenderer != null)
+                {
+                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(bodyOrigPos + new Vector3(0.42f, 0.10f, 0), bodyOrigPos, frac);
+                    bodySpriteRenderer.transform.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -14f), bodyOrigRot, frac);
+                }
+                if (articulatedKickFoot != null)
+                {
+                    articulatedKickFoot.localPosition = Vector3.Lerp(footStrikePos, footPrepPos, frac);
+                    articulatedKickFoot.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -20f), Quaternion.identity, frac);
+                }
                 t += Time.deltaTime;
                 yield return null;
             }
 
-            rightLeg.localRotation = legOriginal;
+            if (bodySpriteRenderer != null)
+            {
+                bodySpriteRenderer.transform.localPosition = bodyOrigPos;
+                bodySpriteRenderer.transform.localRotation = bodyOrigRot;
+            }
+            if (articulatedKickFoot != null)
+            {
+                articulatedKickFoot.gameObject.SetActive(false);
+            }
+
             isAttacking = false;
         }
 

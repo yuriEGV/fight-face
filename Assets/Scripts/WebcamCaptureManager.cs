@@ -29,9 +29,10 @@ namespace FightFace
         public int targetFighterId = 1;
         public Text targetFighterLabel;
 
-        [Header("Orientación")]
+        [Header("Orientación y Zoom")]
         public bool flipVertical = true; // Por defecto TRUE en Windows DirectX para que las fotos queden derechas
         public bool flipHorizontal = false;
+        public float faceZoom = 1.45f; // Zoom por defecto para encuadrar directamente el rostro sin espacios en blanco
         public Text flipStatusText;
 
         private WebCamTexture webcamTexture;
@@ -132,11 +133,25 @@ namespace FightFace
             Debug.Log($"[WebcamCapture] Espejo Horizontal: {flipHorizontal}");
         }
 
+        public void ZoomIn()
+        {
+            faceZoom = Mathf.Min(2.5f, faceZoom + 0.15f);
+            UpdateFlipStatusText();
+            Debug.Log($"[WebcamCapture] Zoom: {faceZoom:F2}x");
+        }
+
+        public void ZoomOut()
+        {
+            faceZoom = Mathf.Max(1.0f, faceZoom - 0.15f);
+            UpdateFlipStatusText();
+            Debug.Log($"[WebcamCapture] Zoom: {faceZoom:F2}x");
+        }
+
         private void UpdateFlipStatusText()
         {
             if (flipStatusText != null)
             {
-                flipStatusText.text = $"Giro Vertical: {(flipVertical ? "ON" : "OFF")} | Espejo: {(flipHorizontal ? "ON" : "OFF")}";
+                flipStatusText.text = $"Giro: {(flipVertical ? "180°" : "0°")} | Espejo: {(flipHorizontal ? "ON" : "OFF")} | Zoom: {faceZoom:F1}x";
             }
         }
 
@@ -248,8 +263,8 @@ namespace FightFace
             // Detectar si la webcam está invertida por hardware
             bool shouldFlipY = flipVertical ^ cam.videoVerticallyMirrored;
 
-            // Recortar en forma de óvalo con borde sticker
-            Texture2D sticker = FaceLoader.MaskAsOvalHead(rawFrame, shouldFlipY, flipHorizontal);
+            // Recortar en forma de óvalo con zoom cerrado y borde sticker limpio
+            Texture2D sticker = FaceLoader.MaskAsOvalHead(rawFrame, shouldFlipY, flipHorizontal, faceZoom);
 
             Destroy(rawFrame);
             return sticker;

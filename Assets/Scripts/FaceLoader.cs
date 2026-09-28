@@ -13,7 +13,7 @@ namespace FightFace
     /// </summary>
     public static class FaceLoader
     {
-        public const float TARGET_HEAD_WORLD_HEIGHT = 1.05f;
+        public const float TARGET_HEAD_WORLD_HEIGHT = 1.35f; // Cabeza sobredimensionada cómica (130%) para muecas claras y legibles
 
         /// <summary>
         /// Carga un archivo de imagen (PNG/JPG) desde el disco y devuelve un Sprite de Unity
@@ -42,11 +42,11 @@ namespace FightFace
                     Color corner = texture.GetPixel(0, 0);
                     if (corner.a > 0.5f)
                     {
-                        Texture2D masked = MaskAsOvalHead(texture, false, false);
+                        Texture2D masked = MaskAsOvalHead(texture, false, false, 1.45f);
                         texture = masked;
                     }
 
-                    // Calibrar PixelsPerUnit para que la cabeza mida exactamente ~1.05 unidades de mundo
+                    // Calibrar PixelsPerUnit para que la cabeza mida exactamente ~1.35 unidades de mundo
                     float ppu = texture.height / TARGET_HEAD_WORLD_HEIGHT;
 
                     // Pivote en (0.5, 0.18): justo en el mentón para descansar naturalmente sobre el cuello
@@ -84,31 +84,40 @@ namespace FightFace
         }
 
         /// <summary>
-        /// Aplica una máscara ovalada estilizada (con ahusamiento en el mentón y contorno blanco de cómic)
-        /// para que la cabeza se acople perfectamente sobre el cuerpo del luchador.
+        /// Aplica una máscara ovalada estilizada con zoom cerrado al rostro y borde de cómic sutil:
+        /// - Zoom inteligente centrado en ojos y nariz para eliminar fondos amplios y espacios en blanco.
+        /// - Borde de calcomanía limpio y fino sin invadir las facciones de la cara.
+        /// - Ahusamiento anatómico del mentón para un calce perfecto sobre el cuello del cuerpo.
         /// </summary>
-        public static Texture2D MaskAsOvalHead(Texture2D source, bool flipY = false, bool flipX = false)
+        public static Texture2D MaskAsOvalHead(Texture2D source, bool flipY = false, bool flipX = false, float zoom = 1.45f)
         {
-            int size = Mathf.Min(source.width, source.height);
-            int xOffset = (source.width - size) / 2;
-            int yOffset = (source.height - size) / 2;
+            if (source == null) return null;
+            zoom = Mathf.Max(1.0f, zoom);
+
+            int minDim = Mathf.Min(source.width, source.height);
+            int size = Mathf.Min(minDim, 512);
 
             Texture2D result = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            result.filterMode = FilterMode.Bilinear;
+            result.wrapMode = TextureWrapMode.Clamp;
+
             Color transparent = new Color(0, 0, 0, 0);
             Color borderOutline = new Color(0.12f, 0.12f, 0.15f, 1f);
             Color borderGlow = new Color(1f, 1f, 1f, 1f);
 
             Vector2 center = new Vector2(size / 2f, size / 2f);
-            // Proporción ovalada: 36% ancho, 46% alto (cabeza humana)
-            float radiusX = size * 0.36f;
-            float radiusY = size * 0.46f;
+            // Proporción de cabeza humana estilizada
+            float radiusX = size * 0.38f;
+            float radiusY = size * 0.47f;
+
+            // Centro del rostro: ligeramente por encima del centro vertical (0.52f) donde están ojos y nariz
+            float srcCenterX = source.width * 0.5f;
+            float srcCenterY = source.height * 0.52f;
+            float sampleRadius = (minDim * 0.5f) / zoom;
 
             for (int y = 0; y < size; y++)
             {
-                // Inversión vertical si es necesario
-                int srcY = flipY ? (size - 1 - y) + yOffset : y + yOffset;
-
-                // dy normalizado (-1 abajo en el mentón, +1 arriba en la frente)
+                // dy normalizado (-1 en mentón, +1 en frente)
                 float ny = (y - center.y) / radiusY;
                 if (Mathf.Abs(ny) > 1.0f)
                 {
@@ -116,14 +125,17 @@ namespace FightFace
                     continue;
                 }
 
-                // Taper: más estrecho hacia el mentón y ligeramente más ancho en la frente
-                float taper = 1.0f + (0.15f * ny);
+                // Ahusamiento hacia el mentón
+                float taper = 1.0f + (0.14f * ny);
                 float currRx = radiusX * taper;
+
+                float normYOffset = (y - center.y) / (size * 0.5f);
+                float sampledSrcY = flipY
+                    ? srcCenterY - (normYOffset * sampleRadius)
+                    : srcCenterY + (normYOffset * sampleRadius);
 
                 for (int x = 0; x < size; x++)
                 {
-                    int srcX = flipX ? (size - 1 - x) + xOffset : x + xOffset;
-
                     float nx = (x - center.x) / currRx;
                     float distSq = (nx * nx) + (ny * ny);
 
@@ -131,20 +143,27 @@ namespace FightFace
                     {
                         result.SetPixel(x, y, transparent);
                     }
-                    else if (distSq > 0.94f)
+                    else if (distSq > 0.975f)
                     {
-                        // Contorno negro fino exterior de cómic
+                        // Trazo negro fino de cómic (1-2 píxeles)
                         result.SetPixel(x, y, borderOutline);
                     }
-                    else if (distSq > 0.86f)
+                    else if (distSq > 0.935f)
                     {
-                        // Borde blanco grueso estilo Sticker
+                        // Borde blanco sutil estilo Sticker (delgado, no tapa la cara)
                         result.SetPixel(x, y, borderGlow);
                     }
                     else
                     {
-                        // Píxel de la foto del jugador
-                        Color pixel = source.GetPixel(srcX, srcY);
+                        // Coordenada horizontal en la imagen fuente
+                        float normXOffset = (x - center.x) / (size * 0.5f);
+                        float sampledSrcX = flipX
+                            ? srcCenterX - (normXOffset * sampleRadius)
+                            : srcCenterX + (normXOffset * sampleRadius);
+
+                        float u = Mathf.Clamp01(sampledSrcX / source.width);
+                        float v = Mathf.Clamp01(sampledSrcY / source.height);
+                        Color pixel = source.GetPixelBilinear(u, v);
                         result.SetPixel(x, y, pixel);
                     }
                 }

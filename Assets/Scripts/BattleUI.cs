@@ -22,12 +22,14 @@ namespace FightFace
         public Image p1HealthGhost;
         public Image p1FacePortrait;
         public Text p1NameText;
+        public Text p1HealthText;
 
         [Header("Jugador 2")]
         public Image p2HealthFill;
         public Image p2HealthGhost;
         public Image p2FacePortrait;
         public Text p2NameText;
+        public Text p2HealthText;
 
         [Header("Temporizador y Mensajes")]
         public Text timerText;
@@ -121,23 +123,23 @@ namespace FightFace
                 ToggleCharacterSelectMenu();
             }
 
-            // Suavizado de barras de vida
+            // Suavizado de barras de vida usando unscaledDeltaTime (inmune a pausas de Hitstop)
             if (p1HealthFill != null)
             {
-                p1HealthFill.fillAmount = Mathf.Lerp(p1HealthFill.fillAmount, p1TargetFill, Time.deltaTime * 10f);
+                p1HealthFill.fillAmount = Mathf.Lerp(p1HealthFill.fillAmount, p1TargetFill, Time.unscaledDeltaTime * 14f);
             }
             if (p1HealthGhost != null)
             {
-                p1HealthGhost.fillAmount = Mathf.Lerp(p1HealthGhost.fillAmount, p1TargetFill, Time.deltaTime * 3f);
+                p1HealthGhost.fillAmount = Mathf.Lerp(p1HealthGhost.fillAmount, p1TargetFill, Time.unscaledDeltaTime * 4f);
             }
 
             if (p2HealthFill != null)
             {
-                p2HealthFill.fillAmount = Mathf.Lerp(p2HealthFill.fillAmount, p2TargetFill, Time.deltaTime * 10f);
+                p2HealthFill.fillAmount = Mathf.Lerp(p2HealthFill.fillAmount, p2TargetFill, Time.unscaledDeltaTime * 14f);
             }
             if (p2HealthGhost != null)
             {
-                p2HealthGhost.fillAmount = Mathf.Lerp(p2HealthGhost.fillAmount, p2TargetFill, Time.deltaTime * 3f);
+                p2HealthGhost.fillAmount = Mathf.Lerp(p2HealthGhost.fillAmount, p2TargetFill, Time.unscaledDeltaTime * 4f);
             }
 
             // Actualizar retratos de caras en tiempo real
@@ -171,14 +173,16 @@ namespace FightFace
 
         public void UpdateHealth(int playerId, int current, int max)
         {
-            float fill = (float)current / max;
+            float fill = Mathf.Clamp01((float)current / Mathf.Max(1, max));
             if (playerId == 1)
             {
                 p1TargetFill = fill;
+                if (p1HealthText != null) p1HealthText.text = $"{Mathf.Max(0, current)} / {max}";
             }
             else
             {
                 p2TargetFill = fill;
+                if (p2HealthText != null) p2HealthText.text = $"{Mathf.Max(0, current)} / {max}";
             }
         }
 

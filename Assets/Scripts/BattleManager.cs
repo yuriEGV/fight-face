@@ -136,6 +136,11 @@ namespace FightFace
                 if (player1 != null) player2.opponent = player1.transform;
             }
 
+            if (DynamicFightCamera.Instance != null)
+            {
+                DynamicFightCamera.Instance.ResetCamera();
+            }
+
             if (BattleUI.Instance != null)
             {
                 BattleUI.Instance.UpdateHealth(1, 100, 100);
