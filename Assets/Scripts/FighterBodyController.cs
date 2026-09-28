@@ -728,7 +728,7 @@ namespace FightFace
             RestoreOriginalColors();
         }
 
-        private void ResetJointsToStance()
+        public void ResetJointsToStance()
         {
             if (pelvis != null) pelvis.localPosition = pelvisBasePos;
             if (torso != null)
