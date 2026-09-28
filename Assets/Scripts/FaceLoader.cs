@@ -579,9 +579,18 @@ namespace FightFace
             return null;
         }
 
-        public static Sprite LoadStageStreetSprite()
+        public static Sprite LoadStageMGMSprite()
         {
-            string path = Path.Combine(Application.dataPath, "Sprites", "Fighters", "Stage_Street.png");
+            string path = Path.Combine(Application.dataPath, "Sprites", "Stage_MGM_Grand.png");
+            if (!File.Exists(path))
+            {
+                path = Path.Combine(Application.dataPath, "Sprites", "Fighters", "Stage_MGM_Grand.png");
+            }
+            if (!File.Exists(path))
+            {
+                path = Path.Combine(Application.dataPath, "Sprites", "Fighters", "Stage_Street.png");
+            }
+
             if (File.Exists(path))
             {
                 byte[] bytes = File.ReadAllBytes(path);
@@ -594,6 +603,28 @@ namespace FightFace
                 }
             }
             return null;
+        }
+
+        public static Sprite LoadModularPartSprite(string characterName, string partName)
+        {
+            string path = Path.Combine(Application.dataPath, "Sprites", "Modular", characterName, $"{partName}.png");
+            if (File.Exists(path))
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (tex.LoadImage(bytes))
+                {
+                    tex.filterMode = FilterMode.Bilinear;
+                    tex.wrapMode = TextureWrapMode.Clamp;
+                    return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                }
+            }
+            return null;
+        }
+
+        public static Sprite LoadStageStreetSprite()
+        {
+            return LoadStageMGMSprite();
         }
     }
 }

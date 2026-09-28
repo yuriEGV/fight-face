@@ -119,16 +119,18 @@ namespace FightFace
             if (spriteToUse != null && headRenderer != null)
             {
                 headRenderer.sprite = spriteToUse;
-                headRenderer.sortingOrder = 10;
+                headRenderer.sortingOrder = 12;
 
-                // Calibrar la escala del transform para que la cabeza siempre mida ~1.05 unidades
+                // Calibrar la escala y posición del cuello para que la barbilla descanse sobre el torso
                 float worldHeight = spriteToUse.rect.height / spriteToUse.pixelsPerUnit;
                 if (worldHeight > 0.01f)
                 {
-                    float targetHeight = 1.05f;
+                    float targetHeight = 0.95f;
                     float factor = targetHeight / worldHeight;
                     initialLocalScale = new Vector3(factor, factor, 1f);
                     transform.localScale = initialLocalScale;
+                    transform.localPosition = new Vector3(0, targetHeight * 0.40f, 0);
+                    initialLocalPosition = transform.localPosition;
                 }
             }
         }

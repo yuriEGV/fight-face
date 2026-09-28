@@ -66,68 +66,44 @@ namespace FightFace
 
             arena = new GameObject("ArenaRing");
 
-            // Suelo
+            // Suelo del ring (colisionador invisible para que los luchadores pisen la lona de la foto real)
             GameObject floor = new GameObject("Floor");
             floor.transform.SetParent(arena.transform);
-            floor.transform.position = new Vector3(0, -2.5f, 0);
+            floor.transform.position = new Vector3(0, -2.45f, 0);
             var floorCol = floor.AddComponent<BoxCollider2D>();
             floorCol.size = new Vector2(24f, 1f);
 
-            var floorSr = floor.AddComponent<SpriteRenderer>();
-            floorSr.sprite = CreateBoxSprite(2400, 100, new Color(0.18f, 0.18f, 0.24f));
-            floorSr.sortingOrder = -1;
-
-            // Lona del Ring
-            GameObject mat = new GameObject("RingMat");
-            mat.transform.SetParent(arena.transform);
-            mat.transform.position = new Vector3(0, -2.05f, 0);
-            var matSr = mat.AddComponent<SpriteRenderer>();
-            matSr.sprite = CreateBoxSprite(1800, 22, new Color(0.85f, 0.22f, 0.22f));
-            matSr.sortingOrder = 0;
-
-            // Paredes laterales invisibles
+            // Paredes laterales invisibles dentro del cuadrilátero
             GameObject leftWall = new GameObject("LeftWall");
             leftWall.transform.SetParent(arena.transform);
-            leftWall.transform.position = new Vector3(-9.5f, 1f, 0);
+            leftWall.transform.position = new Vector3(-9.2f, 1f, 0);
             var leftCol = leftWall.AddComponent<BoxCollider2D>();
             leftCol.size = new Vector2(1f, 10f);
 
             GameObject rightWall = new GameObject("RightWall");
             rightWall.transform.SetParent(arena.transform);
-            rightWall.transform.position = new Vector3(9.5f, 1f, 0);
+            rightWall.transform.position = new Vector3(9.2f, 1f, 0);
             var rightCol = rightWall.AddComponent<BoxCollider2D>();
             rightCol.size = new Vector2(1f, 10f);
 
-            // Fondo Callejero Tradicional (Street Fighter Stage)
+            // Fondo: Cuadrilátero Profesional MGM Grand Las Vegas (Foto Real / Ultra-realista)
             GameObject backdrop = new GameObject("Backdrop");
             backdrop.transform.SetParent(arena.transform);
-            backdrop.transform.position = new Vector3(0, 1.35f, 5f);
+            backdrop.transform.position = new Vector3(0, 0.65f, 5f);
             var bgSr = backdrop.AddComponent<SpriteRenderer>();
-            Sprite streetSprite = FaceLoader.LoadStageStreetSprite();
-            if (streetSprite != null)
+            Sprite mgmSprite = FaceLoader.LoadStageMGMSprite();
+            if (mgmSprite != null)
             {
-                bgSr.sprite = streetSprite;
-                float worldW = streetSprite.rect.width / streetSprite.pixelsPerUnit;
-                float scale = 20.5f / worldW;
+                bgSr.sprite = mgmSprite;
+                float worldW = mgmSprite.rect.width / mgmSprite.pixelsPerUnit;
+                float scale = 22.0f / worldW;
                 backdrop.transform.localScale = new Vector3(scale, scale, 1f);
             }
             else
             {
                 bgSr.sprite = CreateGradientBackdrop(1920, 1080);
             }
-            bgSr.sortingOrder = -10;
-
-            // Cuerdas del ring
-            for (int i = 0; i < 3; i++)
-            {
-                GameObject rope = new GameObject($"Rope_{i}");
-                rope.transform.SetParent(arena.transform);
-                rope.transform.position = new Vector3(0, -1.6f + (i * 0.5f), 0);
-                var ropeSr = rope.AddComponent<SpriteRenderer>();
-                Color ropeColor = i == 0 ? new Color(0.9f, 0.2f, 0.2f) : (i == 1 ? Color.white : new Color(0.2f, 0.45f, 0.95f));
-                ropeSr.sprite = CreateBoxSprite(1800, 8, ropeColor);
-                ropeSr.sortingOrder = -2;
-            }
+            bgSr.sortingOrder = -20;
         }
 
         private void SetupCombatEffects()
@@ -158,18 +134,18 @@ namespace FightFace
             if (p1Obj == null)
             {
                 p1Obj = new GameObject("Player1");
-                p1Obj.transform.position = new Vector3(-3.5f, -1.8f, 0);
+                p1Obj.transform.position = new Vector3(-3.2f, -1.95f, 0);
             }
             p1 = p1Obj.GetComponent<FighterController>();
             if (p1 == null) p1 = p1Obj.AddComponent<FighterController>();
             p1.playerId = 1;
-            p1.fighterName = "El Musculoso";
+            p1.fighterName = "P1: El Gordo";
             p1.isAI = false;
 
             var p1Col = p1Obj.GetComponent<CapsuleCollider2D>();
             if (p1Col == null) p1Col = p1Obj.AddComponent<CapsuleCollider2D>();
-            p1Col.size = new Vector2(1.1f, 2.3f);
-            p1Col.offset = new Vector2(0, 1.15f);
+            p1Col.size = new Vector2(1.1f, 2.2f);
+            p1Col.offset = new Vector2(0, 1.10f);
 
             var p1Body = p1Obj.GetComponentInChildren<FighterBodyController>();
             if (p1Body == null)
@@ -178,7 +154,7 @@ namespace FightFace
                 p1BodyObj.transform.SetParent(p1Obj.transform, false);
                 p1Body = p1BodyObj.AddComponent<FighterBodyController>();
             }
-            p1Body.SetClassicBody(FighterBodyType.Musculoso);
+            p1Body.SetClassicBody(FighterBodyType.Gordo);
             p1.bodyController = p1Body;
 
             // Cabeza y Caras de P1
@@ -192,7 +168,7 @@ namespace FightFace
 
                 p1Face = p1HeadObj.AddComponent<DynamicFaceController>();
                 var sr = p1HeadObj.GetComponent<SpriteRenderer>();
-                sr.sortingOrder = 10;
+                sr.sortingOrder = 12;
             }
             else
             {
@@ -202,7 +178,7 @@ namespace FightFace
             p1.faceController = p1Face;
 
             // Cargar perfil de P1 (revisando Jugador_1 o Luchador_1)
-            FaceProfile p1Profile = LoadProfileForFighter(1, "El Musculoso");
+            FaceProfile p1Profile = LoadProfileForFighter(1, "El Gordo");
             p1Face.SetProfile(p1Profile);
 
             // --- JUGADOR 2 ---
@@ -210,18 +186,18 @@ namespace FightFace
             if (p2Obj == null)
             {
                 p2Obj = new GameObject("Player2");
-                p2Obj.transform.position = new Vector3(3.5f, -1.8f, 0);
+                p2Obj.transform.position = new Vector3(3.2f, -1.95f, 0);
             }
             p2 = p2Obj.GetComponent<FighterController>();
             if (p2 == null) p2 = p2Obj.AddComponent<FighterController>();
             p2.playerId = 2;
-            p2.fighterName = "El Gordo";
+            p2.fighterName = "P2: El Flaco";
             p2.isAI = true;
 
             var p2Col = p2Obj.GetComponent<CapsuleCollider2D>();
             if (p2Col == null) p2Col = p2Obj.AddComponent<CapsuleCollider2D>();
-            p2Col.size = new Vector2(1.2f, 2.3f);
-            p2Col.offset = new Vector2(0, 1.15f);
+            p2Col.size = new Vector2(1.0f, 2.2f);
+            p2Col.offset = new Vector2(0, 1.10f);
 
             var p2Body = p2Obj.GetComponentInChildren<FighterBodyController>();
             if (p2Body == null)
@@ -230,7 +206,7 @@ namespace FightFace
                 p2BodyObj.transform.SetParent(p2Obj.transform, false);
                 p2Body = p2BodyObj.AddComponent<FighterBodyController>();
             }
-            p2Body.SetClassicBody(FighterBodyType.Gordo);
+            p2Body.SetClassicBody(FighterBodyType.Flaco);
             p2.bodyController = p2Body;
 
             // Cabeza y Caras de P2
@@ -244,7 +220,7 @@ namespace FightFace
 
                 p2Face = p2HeadObj.AddComponent<DynamicFaceController>();
                 var sr = p2HeadObj.GetComponent<SpriteRenderer>();
-                sr.sortingOrder = 10;
+                sr.sortingOrder = 12;
             }
             else
             {
@@ -254,7 +230,7 @@ namespace FightFace
             p2.faceController = p2Face;
 
             // Cargar perfil de P2
-            FaceProfile p2Profile = LoadProfileForFighter(2, "El Gordo");
+            FaceProfile p2Profile = LoadProfileForFighter(2, "El Flaco");
             p2Face.SetProfile(p2Profile);
 
             // Enlazar oponentes

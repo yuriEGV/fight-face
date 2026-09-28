@@ -92,9 +92,9 @@ namespace FightFace
             {
                 GameObject punchObj = new GameObject("PunchHitbox");
                 punchObj.transform.SetParent(transform, false);
-                punchObj.transform.localPosition = new Vector3(0.85f, 0.85f, 0);
+                punchObj.transform.localPosition = new Vector3(0.95f, 1.30f, 0);
                 var box = punchObj.AddComponent<BoxCollider2D>();
-                box.size = new Vector2(0.8f, 0.6f);
+                box.size = new Vector2(0.9f, 0.6f);
                 box.isTrigger = true;
                 punchHitbox = punchObj.AddComponent<Hitbox>();
                 punchHitbox.Initialize(this);
@@ -108,9 +108,9 @@ namespace FightFace
             {
                 GameObject kickObj = new GameObject("KickHitbox");
                 kickObj.transform.SetParent(transform, false);
-                kickObj.transform.localPosition = new Vector3(0.95f, 0.35f, 0);
+                kickObj.transform.localPosition = new Vector3(1.05f, 0.75f, 0);
                 var box = kickObj.AddComponent<BoxCollider2D>();
-                box.size = new Vector2(0.9f, 0.6f);
+                box.size = new Vector2(0.95f, 0.65f);
                 box.isTrigger = true;
                 kickHitbox = kickObj.AddComponent<Hitbox>();
                 kickHitbox.Initialize(this);
