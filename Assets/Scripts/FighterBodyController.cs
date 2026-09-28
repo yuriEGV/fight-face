@@ -40,6 +40,13 @@ namespace FightFace
         public Color skinColor = new Color(1f, 0.85f, 0.72f); // Piel
         public Color bootColor = new Color(0.12f, 0.12f, 0.15f); // Botas
 
+        [Header("Cuerpo Clásico (5 Personajes)")]
+        public FighterBodyType currentBodyType = FighterBodyType.Musculoso;
+        public SpriteRenderer bodySpriteRenderer;
+        public Transform neckPointLeft;
+        public Transform neckPointRight;
+        public bool isUsingClassicSpriteBody = true;
+
         private SpriteRenderer[] allRenderers;
         private Color[] originalColors;
         private float walkCycle = 0f;
@@ -49,10 +56,15 @@ namespace FightFace
 
         private void Awake()
         {
-            if (neckPoint == null)
+            if (bodySpriteRenderer == null && neckPoint == null)
+            {
+                SetClassicBody(currentBodyType);
+            }
+            else if (neckPoint == null)
             {
                 BuildDetailedBrawlerBody();
             }
+
             if (torso != null)
             {
                 initialTorsoPos = torso.localPosition;
@@ -61,14 +73,128 @@ namespace FightFace
             CacheRenderers();
         }
 
-        private void CacheRenderers()
+        public void CacheRenderers()
         {
-            allRenderers = GetComponentsInChildren<SpriteRenderer>();
+            allRenderers = GetComponentsInChildren<SpriteRenderer>(true);
             originalColors = new Color[allRenderers.Length];
             for (int i = 0; i < allRenderers.Length; i++)
             {
-                originalColors[i] = allRenderers[i].color;
+                if (allRenderers[i] != null)
+                {
+                    originalColors[i] = allRenderers[i].color;
+                }
             }
+        }
+
+        /// <summary>
+        /// Aplica uno de los 5 cuerpos clásicos (El Gordo, El Flaco, El Musculoso, La Mujer, El Dos Cabezas)
+        /// y calibra la posición del cuello y el renderizador.
+        /// </summary>
+        public void SetClassicBody(FighterBodyType bodyType)
+        {
+            currentBodyType = bodyType;
+            isUsingClassicSpriteBody = true;
+
+            // Cargar sprite del cuerpo headless
+            Sprite bodySprite = FaceLoader.LoadFighterBodySprite(bodyType);
+
+            if (bodySpriteRenderer == null)
+            {
+                Transform existing = transform.Find("ClassicBodySprite");
+                if (existing != null)
+                {
+                    bodySpriteRenderer = existing.GetComponent<SpriteRenderer>();
+                }
+                else
+                {
+                    GameObject bodyObj = new GameObject("ClassicBodySprite");
+                    bodyObj.transform.SetParent(transform, false);
+                    bodyObj.transform.localPosition = Vector3.zero;
+                    bodyObj.transform.localScale = Vector3.one;
+                    bodySpriteRenderer = bodyObj.AddComponent<SpriteRenderer>();
+                }
+            }
+
+            if (bodySpriteRenderer != null)
+            {
+                bodySpriteRenderer.sortingOrder = 2;
+                if (bodySprite != null)
+                {
+                    bodySpriteRenderer.sprite = bodySprite;
+                }
+                bodySpriteRenderer.gameObject.SetActive(true);
+            }
+
+            // Ocultar miembros procedurales si existen
+            if (torso != null) torso.gameObject.SetActive(false);
+            if (leftArm != null) leftArm.gameObject.SetActive(false);
+            if (rightArm != null) rightArm.gameObject.SetActive(false);
+            if (leftLeg != null) leftLeg.gameObject.SetActive(false);
+            if (rightLeg != null) rightLeg.gameObject.SetActive(false);
+
+            // Crear o posicionar NeckPoint
+            if (neckPoint == null)
+            {
+                Transform existingNeck = transform.Find("NeckPoint");
+                if (existingNeck != null)
+                {
+                    neckPoint = existingNeck;
+                }
+                else
+                {
+                    GameObject neckObj = new GameObject("NeckPoint");
+                    neckObj.transform.SetParent(transform, false);
+                    neckPoint = neckObj.transform;
+                }
+            }
+
+            // Calibrar la posición del cuello exacta para este cuerpo
+            Vector3 neckOffset = FaceLoader.GetNeckLocalOffset(bodyType);
+            neckPoint.localPosition = neckOffset;
+
+            // Dos Cabezas: cuello izquierdo y cuello derecho
+            if (bodyType == FighterBodyType.DosCabezas)
+            {
+                neckPoint.localPosition = new Vector3(-0.23f, 0.96f, 0);
+
+                if (neckPointRight == null)
+                {
+                    Transform existingR = transform.Find("NeckPointRight");
+                    if (existingR != null)
+                    {
+                        neckPointRight = existingR;
+                    }
+                    else
+                    {
+                        GameObject rNeck = new GameObject("NeckPointRight");
+                        rNeck.transform.SetParent(transform, false);
+                        neckPointRight = rNeck.transform;
+                    }
+                }
+                neckPointRight.localPosition = new Vector3(0.23f, 0.92f, 0);
+            }
+
+            // Sombra en el suelo
+            if (groundShadow == null)
+            {
+                Transform existingShadow = transform.Find("Shadow");
+                if (existingShadow != null)
+                {
+                    groundShadow = existingShadow;
+                }
+                else
+                {
+                    GameObject shadowObj = new GameObject("Shadow");
+                    shadowObj.transform.SetParent(transform, false);
+                    shadowObj.transform.localPosition = new Vector3(0, -0.05f, 0);
+                    groundShadow = shadowObj.transform;
+                    var shadowSr = shadowObj.AddComponent<SpriteRenderer>();
+                    shadowSr.sprite = CreateShadowSprite();
+                    shadowSr.sortingOrder = -5;
+                }
+            }
+
+            CacheRenderers();
         }
 
         /// <summary>
@@ -460,7 +586,28 @@ namespace FightFace
         {
             if (isKO || isAttacking) return;
 
-            // Idle respiración atlética y rebote
+            // Soporte para los 5 Cuerpos de Sprite Clásicos
+            if (isUsingClassicSpriteBody && bodySpriteRenderer != null)
+            {
+                if (Mathf.Abs(moveInput) > 0.1f && isGrounded)
+                {
+                    walkCycle += Time.deltaTime * 12f;
+                    float walkTilt = Mathf.Sin(walkCycle) * 3.5f;
+                    float walkBob = Mathf.Abs(Mathf.Sin(walkCycle)) * 0.04f;
+                    bodySpriteRenderer.transform.localRotation = Quaternion.Euler(0, 0, walkTilt);
+                    bodySpriteRenderer.transform.localPosition = new Vector3(0, walkBob, 0);
+                }
+                else
+                {
+                    walkCycle = 0f;
+                    float breathBob = Mathf.Sin(Time.time * 5.5f) * 0.025f;
+                    bodySpriteRenderer.transform.localRotation = Quaternion.identity;
+                    bodySpriteRenderer.transform.localPosition = new Vector3(0, breathBob, 0);
+                }
+                return;
+            }
+
+            // Idle respiración atlética y rebote procedural
             float idleBob = Mathf.Sin(Time.time * 6.5f) * 0.05f;
             if (torso != null)
             {
@@ -504,12 +651,58 @@ namespace FightFace
         private IEnumerator PunchRoutine(float duration)
         {
             isAttacking = true;
-            Vector3 armOriginal = rightArm.localPosition;
-            Vector3 fistOriginal = rightFist.localPosition;
 
             float anticipation = duration * 0.2f;
             float strike = duration * 0.4f;
             float recovery = duration * 0.4f;
+
+            if (isUsingClassicSpriteBody && bodySpriteRenderer != null)
+            {
+                Vector3 originalPos = Vector3.zero;
+                float lunge = 0.40f;
+
+                // 1. Anticipación
+                float t1 = 0f;
+                while (t1 < anticipation)
+                {
+                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(originalPos, originalPos + new Vector3(-0.12f, 0.02f, 0), t1 / anticipation);
+                    t1 += Time.deltaTime;
+                    yield return null;
+                }
+
+                // 2. Golpe explosivo hacia adelante
+                if (punchTrailObj != null) punchTrailObj.SetActive(true);
+                float t2 = 0f;
+                while (t2 < strike)
+                {
+                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(originalPos + new Vector3(-0.12f, 0.02f, 0), originalPos + new Vector3(lunge, 0.06f, 0), t2 / strike);
+                    t2 += Time.deltaTime;
+                    yield return null;
+                }
+                if (punchTrailObj != null) punchTrailObj.SetActive(false);
+
+                // 3. Retorno a guardia
+                float t3 = 0f;
+                while (t3 < recovery)
+                {
+                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(originalPos + new Vector3(lunge, 0.06f, 0), originalPos, t3 / recovery);
+                    t3 += Time.deltaTime;
+                    yield return null;
+                }
+
+                bodySpriteRenderer.transform.localPosition = originalPos;
+                isAttacking = false;
+                yield break;
+            }
+
+            if (rightArm == null || rightFist == null)
+            {
+                isAttacking = false;
+                yield break;
+            }
+
+            Vector3 armOriginal = rightArm.localPosition;
+            Vector3 fistOriginal = rightFist.localPosition;
 
             // 1. Anticipación (echar brazo atrás)
             float t = 0f;
@@ -563,10 +756,52 @@ namespace FightFace
         private IEnumerator KickRoutine(float duration)
         {
             isAttacking = true;
-            Quaternion legOriginal = rightLeg.localRotation;
             float strike = duration * 0.45f;
             float recovery = duration * 0.55f;
 
+            if (isUsingClassicSpriteBody && bodySpriteRenderer != null)
+            {
+                Vector3 originalPos = Vector3.zero;
+                Quaternion originalRot = Quaternion.identity;
+                float lunge = 0.50f;
+
+                if (kickTrailObj != null) kickTrailObj.SetActive(true);
+
+                // Strike
+                float t1 = 0f;
+                while (t1 < strike)
+                {
+                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(originalPos, originalPos + new Vector3(lunge, 0.12f, 0), t1 / strike);
+                    bodySpriteRenderer.transform.localRotation = Quaternion.Lerp(originalRot, Quaternion.Euler(0, 0, -12f), t1 / strike);
+                    t1 += Time.deltaTime;
+                    yield return null;
+                }
+
+                if (kickTrailObj != null) kickTrailObj.SetActive(false);
+
+                // Recovery
+                float t2 = 0f;
+                while (t2 < recovery)
+                {
+                    bodySpriteRenderer.transform.localPosition = Vector3.Lerp(originalPos + new Vector3(lunge, 0.12f, 0), originalPos, t2 / recovery);
+                    bodySpriteRenderer.transform.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -12f), originalRot, t2 / recovery);
+                    t2 += Time.deltaTime;
+                    yield return null;
+                }
+
+                bodySpriteRenderer.transform.localPosition = originalPos;
+                bodySpriteRenderer.transform.localRotation = originalRot;
+                isAttacking = false;
+                yield break;
+            }
+
+            if (rightLeg == null)
+            {
+                isAttacking = false;
+                yield break;
+            }
+
+            Quaternion legOriginal = rightLeg.localRotation;
             if (kickTrailObj != null) kickTrailObj.SetActive(true);
 
             float t = 0f;

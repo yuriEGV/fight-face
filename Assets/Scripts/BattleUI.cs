@@ -35,12 +35,14 @@ namespace FightFace
         public GameObject centerBannerPanel;
 
         [Header("Paneles y Modales")]
+        public GameObject characterSelectPanel;
         public GameObject faceCustomizerPanel;
         public GameObject controlsGuidePanel;
         public Button rematchButton;
         public Button openCustomizerButton;
         public Button closeCustomizerButton;
         public Button tournamentButton;
+        public Button openSelectMenuButton;
 
         private float p1TargetFill = 1f;
         private float p2TargetFill = 1f;
@@ -112,6 +114,11 @@ namespace FightFace
             if (FightInput.GetToggleCustomizer())
             {
                 ToggleFaceCustomizer();
+            }
+
+            if (FightInput.GetMenuToggle())
+            {
+                ToggleCharacterSelectMenu();
             }
 
             // Suavizado de barras de vida
@@ -203,6 +210,36 @@ namespace FightFace
             }
         }
 
+        public void ShowCharacterSelectMenu()
+        {
+            if (characterSelectPanel != null)
+            {
+                characterSelectPanel.SetActive(true);
+            }
+        }
+
+        public void HideCharacterSelectMenu()
+        {
+            if (characterSelectPanel != null)
+            {
+                characterSelectPanel.SetActive(false);
+            }
+        }
+
+        public void ToggleCharacterSelectMenu()
+        {
+            if (characterSelectPanel != null)
+            {
+                bool active = !characterSelectPanel.activeSelf;
+                characterSelectPanel.SetActive(active);
+            }
+        }
+
+        public void RefreshFacePortraits()
+        {
+            UpdateFacePortraits();
+        }
+
         public void ToggleFaceCustomizer()
         {
             if (faceCustomizerPanel == null) return;
@@ -219,6 +256,7 @@ namespace FightFace
             {
                 if (WebcamCaptureManager.Instance != null)
                     WebcamCaptureManager.Instance.StopWebcam();
+                RefreshFacePortraits();
             }
         }
     }

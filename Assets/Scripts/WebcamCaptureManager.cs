@@ -30,7 +30,7 @@ namespace FightFace
         public Text targetFighterLabel;
 
         [Header("Orientación")]
-        public bool flipVertical = false;
+        public bool flipVertical = true; // Por defecto TRUE en Windows DirectX para que las fotos queden derechas
         public bool flipHorizontal = false;
         public Text flipStatusText;
 
@@ -71,9 +71,16 @@ namespace FightFace
             activeProfile.fighterId = targetFighterId;
             activeProfile.fighterName = GetFighterDefaultName(targetFighterId);
 
-            if (Directory.Exists(saveFolderPath) && activeProfile.LoadFromDirectory(saveFolderPath))
+            string dirJugador = Path.Combine(Application.persistentDataPath, "Luchadores", $"Jugador_{targetFighterId}");
+            string dirLuchador = Path.Combine(Application.persistentDataPath, "Luchadores", $"Luchador_{targetFighterId}");
+
+            if (Directory.Exists(dirJugador) && activeProfile.LoadFromDirectory(dirJugador))
             {
-                Debug.Log($"[WebcamCapture] Fotos cargadas para Luchador {targetFighterId}");
+                Debug.Log($"[WebcamCapture] Fotos cargadas desde Jugador_{targetFighterId}");
+            }
+            else if (Directory.Exists(dirLuchador) && activeProfile.LoadFromDirectory(dirLuchador))
+            {
+                Debug.Log($"[WebcamCapture] Fotos cargadas desde Luchador_{targetFighterId}");
             }
             else
             {
@@ -108,7 +115,7 @@ namespace FightFace
 
         private void UpdateSaveFolderPath()
         {
-            saveFolderPath = Path.Combine(Application.persistentDataPath, "Luchadores", $"Luchador_{targetFighterId}");
+            saveFolderPath = Path.Combine(Application.persistentDataPath, "Luchadores", $"Jugador_{targetFighterId}");
         }
 
         public void ToggleFlipVertical()
@@ -202,6 +209,10 @@ namespace FightFace
             string filename = GetFilenameForEmotion(emotion);
             string fullPath = Path.Combine(saveFolderPath, filename);
             FaceLoader.SaveTextureToFile(snapshot, fullPath);
+
+            string altDir = Path.Combine(Application.persistentDataPath, "Luchadores", $"Luchador_{targetFighterId}");
+            if (!Directory.Exists(altDir)) Directory.CreateDirectory(altDir);
+            FaceLoader.SaveTextureToFile(snapshot, Path.Combine(altDir, filename));
 
             Debug.Log($"[WebcamCapture] Foto {emotion} capturada y guardada en {fullPath}");
 

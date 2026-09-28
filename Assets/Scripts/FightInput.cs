@@ -130,5 +130,14 @@ namespace FightFace
 #endif
             return Input.GetKeyDown(KeyCode.C) || Input.GetKeyDown(KeyCode.Tab);
         }
+
+        public static bool GetMenuToggle()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var kb = Keyboard.current;
+            if (kb != null) return kb.escapeKey.wasPressedThisFrame || kb.mKey.wasPressedThisFrame;
+#endif
+            return Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.M);
+        }
     }
 }

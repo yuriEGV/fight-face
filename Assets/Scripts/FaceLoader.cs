@@ -18,6 +18,7 @@ namespace FightFace
         /// <summary>
         /// Carga un archivo de imagen (PNG/JPG) desde el disco y devuelve un Sprite de Unity
         /// perfectamente calibrado para el tamaño del cuerpo del luchador.
+        /// Aplica automáticamente máscara ovalada de sticker si la imagen es rectangular.
         /// </summary>
         public static Sprite LoadSpriteFromFile(string filePath)
         {
@@ -37,13 +38,22 @@ namespace FightFace
                     texture.filterMode = FilterMode.Bilinear;
                     texture.wrapMode = TextureWrapMode.Clamp;
 
+                    // Si la foto no tiene esquinas transparentes, recortar automáticamente en óvalo sticker
+                    Color corner = texture.GetPixel(0, 0);
+                    if (corner.a > 0.5f)
+                    {
+                        Texture2D masked = MaskAsOvalHead(texture, false, false);
+                        texture = masked;
+                    }
+
                     // Calibrar PixelsPerUnit para que la cabeza mida exactamente ~1.05 unidades de mundo
                     float ppu = texture.height / TARGET_HEAD_WORLD_HEIGHT;
 
+                    // Pivote en (0.5, 0.18): justo en el mentón para descansar naturalmente sobre el cuello
                     Sprite sprite = Sprite.Create(
                         texture,
                         new Rect(0, 0, texture.width, texture.height),
-                        new Vector2(0.5f, 0.45f), // Pivote ligeramente hacia el mentón
+                        new Vector2(0.5f, 0.18f),
                         ppu
                     );
                     sprite.name = Path.GetFileNameWithoutExtension(filePath);
@@ -59,7 +69,7 @@ namespace FightFace
         }
 
         /// <summary>
-        /// Convierte una Texture2D en un Sprite con tamaño normalizado.
+        /// Convierte una Texture2D en un Sprite con tamaño normalizado y pivote en el mentón.
         /// </summary>
         public static Sprite CreateSpriteFromTexture(Texture2D texture)
         {
@@ -68,14 +78,14 @@ namespace FightFace
             return Sprite.Create(
                 texture,
                 new Rect(0, 0, texture.width, texture.height),
-                new Vector2(0.5f, 0.45f),
+                new Vector2(0.5f, 0.18f),
                 ppu
             );
         }
 
         /// <summary>
-        /// Aplica una máscara ovalada de sticker con contorno blanco y transparente
-        /// para que la foto de la webcam parezca una cabeza recortada cómica (estilo Photo Dojo / Smash).
+        /// Aplica una máscara ovalada estilizada (con ahusamiento en el mentón y contorno blanco de cómic)
+        /// para que la cabeza se acople perfectamente sobre el cuerpo del luchador.
         /// </summary>
         public static Texture2D MaskAsOvalHead(Texture2D source, bool flipY = false, bool flipX = false)
         {
@@ -86,24 +96,36 @@ namespace FightFace
             Texture2D result = new Texture2D(size, size, TextureFormat.RGBA32, false);
             Color transparent = new Color(0, 0, 0, 0);
             Color borderOutline = new Color(0.12f, 0.12f, 0.15f, 1f);
-            Color borderGlow = new Color(1f, 1f, 1f, 0.95f);
+            Color borderGlow = new Color(1f, 1f, 1f, 1f);
 
             Vector2 center = new Vector2(size / 2f, size / 2f);
-            float radiusX = size * 0.45f;
-            float radiusY = size * 0.48f; // Ligeramente más alto que ancho (forma de cabeza)
+            // Proporción ovalada: 36% ancho, 46% alto (cabeza humana)
+            float radiusX = size * 0.36f;
+            float radiusY = size * 0.46f;
 
             for (int y = 0; y < size; y++)
             {
+                // Inversión vertical si es necesario
                 int srcY = flipY ? (size - 1 - y) + yOffset : y + yOffset;
+
+                // dy normalizado (-1 abajo en el mentón, +1 arriba en la frente)
+                float ny = (y - center.y) / radiusY;
+                if (Mathf.Abs(ny) > 1.0f)
+                {
+                    for (int x = 0; x < size; x++) result.SetPixel(x, y, transparent);
+                    continue;
+                }
+
+                // Taper: más estrecho hacia el mentón y ligeramente más ancho en la frente
+                float taper = 1.0f + (0.15f * ny);
+                float currRx = radiusX * taper;
 
                 for (int x = 0; x < size; x++)
                 {
                     int srcX = flipX ? (size - 1 - x) + xOffset : x + xOffset;
 
-                    // Distancia normalizada en elipse
-                    float dx = (x - center.x) / radiusX;
-                    float dy = (y - center.y) / radiusY;
-                    float distSq = (dx * dx) + (dy * dy);
+                    float nx = (x - center.x) / currRx;
+                    float distSq = (nx * nx) + (ny * ny);
 
                     if (distSq > 1.0f)
                     {
@@ -111,17 +133,17 @@ namespace FightFace
                     }
                     else if (distSq > 0.94f)
                     {
-                        // Borde exterior negro fino
+                        // Contorno negro fino exterior de cómic
                         result.SetPixel(x, y, borderOutline);
                     }
-                    else if (distSq > 0.88f)
+                    else if (distSq > 0.86f)
                     {
-                        // Borde blanco estilo sticker
+                        // Borde blanco grueso estilo Sticker
                         result.SetPixel(x, y, borderGlow);
                     }
                     else
                     {
-                        // Píxel de la foto
+                        // Píxel de la foto del jugador
                         Color pixel = source.GetPixel(srcX, srcY);
                         result.SetPixel(x, y, pixel);
                     }
@@ -447,6 +469,112 @@ namespace FightFace
                 int y = (int)(Mathf.Sin(x * 0.4f) * 3f);
                 DrawCircle(tex, cx + x, cy + y, 2, col);
             }
+        }
+
+        // ----------------- CARGADORES DE LOS 5 CUERPOS CLÁSICOS -----------------
+
+        public static string GetFighterDisplayName(FighterBodyType bodyType)
+        {
+            switch (bodyType)
+            {
+                case FighterBodyType.Gordo: return "El Gordo";
+                case FighterBodyType.Flaco: return "El Flaco";
+                case FighterBodyType.Musculoso: return "El Musculoso";
+                case FighterBodyType.Mujer: return "La Mujer";
+                case FighterBodyType.DosCabezas: return "El Dos Cabezas";
+                default: return "Luchador";
+            }
+        }
+
+        public static string GetFighterDescription(FighterBodyType bodyType)
+        {
+            switch (bodyType)
+            {
+                case FighterBodyType.Gordo: return "Poderoso y pesado. Gran resistencia física y golpes demoledores.";
+                case FighterBodyType.Flaco: return "Maestro de Kung-Fu ágil y rápido. Golpes veloces estilo Bruce Lee.";
+                case FighterBodyType.Musculoso: return "Campeón invicto de boxeo y Muay Thai. Puños devastadores.";
+                case FighterBodyType.Mujer: return "Experta en kickboxing. Patadas voladoras de gran alcance.";
+                case FighterBodyType.DosCabezas: return "Mutante brawler carroñero de cuatro brazos y doble cabezazo.";
+                default: return "";
+            }
+        }
+
+        public static Vector3 GetNeckLocalOffset(FighterBodyType bodyType)
+        {
+            switch (bodyType)
+            {
+                case FighterBodyType.Gordo: return new Vector3(0.04f, 1.63f, 0);
+                case FighterBodyType.Flaco: return new Vector3(0.15f, 1.01f, 0);
+                case FighterBodyType.Musculoso: return new Vector3(0.08f, 2.20f, 0);
+                case FighterBodyType.Mujer: return new Vector3(-0.45f, 1.20f, 0);
+                case FighterBodyType.DosCabezas: return new Vector3(0f, 0.95f, 0);
+                default: return new Vector3(0, 1.25f, 0);
+            }
+        }
+
+        public static Sprite LoadFighterBodySprite(FighterBodyType bodyType)
+        {
+            string fname = $"Body_{bodyType}_headless.png";
+            string path = Path.Combine(Application.dataPath, "Sprites", "Fighters", fname);
+            if (!File.Exists(path))
+            {
+                fname = $"Sprite_{bodyType}.png";
+                path = Path.Combine(Application.dataPath, "Sprites", "Fighters", fname);
+            }
+
+            if (File.Exists(path))
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (tex.LoadImage(bytes))
+                {
+                    tex.filterMode = FilterMode.Bilinear;
+                    tex.wrapMode = TextureWrapMode.Clamp;
+                    return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0f), 130f);
+                }
+            }
+            return null;
+        }
+
+        public static Sprite LoadFighterCardSprite(FighterBodyType bodyType)
+        {
+            string fname = $"Fighter_{bodyType}_card.png";
+            string path = Path.Combine(Application.dataPath, "Sprites", "Fighters", fname);
+            if (!File.Exists(path))
+            {
+                fname = $"Fighter_{bodyType}_full.png";
+                path = Path.Combine(Application.dataPath, "Sprites", "Fighters", fname);
+            }
+
+            if (File.Exists(path))
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (tex.LoadImage(bytes))
+                {
+                    tex.filterMode = FilterMode.Bilinear;
+                    tex.wrapMode = TextureWrapMode.Clamp;
+                    return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                }
+            }
+            return null;
+        }
+
+        public static Sprite LoadStageStreetSprite()
+        {
+            string path = Path.Combine(Application.dataPath, "Sprites", "Fighters", "Stage_Street.png");
+            if (File.Exists(path))
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (tex.LoadImage(bytes))
+                {
+                    tex.filterMode = FilterMode.Bilinear;
+                    tex.wrapMode = TextureWrapMode.Clamp;
+                    return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                }
+            }
+            return null;
         }
     }
 }

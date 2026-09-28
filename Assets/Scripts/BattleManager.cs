@@ -21,6 +21,9 @@ namespace FightFace
         [Header("Configuración")]
         public int roundTimeSeconds = 99;
         public bool isP2ControlledByAI = true;
+        public bool startInSelectMenu = true;
+        public FighterBodyType p1BodyType = FighterBodyType.Musculoso;
+        public FighterBodyType p2BodyType = FighterBodyType.Gordo;
 
         private float currentRoundTime;
         private bool isMatchActive = false;
@@ -52,7 +55,67 @@ namespace FightFace
             // Esperar que los componentes terminen inicialización
             yield return new WaitForSeconds(0.2f);
 
+            ApplyFighterSetup(p1BodyType, p2BodyType, isP2ControlledByAI);
+
+            if (startInSelectMenu && BattleUI.Instance != null && BattleUI.Instance.characterSelectPanel != null)
+            {
+                BattleUI.Instance.ShowCharacterSelectMenu();
+            }
+            else
+            {
+                RestartMatch();
+            }
+        }
+
+        public void StartFightWithCharacters(FighterBodyType p1Body, FighterBodyType p2Body, bool p2AI)
+        {
+            p1BodyType = p1Body;
+            p2BodyType = p2Body;
+            isP2ControlledByAI = p2AI;
+
+            ApplyFighterSetup(p1Body, p2Body, p2AI);
+
+            if (BattleUI.Instance != null)
+            {
+                BattleUI.Instance.HideCharacterSelectMenu();
+            }
+
             RestartMatch();
+        }
+
+        public void ApplyFighterSetup(FighterBodyType p1Body, FighterBodyType p2Body, bool p2AI)
+        {
+            p1BodyType = p1Body;
+            p2BodyType = p2Body;
+            isP2ControlledByAI = p2AI;
+
+            if (player1 != null)
+            {
+                player1.fighterName = FaceLoader.GetFighterDisplayName(p1Body);
+                if (player1.bodyController != null)
+                {
+                    player1.bodyController.SetClassicBody(p1Body);
+                }
+            }
+
+            if (player2 != null)
+            {
+                player2.isAI = p2AI;
+                player2.fighterName = FaceLoader.GetFighterDisplayName(p2Body);
+                if (player2.bodyController != null)
+                {
+                    player2.bodyController.SetClassicBody(p2Body);
+                }
+            }
+
+            if (BattleUI.Instance != null)
+            {
+                if (BattleUI.Instance.p1NameText != null && player1 != null)
+                    BattleUI.Instance.p1NameText.text = "P1: " + player1.fighterName;
+                if (BattleUI.Instance.p2NameText != null && player2 != null)
+                    BattleUI.Instance.p2NameText.text = (p2AI ? "CPU: " : "P2: ") + player2.fighterName;
+                BattleUI.Instance.RefreshFacePortraits();
+            }
         }
 
         public void RestartMatch()
