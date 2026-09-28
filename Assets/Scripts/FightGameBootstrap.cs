@@ -1573,63 +1573,207 @@ namespace FightFace
             mRect.offsetMax = Vector2.zero;
 
             var bgImg = menuObj.AddComponent<Image>();
-            bgImg.color = new Color(0.06f, 0.07f, 0.12f, 0.98f);
+            bgImg.color = new Color(0.04f, 0.06f, 0.12f, 0.99f);
 
             var selectUI = menuObj.AddComponent<CharacterSelectUI>();
             ui.characterSelectPanel = menuObj;
 
-            // Encabezado
-            GameObject titleObj = new GameObject("HeaderTitle");
-            titleObj.transform.SetParent(menuObj.transform, false);
+            // Encabezado Arcade Street Fighter II
+            GameObject headerObj = new GameObject("HeaderPanel");
+            headerObj.transform.SetParent(menuObj.transform, false);
+            var hRect = headerObj.AddComponent<RectTransform>();
+            hRect.anchorMin = new Vector2(0, 0.89f);
+            hRect.anchorMax = new Vector2(1, 0.99f);
+            hRect.offsetMin = Vector2.zero;
+            hRect.offsetMax = Vector2.zero;
+
+            GameObject titleObj = new GameObject("ArcadeTitle");
+            titleObj.transform.SetParent(headerObj.transform, false);
             var tRect = titleObj.AddComponent<RectTransform>();
-            tRect.anchorMin = new Vector2(0, 0.89f);
-            tRect.anchorMax = new Vector2(1, 0.99f);
+            tRect.anchorMin = new Vector2(0, 0.40f);
+            tRect.anchorMax = new Vector2(1, 1f);
             tRect.offsetMin = Vector2.zero;
             tRect.offsetMax = Vector2.zero;
 
             var titleTxt = titleObj.AddComponent<Text>();
-            titleTxt.text = "💥 FIGHT FACE - SELECCIÓN DE LUCHADORES 💥";
+            titleTxt.text = "★ STREET FIGHTER II : FIGHT FACE EDITION ★";
             titleTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            titleTxt.fontSize = 28;
+            titleTxt.fontSize = 26;
             titleTxt.fontStyle = FontStyle.Bold;
             titleTxt.alignment = TextAnchor.MiddleCenter;
             titleTxt.color = new Color(1f, 0.85f, 0.15f);
+            var tOutline = titleObj.AddComponent<Outline>();
+            tOutline.effectColor = new Color(0.8f, 0.1f, 0f, 0.9f);
+            tOutline.effectDistance = new Vector2(2, -2);
 
-            GameObject subObj = new GameObject("HeaderSubtitle");
-            subObj.transform.SetParent(menuObj.transform, false);
+            GameObject subObj = new GameObject("SubTitle");
+            subObj.transform.SetParent(headerObj.transform, false);
             var sRect = subObj.AddComponent<RectTransform>();
-            sRect.anchorMin = new Vector2(0, 0.85f);
-            sRect.anchorMax = new Vector2(1, 0.89f);
+            sRect.anchorMin = new Vector2(0, 0f);
+            sRect.anchorMax = new Vector2(1, 0.45f);
             sRect.offsetMin = Vector2.zero;
             sRect.offsetMax = Vector2.zero;
 
             var subTxt = subObj.AddComponent<Text>();
-            subTxt.text = "Elige el cuerpo de tu peleador y personaliza las caras con tu cámara web";
+            subTxt.text = "⚔️ SELECT YOUR FIGHTER • SELECCIONA TU PELEADOR ⚔️";
             subTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            subTxt.fontSize = 16;
+            subTxt.fontSize = 15;
+            subTxt.fontStyle = FontStyle.Bold;
             subTxt.alignment = TextAnchor.MiddleCenter;
-            subTxt.color = new Color(0.75f, 0.88f, 1f);
+            subTxt.color = new Color(1f, 0.65f, 0.1f);
 
-            // Columna Jugador 1
-            BuildPlayerSelectionColumn(menuObj.transform, selectUI, 1, new Vector2(0.03f, 0.13f), new Vector2(0.48f, 0.85f));
+            // ----------------- CUADRÍCULA ROSTER CENTRAL (5 LUCHADORES) -----------------
+            GameObject rosterGridObj = new GameObject("RosterGrid");
+            rosterGridObj.transform.SetParent(menuObj.transform, false);
+            var rgRect = rosterGridObj.AddComponent<RectTransform>();
+            rgRect.anchorMin = new Vector2(0.12f, 0.64f);
+            rgRect.anchorMax = new Vector2(0.88f, 0.88f);
+            rgRect.offsetMin = Vector2.zero;
+            rgRect.offsetMax = Vector2.zero;
 
-            // Columna Jugador 2
-            BuildPlayerSelectionColumn(menuObj.transform, selectUI, 2, new Vector2(0.52f, 0.13f), new Vector2(0.97f, 0.85f));
+            var rosterBg = rosterGridObj.AddComponent<Image>();
+            rosterBg.color = new Color(0.08f, 0.10f, 0.18f, 0.85f);
+            var rgOutline = rosterGridObj.AddComponent<Outline>();
+            rgOutline.effectColor = new Color(0.25f, 0.35f, 0.55f, 0.8f);
+            rgOutline.effectDistance = new Vector2(2, 2);
 
-            // Botón Inferior: ¡A PELEAR!
+            FighterBodyType[] roster = CharacterSelectUI.Roster;
+            int count = roster.Length;
+            selectUI.rosterSlotButtons = new Button[count];
+            selectUI.rosterThumbImages = new Image[count];
+            selectUI.rosterP1Badges = new GameObject[count];
+            selectUI.rosterP2Badges = new GameObject[count];
+            selectUI.rosterOutlines = new Outline[count];
+
+            float slotWidth = 1f / count;
+            for (int i = 0; i < count; i++)
+            {
+                int idx = i;
+                FighterBodyType bType = roster[i];
+
+                GameObject slotObj = new GameObject($"Slot_{bType}");
+                slotObj.transform.SetParent(rosterGridObj.transform, false);
+                var slRect = slotObj.AddComponent<RectTransform>();
+                slRect.anchorMin = new Vector2(i * slotWidth + 0.015f, 0.06f);
+                slRect.anchorMax = new Vector2((i + 1) * slotWidth - 0.015f, 0.94f);
+                slRect.offsetMin = Vector2.zero;
+                slRect.offsetMax = Vector2.zero;
+
+                var slImg = slotObj.AddComponent<Image>();
+                slImg.color = new Color(0.12f, 0.15f, 0.24f);
+
+                var slOutline = slotObj.AddComponent<Outline>();
+                slOutline.effectColor = new Color(0.3f, 0.35f, 0.45f, 0.7f);
+                slOutline.effectDistance = new Vector2(2, 2);
+                selectUI.rosterOutlines[i] = slOutline;
+
+                var slBtn = slotObj.AddComponent<Button>();
+                selectUI.rosterSlotButtons[i] = slBtn;
+
+                // Miniatura de retrato
+                GameObject thumbObj = new GameObject("Thumbnail");
+                thumbObj.transform.SetParent(slotObj.transform, false);
+                var thRect = thumbObj.AddComponent<RectTransform>();
+                thRect.anchorMin = new Vector2(0.08f, 0.28f);
+                thRect.anchorMax = new Vector2(0.92f, 0.94f);
+                thRect.offsetMin = Vector2.zero;
+                thRect.offsetMax = Vector2.zero;
+
+                var thImg = thumbObj.AddComponent<Image>();
+                thImg.preserveAspect = true;
+                thImg.sprite = FaceLoader.LoadFighterThumbSprite(bType);
+                selectUI.rosterThumbImages[i] = thImg;
+
+                // Nombre del personaje en el slot
+                GameObject lblObj = new GameObject("Label");
+                lblObj.transform.SetParent(slotObj.transform, false);
+                var lbRect = lblObj.AddComponent<RectTransform>();
+                lbRect.anchorMin = new Vector2(0, 0);
+                lbRect.anchorMax = new Vector2(1, 0.26f);
+                lbRect.offsetMin = Vector2.zero;
+                lbRect.offsetMax = Vector2.zero;
+
+                var lbTxt = lblObj.AddComponent<Text>();
+                lbTxt.text = FaceLoader.GetFighterDisplayName(bType).ToUpper().Replace("EL ", "").Replace("LA ", "");
+                lbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                lbTxt.fontSize = 13;
+                lbTxt.fontStyle = FontStyle.Bold;
+                lbTxt.alignment = TextAnchor.MiddleCenter;
+                lbTxt.color = new Color(1f, 0.9f, 0.25f);
+
+                // Insignia 1P (Esquina superior izquierda)
+                GameObject p1Badge = new GameObject("P1Badge");
+                p1Badge.transform.SetParent(slotObj.transform, false);
+                var p1bRect = p1Badge.AddComponent<RectTransform>();
+                p1bRect.anchorMin = new Vector2(0, 0.65f);
+                p1bRect.anchorMax = new Vector2(0.38f, 1f);
+                p1bRect.offsetMin = Vector2.zero;
+                p1bRect.offsetMax = Vector2.zero;
+
+                var p1bImg = p1Badge.AddComponent<Image>();
+                p1bImg.color = new Color(0.95f, 0.15f, 0.1f, 0.95f);
+                var p1bTxtObj = new GameObject("Text");
+                p1bTxtObj.transform.SetParent(p1Badge.transform, false);
+                var p1bTRect = p1bTxtObj.AddComponent<RectTransform>();
+                p1bTRect.anchorMin = Vector2.zero;
+                p1bTRect.anchorMax = Vector2.one;
+                p1bTRect.sizeDelta = Vector2.zero;
+                var p1bTxt = p1bTxtObj.AddComponent<Text>();
+                p1bTxt.text = "1P";
+                p1bTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                p1bTxt.fontSize = 12;
+                p1bTxt.fontStyle = FontStyle.Bold;
+                p1bTxt.alignment = TextAnchor.MiddleCenter;
+                p1bTxt.color = Color.white;
+                selectUI.rosterP1Badges[i] = p1Badge;
+
+                // Insignia 2P / CPU (Esquina superior derecha)
+                GameObject p2Badge = new GameObject("P2Badge");
+                p2Badge.transform.SetParent(slotObj.transform, false);
+                var p2bRect = p2Badge.AddComponent<RectTransform>();
+                p2bRect.anchorMin = new Vector2(0.62f, 0.65f);
+                p2bRect.anchorMax = new Vector2(1f, 1f);
+                p2bRect.offsetMin = Vector2.zero;
+                p2bRect.offsetMax = Vector2.zero;
+
+                var p2bImg = p2Badge.AddComponent<Image>();
+                p2bImg.color = new Color(0.15f, 0.55f, 1f, 0.95f);
+                var p2bTxtObj = new GameObject("Text");
+                p2bTxtObj.transform.SetParent(p2Badge.transform, false);
+                var p2bTRect = p2bTxtObj.AddComponent<RectTransform>();
+                p2bTRect.anchorMin = Vector2.zero;
+                p2bTRect.anchorMax = Vector2.one;
+                p2bTRect.sizeDelta = Vector2.zero;
+                var p2bTxt = p2bTxtObj.AddComponent<Text>();
+                p2bTxt.text = "2P";
+                p2bTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                p2bTxt.fontSize = 11;
+                p2bTxt.fontStyle = FontStyle.Bold;
+                p2bTxt.alignment = TextAnchor.MiddleCenter;
+                p2bTxt.color = Color.white;
+                selectUI.rosterP2Badges[i] = p2Badge;
+            }
+
+            // ----------------- PANEL IZQUIERDO: JUGADOR 1 -----------------
+            BuildPlayerProfileCard(menuObj.transform, selectUI, 1, new Vector2(0.02f, 0.11f), new Vector2(0.485f, 0.62f));
+
+            // ----------------- PANEL DERECHO: JUGADOR 2 / CPU -----------------
+            BuildPlayerProfileCard(menuObj.transform, selectUI, 2, new Vector2(0.515f, 0.11f), new Vector2(0.98f, 0.62f));
+
+            // ----------------- BARRA INFERIOR DE ACCIÓN -----------------
+            // Botón Central Gigante: ¡A PELEAR!
             GameObject fightBtnObj = new GameObject("Btn_StartFight");
             fightBtnObj.transform.SetParent(menuObj.transform, false);
             var fbRect = fightBtnObj.AddComponent<RectTransform>();
-            fbRect.anchorMin = new Vector2(0.5f, 0.03f);
-            fbRect.anchorMax = new Vector2(0.5f, 0.03f);
-            fbRect.pivot = new Vector2(0.5f, 0);
-            fbRect.sizeDelta = new Vector2(420, 60);
-            fbRect.anchoredPosition = Vector2.zero;
+            fbRect.anchorMin = new Vector2(0.33f, 0.02f);
+            fbRect.anchorMax = new Vector2(0.67f, 0.09f);
+            fbRect.offsetMin = Vector2.zero;
+            fbRect.offsetMax = Vector2.zero;
 
             var fbImg = fightBtnObj.AddComponent<Image>();
-            fbImg.color = new Color(1f, 0.40f, 0.08f);
+            fbImg.color = new Color(1f, 0.35f, 0.05f);
             var fbOutline = fightBtnObj.AddComponent<Outline>();
-            fbOutline.effectColor = new Color(1f, 0.88f, 0.2f);
+            fbOutline.effectColor = new Color(1f, 0.9f, 0.2f);
             fbOutline.effectDistance = new Vector2(3, 3);
 
             selectUI.fightButton = fightBtnObj.AddComponent<Button>();
@@ -1647,29 +1791,61 @@ namespace FightFace
             fbTxt.fontStyle = FontStyle.Bold;
             fbTxt.alignment = TextAnchor.MiddleCenter;
             fbTxt.color = Color.white;
+
+            // Pistas de controles (Inferior Izquierda)
+            GameObject hintObj = new GameObject("ControlsHint");
+            hintObj.transform.SetParent(menuObj.transform, false);
+            var hiRect = hintObj.AddComponent<RectTransform>();
+            hiRect.anchorMin = new Vector2(0.02f, 0.02f);
+            hiRect.anchorMax = new Vector2(0.31f, 0.09f);
+            hiRect.offsetMin = Vector2.zero;
+            hiRect.offsetMax = Vector2.zero;
+
+            var hiTxt = hintObj.AddComponent<Text>();
+            hiTxt.text = "1P: [A/D] Elegir  |  [F/Espacio] Golpear\n2P: [←/→] Elegir  |  [ENTER] Pelear";
+            hiTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            hiTxt.fontSize = 12;
+            hiTxt.alignment = TextAnchor.MiddleLeft;
+            hiTxt.color = new Color(0.7f, 0.8f, 0.95f);
+
+            // Atajos adicionales (Inferior Derecha)
+            GameObject shortcutsObj = new GameObject("ShortcutsHint");
+            shortcutsObj.transform.SetParent(menuObj.transform, false);
+            var scRect = shortcutsObj.AddComponent<RectTransform>();
+            scRect.anchorMin = new Vector2(0.69f, 0.02f);
+            scRect.anchorMax = new Vector2(0.98f, 0.09f);
+            scRect.offsetMin = Vector2.zero;
+            scRect.offsetMax = Vector2.zero;
+
+            var scTxt = shortcutsObj.AddComponent<Text>();
+            scTxt.text = "[T] Torneo  |  [C] Webcam  |  [R] Reset\nStreet Fighter II Arcade Engine";
+            scTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            scTxt.fontSize = 12;
+            scTxt.alignment = TextAnchor.MiddleRight;
+            scTxt.color = new Color(1f, 0.8f, 0.2f);
         }
 
-        private void BuildPlayerSelectionColumn(Transform parent, CharacterSelectUI selectUI, int playerNum, Vector2 anchorMin, Vector2 anchorMax)
+        private void BuildPlayerProfileCard(Transform parent, CharacterSelectUI selectUI, int playerNum, Vector2 anchorMin, Vector2 anchorMax)
         {
-            GameObject colObj = new GameObject($"Col_Player{playerNum}");
-            colObj.transform.SetParent(parent, false);
-            var cRect = colObj.AddComponent<RectTransform>();
+            GameObject cardObj = new GameObject($"Card_Player{playerNum}");
+            cardObj.transform.SetParent(parent, false);
+            var cRect = cardObj.AddComponent<RectTransform>();
             cRect.anchorMin = anchorMin;
             cRect.anchorMax = anchorMax;
             cRect.offsetMin = Vector2.zero;
             cRect.offsetMax = Vector2.zero;
 
-            var colBg = colObj.AddComponent<Image>();
-            colBg.color = new Color(0.10f, 0.12f, 0.18f, 0.95f);
-            var colOutline = colObj.AddComponent<Outline>();
-            colOutline.effectColor = playerNum == 1 ? new Color(0.95f, 0.3f, 0.2f) : new Color(0.2f, 0.6f, 1f);
-            colOutline.effectDistance = new Vector2(2, 2);
+            var cardBg = cardObj.AddComponent<Image>();
+            cardBg.color = new Color(0.08f, 0.10f, 0.16f, 0.96f);
+            var cardOutline = cardObj.AddComponent<Outline>();
+            cardOutline.effectColor = playerNum == 1 ? new Color(1f, 0.25f, 0.15f) : new Color(0.15f, 0.60f, 1f);
+            cardOutline.effectDistance = new Vector2(3, 3);
 
-            // Banner del jugador
+            // Encabezado del perfil
             GameObject pBanner = new GameObject("Header");
-            pBanner.transform.SetParent(colObj.transform, false);
+            pBanner.transform.SetParent(cardObj.transform, false);
             var pbRect = pBanner.AddComponent<RectTransform>();
-            pbRect.anchorMin = new Vector2(0, 0.90f);
+            pbRect.anchorMin = new Vector2(0, 0.88f);
             pbRect.anchorMax = new Vector2(1, 1f);
             pbRect.offsetMin = Vector2.zero;
             pbRect.offsetMax = Vector2.zero;
@@ -1677,24 +1853,24 @@ namespace FightFace
             var pText = pBanner.AddComponent<Text>();
             pText.text = playerNum == 1 ? "🔴 JUGADOR 1" : "🔵 JUGADOR 2 / OPONENTE";
             pText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            pText.fontSize = 20;
+            pText.fontSize = 18;
             pText.fontStyle = FontStyle.Bold;
-            pText.alignment = TextAnchor.MiddleCenter;
-            pText.color = playerNum == 1 ? new Color(1f, 0.4f, 0.3f) : new Color(0.35f, 0.8f, 1f);
+            pText.alignment = TextAnchor.MiddleLeft;
+            pText.color = playerNum == 1 ? new Color(1f, 0.45f, 0.35f) : new Color(0.35f, 0.8f, 1f);
 
-            // Si es P2, botón para alternar CPU vs Humano
+            // Botón de alternar CPU para Player 2
             if (playerNum == 2)
             {
                 GameObject aiBtnObj = new GameObject("Btn_ToggleAI");
-                aiBtnObj.transform.SetParent(colObj.transform, false);
+                aiBtnObj.transform.SetParent(cardObj.transform, false);
                 var aiRect = aiBtnObj.AddComponent<RectTransform>();
-                aiRect.anchorMin = new Vector2(0.65f, 0.91f);
-                aiRect.anchorMax = new Vector2(0.97f, 0.99f);
+                aiRect.anchorMin = new Vector2(0.55f, 0.89f);
+                aiRect.anchorMax = new Vector2(0.98f, 0.99f);
                 aiRect.offsetMin = Vector2.zero;
                 aiRect.offsetMax = Vector2.zero;
 
                 var aiImg = aiBtnObj.AddComponent<Image>();
-                aiImg.color = new Color(0.2f, 0.45f, 0.85f);
+                aiImg.color = new Color(0.2f, 0.45f, 0.9f);
                 selectUI.p2AIToggleButton = aiBtnObj.AddComponent<Button>();
 
                 GameObject aiTxtObj = new GameObject("Text");
@@ -1704,149 +1880,99 @@ namespace FightFace
                 aiTRect.anchorMax = Vector2.one;
                 aiTRect.sizeDelta = Vector2.zero;
                 selectUI.p2AILabelText = aiTxtObj.AddComponent<Text>();
-                selectUI.p2AILabelText.text = "🤖 CPU";
+                selectUI.p2AILabelText.text = "🤖 MODO: CPU (IA)";
                 selectUI.p2AILabelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                selectUI.p2AILabelText.fontSize = 13;
+                selectUI.p2AILabelText.fontSize = 12;
                 selectUI.p2AILabelText.fontStyle = FontStyle.Bold;
                 selectUI.p2AILabelText.alignment = TextAnchor.MiddleCenter;
                 selectUI.p2AILabelText.color = Color.white;
             }
 
-            // Fila de 5 botones de selección de cuerpo
-            GameObject bodiesRow = new GameObject("BodiesRow");
-            bodiesRow.transform.SetParent(colObj.transform, false);
-            var brRect = bodiesRow.AddComponent<RectTransform>();
-            brRect.anchorMin = new Vector2(0.02f, 0.80f);
-            brRect.anchorMax = new Vector2(0.98f, 0.89f);
-            brRect.offsetMin = Vector2.zero;
-            brRect.offsetMax = Vector2.zero;
+            // Imagen del Cuerpo / Tarjeta de Arte Completa
+            GameObject bodyImgObj = new GameObject("FighterCardImage");
+            bodyImgObj.transform.SetParent(cardObj.transform, false);
+            var bRect = bodyImgObj.AddComponent<RectTransform>();
+            bRect.anchorMin = new Vector2(0.04f, 0.22f);
+            bRect.anchorMax = new Vector2(0.48f, 0.86f);
+            bRect.offsetMin = Vector2.zero;
+            bRect.offsetMax = Vector2.zero;
 
-            FighterBodyType[] allBodies = {
-                FighterBodyType.Gordo,
-                FighterBodyType.Flaco,
-                FighterBodyType.Musculoso,
-                FighterBodyType.Mujer,
-                FighterBodyType.DosCabezas
-            };
-            string[] shortLabels = { "Gordo", "Flaco", "Musculoso", "Mujer", "2 Cabezas" };
+            var bodyImg = bodyImgObj.AddComponent<Image>();
+            bodyImg.preserveAspect = true;
+            if (playerNum == 1) selectUI.p1FighterCardImage = bodyImg;
+            else selectUI.p2FighterCardImage = bodyImg;
 
-            Button[] buttons = new Button[5];
-            for (int i = 0; i < 5; i++)
-            {
-                int idx = i;
-                FighterBodyType bType = allBodies[i];
+            // Panel Derecho: Rostro de Webcam + Estadísticas
+            GameObject rightSide = new GameObject("RightSideInfo");
+            rightSide.transform.SetParent(cardObj.transform, false);
+            var rsRect = rightSide.AddComponent<RectTransform>();
+            rsRect.anchorMin = new Vector2(0.52f, 0.22f);
+            rsRect.anchorMax = new Vector2(0.96f, 0.86f);
+            rsRect.offsetMin = Vector2.zero;
+            rsRect.offsetMax = Vector2.zero;
 
-                GameObject bObj = new GameObject($"Btn_{bType}");
-                bObj.transform.SetParent(bodiesRow.transform, false);
-                var bRect = bObj.AddComponent<RectTransform>();
-                float startX = idx * 0.20f;
-                float endX = (idx + 1) * 0.20f;
-                bRect.anchorMin = new Vector2(startX + 0.01f, 0.05f);
-                bRect.anchorMax = new Vector2(endX - 0.01f, 0.95f);
-                bRect.offsetMin = Vector2.zero;
-                bRect.offsetMax = Vector2.zero;
+            // Rostro Personalizado (Sticker Ovalado Erguido)
+            GameObject headPreviewObj = new GameObject("HeadStickerPreview");
+            headPreviewObj.transform.SetParent(rightSide.transform, false);
+            var hpRect = headPreviewObj.AddComponent<RectTransform>();
+            hpRect.anchorMin = new Vector2(0.15f, 0.50f);
+            hpRect.anchorMax = new Vector2(0.85f, 0.98f);
+            hpRect.offsetMin = Vector2.zero;
+            hpRect.offsetMax = Vector2.zero;
 
-                var bImg = bObj.AddComponent<Image>();
-                bImg.color = new Color(0.18f, 0.22f, 0.32f);
-                var btn = bObj.AddComponent<Button>();
-                buttons[i] = btn;
+            var headImg = headPreviewObj.AddComponent<Image>();
+            headImg.preserveAspect = true;
+            headPreviewObj.transform.localScale = Vector3.one;
 
-                btn.onClick.AddListener(() =>
-                {
-                    if (playerNum == 1) selectUI.SelectP1Body(bType);
-                    else selectUI.SelectP2Body(bType);
-                });
+            var hpOutline = headPreviewObj.AddComponent<Outline>();
+            hpOutline.effectColor = Color.white;
+            hpOutline.effectDistance = new Vector2(2, 2);
 
-                GameObject bTxtObj = new GameObject("Text");
-                bTxtObj.transform.SetParent(bObj.transform, false);
-                var bTRect = bTxtObj.AddComponent<RectTransform>();
-                bTRect.anchorMin = Vector2.zero;
-                bTRect.anchorMax = Vector2.one;
-                bTRect.sizeDelta = Vector2.zero;
-                var bTxt = bTxtObj.AddComponent<Text>();
-                bTxt.text = shortLabels[i];
-                bTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                bTxt.fontSize = 13;
-                bTxt.fontStyle = FontStyle.Bold;
-                bTxt.alignment = TextAnchor.MiddleCenter;
-                bTxt.color = Color.white;
-            }
+            if (playerNum == 1) selectUI.p1HeadPreviewImage = headImg;
+            else selectUI.p2HeadPreviewImage = headImg;
 
-            if (playerNum == 1) selectUI.p1BodyButtons = buttons;
-            else selectUI.p2BodyButtons = buttons;
+            // Estadísticas Street Fighter II (Fuerza, Velocidad, Defensa, Técnica)
+            GameObject statsObj = new GameObject("StatsBars");
+            statsObj.transform.SetParent(rightSide.transform, false);
+            var stRect = statsObj.AddComponent<RectTransform>();
+            stRect.anchorMin = new Vector2(0, 0);
+            stRect.anchorMax = new Vector2(1, 0.48f);
+            stRect.offsetMin = Vector2.zero;
+            stRect.offsetMax = Vector2.zero;
 
-            // Tarjeta de Imagen del Cuerpo Completo
-            GameObject cardImgObj = new GameObject("FighterCardImage");
-            cardImgObj.transform.SetParent(colObj.transform, false);
-            var cardRect = cardImgObj.AddComponent<RectTransform>();
-            cardRect.anchorMin = new Vector2(0.06f, 0.28f);
-            cardRect.anchorMax = new Vector2(0.68f, 0.78f);
-            cardRect.offsetMin = Vector2.zero;
-            cardRect.offsetMax = Vector2.zero;
+            var stTxt = statsObj.AddComponent<Text>();
+            stTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            stTxt.fontSize = 11;
+            stTxt.fontStyle = FontStyle.Bold;
+            stTxt.alignment = TextAnchor.MiddleLeft;
+            stTxt.color = new Color(0.9f, 0.95f, 1f);
+            if (playerNum == 1) selectUI.p1StatsText = stTxt;
+            else selectUI.p2StatsText = stTxt;
 
-            var cardImg = cardImgObj.AddComponent<Image>();
-            cardImg.preserveAspect = true;
-            if (playerNum == 1) selectUI.p1FighterCardImage = cardImg;
-            else selectUI.p2FighterCardImage = cardImg;
-
-            // Miniatura del rostro ovalado actual
-            GameObject facePreviewObj = new GameObject("HeadStickerPreview");
-            facePreviewObj.transform.SetParent(colObj.transform, false);
-            var fpRect = facePreviewObj.AddComponent<RectTransform>();
-            fpRect.anchorMin = new Vector2(0.72f, 0.50f);
-            fpRect.anchorMax = new Vector2(0.95f, 0.78f);
-            fpRect.offsetMin = Vector2.zero;
-            fpRect.offsetMax = Vector2.zero;
-
-            var faceImg = facePreviewObj.AddComponent<Image>();
-            faceImg.preserveAspect = true;
-            var fpOutline = facePreviewObj.AddComponent<Outline>();
-            fpOutline.effectColor = Color.white;
-            fpOutline.effectDistance = new Vector2(2, 2);
-
-            if (playerNum == 1) selectUI.p1HeadPreviewImage = faceImg;
-            else selectUI.p2HeadPreviewImage = faceImg;
-
-            // Nombre y Descripción
+            // Nombre y Estilo
             GameObject nameObj = new GameObject("FighterName");
-            nameObj.transform.SetParent(colObj.transform, false);
+            nameObj.transform.SetParent(cardObj.transform, false);
             var nRect = nameObj.AddComponent<RectTransform>();
-            nRect.anchorMin = new Vector2(0.06f, 0.21f);
-            nRect.anchorMax = new Vector2(0.94f, 0.27f);
+            nRect.anchorMin = new Vector2(0.04f, 0.13f);
+            nRect.anchorMax = new Vector2(0.96f, 0.21f);
             nRect.offsetMin = Vector2.zero;
             nRect.offsetMax = Vector2.zero;
 
             var nTxt = nameObj.AddComponent<Text>();
             nTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            nTxt.fontSize = 20;
+            nTxt.fontSize = 18;
             nTxt.fontStyle = FontStyle.Bold;
             nTxt.alignment = TextAnchor.MiddleLeft;
-            nTxt.color = new Color(1f, 0.9f, 0.2f);
+            nTxt.color = new Color(1f, 0.88f, 0.2f);
             if (playerNum == 1) selectUI.p1NameText = nTxt;
             else selectUI.p2NameText = nTxt;
 
-            GameObject descObj = new GameObject("FighterDesc");
-            descObj.transform.SetParent(colObj.transform, false);
-            var dRect = descObj.AddComponent<RectTransform>();
-            dRect.anchorMin = new Vector2(0.06f, 0.12f);
-            dRect.anchorMax = new Vector2(0.94f, 0.20f);
-            dRect.offsetMin = Vector2.zero;
-            dRect.offsetMax = Vector2.zero;
-
-            var dTxt = descObj.AddComponent<Text>();
-            dTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            dTxt.fontSize = 14;
-            dTxt.alignment = TextAnchor.UpperLeft;
-            dTxt.color = new Color(0.85f, 0.88f, 0.95f);
-            if (playerNum == 1) selectUI.p1DescText = dTxt;
-            else selectUI.p2DescText = dTxt;
-
-            // Botón: 📷 Personalizar Rostro con Webcam
+            // Botón Personalizar Rostro con Webcam
             GameObject camBtnObj = new GameObject($"Btn_Webcam_P{playerNum}");
-            camBtnObj.transform.SetParent(colObj.transform, false);
+            camBtnObj.transform.SetParent(cardObj.transform, false);
             var cbRect = camBtnObj.AddComponent<RectTransform>();
-            cbRect.anchorMin = new Vector2(0.06f, 0.02f);
-            cbRect.anchorMax = new Vector2(0.94f, 0.10f);
+            cbRect.anchorMin = new Vector2(0.04f, 0.02f);
+            cbRect.anchorMax = new Vector2(0.96f, 0.11f);
             cbRect.offsetMin = Vector2.zero;
             cbRect.offsetMax = Vector2.zero;
 
@@ -1864,9 +1990,9 @@ namespace FightFace
             cbTRect.anchorMax = Vector2.one;
             cbTRect.sizeDelta = Vector2.zero;
             var cbTxt = cbTxtObj.AddComponent<Text>();
-            cbTxt.text = $"📸 Personalizar Rostro P{playerNum} (Webcam)";
+            cbTxt.text = $"📷 Personalizar Rostro P{playerNum} (Webcam)";
             cbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            cbTxt.fontSize = 17;
+            cbTxt.fontSize = 15;
             cbTxt.fontStyle = FontStyle.Bold;
             cbTxt.alignment = TextAnchor.MiddleCenter;
             cbTxt.color = Color.white;

@@ -579,6 +579,30 @@ namespace FightFace
             return null;
         }
 
+        public static Sprite LoadFighterThumbSprite(FighterBodyType bodyType)
+        {
+            string fname = $"Fighter_{bodyType}_thumb.png";
+            string path = Path.Combine(Application.dataPath, "Sprites", "Fighters", fname);
+            if (!File.Exists(path))
+            {
+                fname = $"Fighter_{bodyType}_card.png";
+                path = Path.Combine(Application.dataPath, "Sprites", "Fighters", fname);
+            }
+
+            if (File.Exists(path))
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (tex.LoadImage(bytes))
+                {
+                    tex.filterMode = FilterMode.Bilinear;
+                    tex.wrapMode = TextureWrapMode.Clamp;
+                    return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                }
+            }
+            return null;
+        }
+
         public static Sprite LoadStageMGMSprite()
         {
             string path = Path.Combine(Application.dataPath, "Sprites", "Stage_MGM_Grand.png");
