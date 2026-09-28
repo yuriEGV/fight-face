@@ -6,6 +6,7 @@ namespace FightFace
     /// - Flaco: Maestro de artes marciales estilo Bruce Lee con pantalones verdes.
     /// - Musculoso: Campeón de peso pesado Muay Thai / boxeo con shorts dorados.
     /// - Mujer: Ágil peleadora de kickboxing en pose de patada alta.
+    /// - Mujer2: Guerrera de artes marciales y ninjutsu con Gi carmesí.
     /// - DosCabezas: Mutante brawler carroñero de dos cabezas y cuatro brazos.
     /// </summary>
     public enum FighterBodyType
@@ -14,6 +15,7 @@ namespace FightFace
         Flaco = 1,
         Musculoso = 2,
         Mujer = 3,
-        DosCabezas = 4
+        Mujer2 = 4,
+        DosCabezas = 5
     }
 }

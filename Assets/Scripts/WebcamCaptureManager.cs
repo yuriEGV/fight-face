@@ -133,6 +133,7 @@ namespace FightFace
                 "El Flaco",
                 "El Musculoso",
                 "La Mujer",
+                "La Guerrera",
                 "El Dos Cabezas"
             };
             int idx = Mathf.Clamp(id - 1, 0, names.Length - 1);

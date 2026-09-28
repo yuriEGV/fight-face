@@ -909,6 +909,13 @@ namespace FightFace
                     gloves = new Color(0.95f, 0.22f, 0.65f); // Guantes magenta
                     boots = new Color(0.20f, 0.18f, 0.22f); // Botas combate
                     break;
+                case FighterBodyType.Mujer2:
+                    primaryCloth = new Color(0.85f, 0.15f, 0.22f); // Gi de combate rojo carmesí
+                    secondaryCloth = new Color(0.98f, 0.82f, 0.15f); // Ribete y faja dorada
+                    skin = new Color(1f, 0.86f, 0.76f);
+                    gloves = new Color(0.15f, 0.15f, 0.18f); // Muñequeras negras de combate
+                    boots = new Color(0.85f, 0.15f, 0.22f); // Zapatillas de combate rojas
+                    break;
                 case FighterBodyType.DosCabezas:
                 default:
                     primaryCloth = new Color(0.25f, 0.26f, 0.30f); // Arnés combate carbón
@@ -1022,6 +1029,16 @@ namespace FightFace
                             {
                                 // Top deportivo negro con ribete magenta
                                 if (y > h * 0.45f && y < h * 0.82f) col = (y > h * 0.78f) ? secondary : primary;
+                                else col = skin;
+                            }
+                            else if (bodyType == FighterBodyType.Mujer2)
+                            {
+                                // Gi de artes marciales / Kimono cruzado rojo carmesí con faja dorada
+                                if (y > h * 0.35f && y < h * 0.88f)
+                                {
+                                    bool isSash = (y < h * 0.48f);
+                                    col = isSash ? secondary : primary;
+                                }
                                 else col = skin;
                             }
                             else // Dos Cabezas
@@ -1286,8 +1303,8 @@ namespace FightFace
                         else
                         {
                             Color c;
-                            // En Flaco el pantalón cubre toda la pierna
-                            if (bodyType == FighterBodyType.Flaco) c = cloth;
+                            // En Flaco y Mujer2 el pantalón cubre toda la pierna
+                            if (bodyType == FighterBodyType.Flaco || bodyType == FighterBodyType.Mujer2) c = cloth;
                             // En Gordo / Musculoso / Mujer, parte superior son los shorts y luego pierna
                             else c = (y > h * 0.45f) ? cloth : skin;
                             tex.SetPixel(x, y, c);

@@ -66,6 +66,7 @@ namespace FightFace
                 "El Flaco",
                 "El Musculoso",
                 "La Mujer",
+                "La Guerrera",
                 "El Dos Cabezas"
             };
 
@@ -74,7 +75,8 @@ namespace FightFace
                 new Color(0.2f, 0.65f, 0.35f), // 2. Verde kung-fu
                 new Color(0.95f, 0.8f, 0.1f),  // 3. Dorado / Rojo Muay Thai
                 new Color(0.75f, 0.2f, 0.85f), // 4. Morado / Magenta
-                new Color(0.25f, 0.25f, 0.30f) // 5. Gris combate oscuro
+                new Color(0.85f, 0.15f, 0.22f),// 5. Rojo carmesí / Gi artes marciales
+                new Color(0.25f, 0.25f, 0.30f) // 6. Gris combate oscuro Boss
             };
 
             Color[] gloves = {
@@ -82,10 +84,11 @@ namespace FightFace
                 new Color(0.15f, 0.15f, 0.15f),// Negro kung-fu
                 new Color(0.95f, 0.25f, 0.25f),// Rojo Muay Thai
                 new Color(0.9f, 0.2f, 0.6f),  // Magenta
+                new Color(0.15f, 0.15f, 0.18f),// Muñequeras negras
                 new Color(0.85f, 0.6f, 0.1f)  // Oro oxidado
             };
 
-            for (int i = 1; i <= 5; i++)
+            for (int i = 1; i <= 6; i++)
             {
                 var fighter = new TournamentFighterData
                 {

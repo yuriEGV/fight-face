@@ -1251,17 +1251,18 @@ namespace FightFace
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
-            string[] names = { "1. El Gordo", "2. El Flaco", "3. El Musculoso", "4. La Mujer", "5. El Dos Cabezas" };
+            string[] names = { "1. El Gordo", "2. El Flaco", "3. El Musculoso", "4. La Mujer", "5. La Guerrera", "6. El Dos Cabezas" };
             Color[] colors = {
                 new Color(0.9f, 0.2f, 0.2f),
                 new Color(0.2f, 0.7f, 0.35f),
                 new Color(0.95f, 0.8f, 0.1f),
                 new Color(0.8f, 0.25f, 0.85f),
+                new Color(0.85f, 0.15f, 0.22f),
                 new Color(0.25f, 0.45f, 0.85f)
             };
 
-            float btnWidth = 1f / 5f;
-            for (int i = 0; i < 5; i++)
+            float btnWidth = 1f / 6f;
+            for (int i = 0; i < 6; i++)
             {
                 int fighterId = i + 1;
                 GameObject btnObj = new GameObject($"Btn_Fighter_{fighterId}");

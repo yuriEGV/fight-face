@@ -500,6 +500,7 @@ namespace FightFace
                 case FighterBodyType.Flaco: return "El Flaco";
                 case FighterBodyType.Musculoso: return "El Musculoso";
                 case FighterBodyType.Mujer: return "La Mujer";
+                case FighterBodyType.Mujer2: return "La Guerrera";
                 case FighterBodyType.DosCabezas: return "El Dos Cabezas";
                 default: return "Luchador";
             }
@@ -513,6 +514,7 @@ namespace FightFace
                 case FighterBodyType.Flaco: return "Maestro de Kung-Fu ágil y rápido. Golpes veloces estilo Bruce Lee.";
                 case FighterBodyType.Musculoso: return "Campeón invicto de boxeo y Muay Thai. Puños devastadores.";
                 case FighterBodyType.Mujer: return "Experta en kickboxing. Patadas voladoras de gran alcance.";
+                case FighterBodyType.Mujer2: return "Maestra de artes marciales y ninjutsu. Gran velocidad y técnicas letales.";
                 case FighterBodyType.DosCabezas: return "Mutante brawler carroñero de cuatro brazos y doble cabezazo.";
                 default: return "";
             }
@@ -526,6 +528,7 @@ namespace FightFace
                 case FighterBodyType.Flaco: return new Vector3(0.15f, 1.01f, 0);
                 case FighterBodyType.Musculoso: return new Vector3(0.08f, 2.20f, 0);
                 case FighterBodyType.Mujer: return new Vector3(-0.45f, 1.20f, 0);
+                case FighterBodyType.Mujer2: return new Vector3(-0.45f, 1.20f, 0);
                 case FighterBodyType.DosCabezas: return new Vector3(0f, 0.95f, 0);
                 default: return new Vector3(0, 1.25f, 0);
             }

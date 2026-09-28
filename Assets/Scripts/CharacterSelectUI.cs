@@ -23,6 +23,7 @@ namespace FightFace
             FighterBodyType.Flaco,
             FighterBodyType.Musculoso,
             FighterBodyType.Mujer,
+            FighterBodyType.Mujer2,
             FighterBodyType.DosCabezas
         };
 
@@ -419,6 +420,11 @@ namespace FightFace
                            "VELOCIDAD: ■■■■■■■■■□  9\n" +
                            "DEFENSA:   ■■■■■□□□□□  5\n" +
                            "TÉCNICA:   ■■■■■■■■■□  9";
+                case FighterBodyType.Mujer2:
+                    return "FUERZA:    ■■■■■■■□□□  7\n" +
+                           "VELOCIDAD: ■■■■■■■■■■  10\n" +
+                           "DEFENSA:   ■■■■■■□□□□  6\n" +
+                           "TÉCNICA:   ■■■■■■■■■■  10";
                 case FighterBodyType.DosCabezas:
                     return "FUERZA:    ■■■■■■■■□□  8\n" +
                            "VELOCIDAD: ■■■■■■□□□□  6\n" +
