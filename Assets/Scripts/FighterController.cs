@@ -52,6 +52,7 @@ namespace FightFace
 
         [Header("Referencias de Componentes")]
         public DynamicFaceController faceController;
+        public DynamicFaceController faceControllerRight;
         public FighterBodyController bodyController;
         public Transform opponent;
         public Hitbox punchHitbox;
@@ -457,6 +458,7 @@ namespace FightFace
             nextAttackTime = Time.time + 0.65f;
 
             if (faceController != null) faceController.ShowTemporaryFace(FaceType.Enojo, 0.50f);
+            if (faceControllerRight != null) faceControllerRight.ShowTemporaryFace(FaceType.Enojo, 0.50f);
             if (bodyController != null) bodyController.PlayPunchAnimation(0.08f, 0.25f, 0.15f);
 
             // Impulso hacia adelante
@@ -495,6 +497,7 @@ namespace FightFace
                     nextAttackTime = Time.time + 0.60f;
 
                     if (faceController != null) faceController.ShowTemporaryFace(FaceType.Enojo, 0.45f);
+                    if (faceControllerRight != null) faceControllerRight.ShowTemporaryFace(FaceType.Enojo, 0.45f);
                     if (CombatEffectsManager.Instance != null)
                     {
                         CombatEffectsManager.Instance.SpawnHitEffect((transform.position + opponent.position) * 0.5f, true);
@@ -533,6 +536,7 @@ namespace FightFace
 
             // Cara de Enojo/Rabia durante el golpe
             if (faceController != null) faceController.ShowTemporaryFace(FaceType.Enojo, startup + active);
+            if (faceControllerRight != null) faceControllerRight.ShowTemporaryFace(FaceType.Enojo, startup + active);
 
             if (bodyController != null)
             {
@@ -683,6 +687,10 @@ namespace FightFace
             {
                 faceController.SetRageMode(true);
             }
+            if (faceControllerRight != null)
+            {
+                faceControllerRight.SetRageMode(true);
+            }
 
             if (BattleUI.Instance != null)
             {
@@ -701,6 +709,11 @@ namespace FightFace
                 if (isHeavy) faceController.SetFace(FaceType.Dolor);
                 else faceController.ShowTemporaryFace(FaceType.Dolor, duracion);
             }
+            if (faceControllerRight != null)
+            {
+                if (isHeavy) faceControllerRight.SetFace(FaceType.Dolor);
+                else faceControllerRight.ShowTemporaryFace(FaceType.Dolor, duracion);
+            }
 
             if (bodyController != null)
             {
@@ -717,6 +730,10 @@ namespace FightFace
             if (faceController != null && isAlive && !isFullStunned)
             {
                 faceController.ResetToBaseFace();
+            }
+            if (faceControllerRight != null && isAlive && !isFullStunned)
+            {
+                faceControllerRight.ResetToBaseFace();
             }
 
             estaEnStun = false;
@@ -736,6 +753,7 @@ namespace FightFace
         {
             // Cara de DOLOR 😖 permanente durante todo el aturdimiento
             if (faceController != null) faceController.SetFace(FaceType.Dolor);
+            if (faceControllerRight != null) faceControllerRight.SetFace(FaceType.Dolor);
 
             if (CombatEffectsManager.Instance != null)
             {
@@ -757,6 +775,10 @@ namespace FightFace
             if (faceController != null && isAlive)
             {
                 faceController.ResetToBaseFace();
+            }
+            if (faceControllerRight != null && isAlive)
+            {
+                faceControllerRight.ResetToBaseFace();
             }
 
             if (BattleUI.Instance != null)
@@ -792,6 +814,10 @@ namespace FightFace
             if (faceController != null)
             {
                 faceController.SetFace(FaceType.KO);
+            }
+            if (faceControllerRight != null)
+            {
+                faceControllerRight.SetFace(FaceType.KO);
             }
 
             // 2. Animación de caída en el ring
@@ -833,6 +859,10 @@ namespace FightFace
             if (faceController != null)
             {
                 faceController.SetFace(FaceType.Ganador);
+            }
+            if (faceControllerRight != null)
+            {
+                faceControllerRight.SetFace(FaceType.Ganador);
             }
 
             if (bodyController != null)
@@ -880,6 +910,11 @@ namespace FightFace
             {
                 faceController.SetRageMode(false);
                 faceController.ResetToBaseFace();
+            }
+            if (faceControllerRight != null)
+            {
+                faceControllerRight.SetRageMode(false);
+                faceControllerRight.ResetToBaseFace();
             }
             if (bodyController != null)
             {

@@ -38,7 +38,7 @@ namespace FightFace
         [Header("Orientación y Zoom")]
         public bool flipVertical = false; // Por defecto FALSE en Windows para que las fotos queden perfectamente derechas
         public bool flipHorizontal = false;
-        public float faceZoom = 1.45f;    // Zoom óptimo para encuadrar directamente el rostro sin huecos vacíos
+        public float faceZoom = 1.90f;    // Zoom óptimo cerrado para encuadrar directamente el rostro sin paredes ni fondo
         public Text flipStatusText;
 
         private WebCamTexture webcamTexture;
@@ -129,14 +129,11 @@ namespace FightFace
         public string GetFighterDefaultName(int id)
         {
             string[] names = {
-                "Panchito 'El Bravo'",
-                "Rocky 'El Furioso'",
-                "Don Ramón 'El Pájaro'",
-                "La Máscara 'El Titán'",
-                "La Furia 'Relámpago'",
-                "Míster K.O.",
-                "El Fantasma",
-                "El Jefe Final"
+                "El Gordo",
+                "El Flaco",
+                "El Musculoso",
+                "La Mujer",
+                "El Dos Cabezas"
             };
             int idx = Mathf.Clamp(id - 1, 0, names.Length - 1);
             return names[idx];
@@ -356,16 +353,35 @@ namespace FightFace
         {
             if (BattleManager.Instance != null)
             {
-                if (BattleManager.Instance.player1 != null && BattleManager.Instance.player1.playerId == targetFighterId)
+                bool isP1Match = (BattleManager.Instance.player1 != null) && 
+                    ((int)BattleManager.Instance.p1BodyType + 1 == targetFighterId || BattleManager.Instance.player1.playerId == targetFighterId);
+                
+                if (isP1Match)
                 {
-                    BattleManager.Instance.player1.faceController.SetProfile(activeProfile);
+                    if (BattleManager.Instance.player1.faceController != null)
+                    {
+                        BattleManager.Instance.player1.faceController.SetProfile(activeProfile);
+                    }
                     BattleManager.Instance.player1.fighterName = activeProfile.fighterName;
                 }
-                else if (BattleManager.Instance.player2 != null && BattleManager.Instance.player2.playerId == targetFighterId)
+
+                bool isP2Match = (BattleManager.Instance.player2 != null) && 
+                    ((int)BattleManager.Instance.p2BodyType + 1 == targetFighterId || BattleManager.Instance.player2.playerId == targetFighterId);
+                
+                if (isP2Match)
                 {
-                    BattleManager.Instance.player2.faceController.SetProfile(activeProfile);
+                    if (BattleManager.Instance.player2.faceController != null)
+                    {
+                        BattleManager.Instance.player2.faceController.SetProfile(activeProfile);
+                    }
                     BattleManager.Instance.player2.fighterName = activeProfile.fighterName;
                 }
+            }
+
+            if (CharacterSelectUI.Instance != null)
+            {
+                CharacterSelectUI.Instance.RefreshP1UI();
+                CharacterSelectUI.Instance.RefreshP2UI();
             }
         }
 

@@ -1206,7 +1206,7 @@ namespace FightFace
 
             var inputField = inputObj.AddComponent<InputField>();
             inputField.textComponent = inTxt;
-            inputField.text = "Panchito";
+            inputField.text = "El Gordo";
             webcamMgr.fighterNameInput = inputField;
 
             // Botón Cerrar / Pelear
@@ -1251,20 +1251,17 @@ namespace FightFace
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
-            string[] names = { "1. Panchito", "2. Rocky", "3. Ramón", "4. Titán", "5. Furia", "6. Míster KO", "7. Fantasma", "8. Jefe Final" };
+            string[] names = { "1. El Gordo", "2. El Flaco", "3. El Musculoso", "4. La Mujer", "5. El Dos Cabezas" };
             Color[] colors = {
                 new Color(0.9f, 0.2f, 0.2f),
-                new Color(0.2f, 0.45f, 0.95f),
+                new Color(0.2f, 0.7f, 0.35f),
                 new Color(0.95f, 0.8f, 0.1f),
-                new Color(0.2f, 0.85f, 0.35f),
-                new Color(0.75f, 0.2f, 0.85f),
-                new Color(0.95f, 0.5f, 0.1f),
-                new Color(0.1f, 0.85f, 0.85f),
-                new Color(0.3f, 0.3f, 0.35f)
+                new Color(0.8f, 0.25f, 0.85f),
+                new Color(0.25f, 0.45f, 0.85f)
             };
 
-            float btnWidth = 1f / 8f;
-            for (int i = 0; i < 8; i++)
+            float btnWidth = 1f / 5f;
+            for (int i = 0; i < 5; i++)
             {
                 int fighterId = i + 1;
                 GameObject btnObj = new GameObject($"Btn_Fighter_{fighterId}");
@@ -1289,10 +1286,10 @@ namespace FightFace
                 var txt = txtObj.AddComponent<Text>();
                 txt.text = names[i];
                 txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                txt.fontSize = 13;
+                txt.fontSize = 14;
                 txt.fontStyle = FontStyle.Bold;
                 txt.alignment = TextAnchor.MiddleCenter;
-                txt.color = (i == 2 || i == 6) ? Color.black : Color.white;
+                txt.color = (i == 2) ? Color.black : Color.white;
             }
 
             // Etiqueta del luchador activo
@@ -1305,7 +1302,7 @@ namespace FightFace
             lRect.offsetMax = Vector2.zero;
 
             var lTxt = labelObj.AddComponent<Text>();
-            lTxt.text = "Editando: <b>Luchador 1 (Panchito 'El Bravo')</b>";
+            lTxt.text = "Editando: <b>Luchador 1 (El Gordo)</b>";
             lTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             lTxt.fontSize = 17;
             lTxt.alignment = TextAnchor.MiddleLeft;
@@ -2007,8 +2004,8 @@ namespace FightFace
 
             float cx = width / 2f;
             float cy = height / 2f;
-            float rx = width * 0.45f;
-            float ry = height * 0.47f;
+            float rx = width * 0.43f;
+            float ry = height * 0.46f;
 
             for (int y = 0; y < height; y++)
             {
@@ -2019,7 +2016,7 @@ namespace FightFace
                     continue;
                 }
 
-                float taper = 1f + (0.15f * ny);
+                float taper = 1f + (0.08f * ny);
                 float currRx = rx * taper;
 
                 for (int x = 0; x < width; x++)
@@ -2031,7 +2028,7 @@ namespace FightFace
                     {
                         tex.SetPixel(x, y, clear);
                     }
-                    else if (distSq > 0.86f)
+                    else if (distSq > 0.94f)
                     {
                         tex.SetPixel(x, y, lineCol);
                     }

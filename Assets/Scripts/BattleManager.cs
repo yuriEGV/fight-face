@@ -96,6 +96,38 @@ namespace FightFace
                 {
                     player1.bodyController.SetClassicBody(p1Body);
                 }
+                FaceProfile p1Profile = FaceLoader.LoadProfileForFighter((int)p1Body + 1, player1.fighterName);
+                if (player1.faceController != null)
+                {
+                    if (player1.bodyController != null && player1.bodyController.neckPoint != null)
+                    {
+                        player1.faceController.transform.SetParent(player1.bodyController.neckPoint, false);
+                        player1.faceController.transform.localPosition = Vector3.zero;
+                    }
+                    player1.faceController.SetProfile(p1Profile);
+                }
+
+                // Dos Cabezas compatibilidad de doble cabeza
+                if (p1Body == FighterBodyType.DosCabezas && player1.bodyController != null && player1.bodyController.neckPointRight != null)
+                {
+                    if (player1.faceControllerRight == null)
+                    {
+                        GameObject rHead = new GameObject("Head_Face_Right");
+                        rHead.transform.SetParent(player1.bodyController.neckPointRight, false);
+                        rHead.transform.localPosition = Vector3.zero;
+                        player1.faceControllerRight = rHead.AddComponent<DynamicFaceController>();
+                        var sr = rHead.GetComponent<SpriteRenderer>();
+                        sr.sortingOrder = 12;
+                    }
+                    player1.faceControllerRight.transform.SetParent(player1.bodyController.neckPointRight, false);
+                    player1.faceControllerRight.SetProfile(p1Profile);
+                    player1.faceControllerRight.SetFace(FaceType.Dolor);
+                }
+                else if (player1.faceControllerRight != null)
+                {
+                    Destroy(player1.faceControllerRight.gameObject);
+                    player1.faceControllerRight = null;
+                }
             }
 
             if (player2 != null)
@@ -105,6 +137,38 @@ namespace FightFace
                 if (player2.bodyController != null)
                 {
                     player2.bodyController.SetClassicBody(p2Body);
+                }
+                FaceProfile p2Profile = FaceLoader.LoadProfileForFighter((int)p2Body + 1, player2.fighterName);
+                if (player2.faceController != null)
+                {
+                    if (player2.bodyController != null && player2.bodyController.neckPoint != null)
+                    {
+                        player2.faceController.transform.SetParent(player2.bodyController.neckPoint, false);
+                        player2.faceController.transform.localPosition = Vector3.zero;
+                    }
+                    player2.faceController.SetProfile(p2Profile);
+                }
+
+                // Dos Cabezas compatibilidad de doble cabeza
+                if (p2Body == FighterBodyType.DosCabezas && player2.bodyController != null && player2.bodyController.neckPointRight != null)
+                {
+                    if (player2.faceControllerRight == null)
+                    {
+                        GameObject rHead = new GameObject("Head_Face_Right");
+                        rHead.transform.SetParent(player2.bodyController.neckPointRight, false);
+                        rHead.transform.localPosition = Vector3.zero;
+                        player2.faceControllerRight = rHead.AddComponent<DynamicFaceController>();
+                        var sr = rHead.GetComponent<SpriteRenderer>();
+                        sr.sortingOrder = 12;
+                    }
+                    player2.faceControllerRight.transform.SetParent(player2.bodyController.neckPointRight, false);
+                    player2.faceControllerRight.SetProfile(p2Profile);
+                    player2.faceControllerRight.SetFace(FaceType.Dolor);
+                }
+                else if (player2.faceControllerRight != null)
+                {
+                    Destroy(player2.faceControllerRight.gameObject);
+                    player2.faceControllerRight = null;
                 }
             }
 

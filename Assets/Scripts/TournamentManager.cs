@@ -62,39 +62,30 @@ namespace FightFace
             roster.Clear();
 
             string[] names = {
-                "Panchito 'El Bravo'",
-                "Rocky 'El Furioso'",
-                "Don Ramón 'El Pájaro'",
-                "La Máscara 'El Titán'",
-                "La Furia 'Relámpago'",
-                "Míster K.O.",
-                "El Fantasma",
-                "El Jefe Final"
+                "El Gordo",
+                "El Flaco",
+                "El Musculoso",
+                "La Mujer",
+                "El Dos Cabezas"
             };
 
             Color[] suits = {
-                new Color(0.9f, 0.2f, 0.2f),   // 1. Rojo
-                new Color(0.2f, 0.45f, 0.95f), // 2. Azul
-                new Color(0.95f, 0.8f, 0.1f),  // 3. Amarillo
-                new Color(0.2f, 0.85f, 0.35f), // 4. Verde
-                new Color(0.75f, 0.2f, 0.85f), // 5. Morado
-                new Color(0.95f, 0.5f, 0.1f),  // 6. Naranja
-                new Color(0.1f, 0.85f, 0.85f), // 7. Cian
-                new Color(0.15f, 0.15f, 0.15f) // 8. Negro / Oro
+                new Color(0.9f, 0.2f, 0.2f),   // 1. Rojo / Azul
+                new Color(0.2f, 0.65f, 0.35f), // 2. Verde kung-fu
+                new Color(0.95f, 0.8f, 0.1f),  // 3. Dorado / Rojo Muay Thai
+                new Color(0.75f, 0.2f, 0.85f), // 4. Morado / Magenta
+                new Color(0.25f, 0.25f, 0.30f) // 5. Gris combate oscuro
             };
 
             Color[] gloves = {
-                new Color(1f, 0.85f, 0.1f),  // Dorado
-                new Color(0.2f, 0.9f, 0.3f),  // Verde
-                new Color(0.9f, 0.2f, 0.2f),  // Rojo
-                new Color(0.1f, 0.85f, 0.9f), // Cian
-                new Color(1f, 0.6f, 0.1f),   // Naranja
-                new Color(0.9f, 0.1f, 0.5f),  // Rosa
-                new Color(0.9f, 0.9f, 0.9f),  // Blanco
-                new Color(1f, 0.85f, 0.1f)   // Dorado
+                new Color(0.9f, 0.2f, 0.2f),  // Rojo boxeo
+                new Color(0.15f, 0.15f, 0.15f),// Negro kung-fu
+                new Color(0.95f, 0.25f, 0.25f),// Rojo Muay Thai
+                new Color(0.9f, 0.2f, 0.6f),  // Magenta
+                new Color(0.85f, 0.6f, 0.1f)  // Oro oxidado
             };
 
-            for (int i = 1; i <= 8; i++)
+            for (int i = 1; i <= 5; i++)
             {
                 var fighter = new TournamentFighterData
                 {
@@ -144,16 +135,17 @@ namespace FightFace
 
             // Elegir escalera de oponentes excluyendo al seleccionado por P1
             List<int> available = new List<int>();
-            for (int i = 1; i <= 8; i++)
+            for (int i = 1; i <= 5; i++)
             {
-                if (i != selectedPlayer1Id) available.Add(i);
+                if (i != selectedPlayer1Id && i != 5) available.Add(i);
             }
 
             // Los 3 rivales del torneo (Ronda 1, Semifinal, Gran Final)
             opponentLadder = new int[3];
-            opponentLadder[0] = available[0]; // Primer rival
-            opponentLadder[1] = available[1]; // Semifinal
-            opponentLadder[2] = 8;            // El Jefe Final (Luchador 8)
+            opponentLadder[0] = available.Count > 0 ? available[0] : 2;
+            opponentLadder[1] = available.Count > 1 ? available[1] : 3;
+            // Jefe final: El Dos Cabezas (ID 5), o si P1 lo eligió, el siguiente más fuerte
+            opponentLadder[2] = (selectedPlayer1Id == 5) ? (available.Count > 2 ? available[2] : 1) : 5;
 
             LoadTournamentRound();
         }

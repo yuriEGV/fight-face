@@ -42,7 +42,7 @@ namespace FightFace
                     Color corner = texture.GetPixel(0, 0);
                     if (corner.a > 0.5f)
                     {
-                        Texture2D masked = MaskAsOvalHead(texture, false, false, 1.45f);
+                        Texture2D masked = MaskAsOvalHead(texture, false, false, 1.90f);
                         texture = masked;
                     }
 
@@ -84,12 +84,12 @@ namespace FightFace
         }
 
         /// <summary>
-        /// Aplica una máscara ovalada estilizada con zoom cerrado al rostro y borde de cómic sutil:
-        /// - Zoom inteligente centrado en ojos y nariz para eliminar fondos amplios y espacios en blanco.
-        /// - Borde de calcomanía limpio y fino sin invadir las facciones de la cara.
-        /// - Ahusamiento anatómico del mentón para un calce perfecto sobre el cuello del cuerpo.
+        /// Aplica una máscara redondeada estilizada con zoom cerrado al rostro y borde de cómic sutil:
+        /// - Zoom cerrado enfocado en facciones (ojos, nariz, boca, mejillas) para eliminar fondo, paredes y pizarras.
+        /// - Contorno redondeado proporcional a la cara.
+        /// - Borde de calcomanía limpio y fino sin invadir las facciones.
         /// </summary>
-        public static Texture2D MaskAsOvalHead(Texture2D source, bool flipY = false, bool flipX = false, float zoom = 1.45f)
+        public static Texture2D MaskAsOvalHead(Texture2D source, bool flipY = false, bool flipX = false, float zoom = 1.90f)
         {
             if (source == null) return null;
             zoom = Mathf.Max(1.0f, zoom);
@@ -106,11 +106,11 @@ namespace FightFace
             Color borderGlow = new Color(1f, 1f, 1f, 1f);
 
             Vector2 center = new Vector2(size / 2f, size / 2f);
-            // Proporción de cabeza humana estilizada
-            float radiusX = size * 0.38f;
-            float radiusY = size * 0.47f;
+            // Proporción redondeada de rostro cómic
+            float radiusX = size * 0.42f;
+            float radiusY = size * 0.45f;
 
-            // Centro del rostro: ligeramente por encima del centro vertical (0.52f) donde están ojos y nariz
+            // Centro del rostro: centrado exactamente en el rostro (0.50f horizontal, 0.52f vertical)
             float srcCenterX = source.width * 0.5f;
             float srcCenterY = source.height * 0.52f;
             float sampleRadius = (minDim * 0.5f) / zoom;
@@ -125,8 +125,8 @@ namespace FightFace
                     continue;
                 }
 
-                // Ahusamiento hacia el mentón
-                float taper = 1.0f + (0.14f * ny);
+                // Ahusamiento suave hacia el mentón
+                float taper = 1.0f + (0.08f * ny);
                 float currRx = radiusX * taper;
 
                 float normYOffset = (y - center.y) / (size * 0.5f);
@@ -143,14 +143,14 @@ namespace FightFace
                     {
                         result.SetPixel(x, y, transparent);
                     }
-                    else if (distSq > 0.975f)
+                    else if (distSq > 0.965f)
                     {
                         // Trazo negro fino de cómic (1-2 píxeles)
                         result.SetPixel(x, y, borderOutline);
                     }
-                    else if (distSq > 0.935f)
+                    else if (distSq > 0.920f)
                     {
-                        // Borde blanco sutil estilo Sticker (delgado, no tapa la cara)
+                        // Borde blanco sutil estilo Sticker
                         result.SetPixel(x, y, borderGlow);
                     }
                     else
@@ -661,6 +661,29 @@ namespace FightFace
         public static Sprite LoadStageStreetSprite()
         {
             return LoadStageMGMSprite();
+        }
+
+        public static FaceProfile LoadProfileForFighter(int id, string defaultName)
+        {
+            FaceProfile profile = new FaceProfile();
+            profile.fighterId = id;
+            profile.fighterName = defaultName;
+
+            string dir1 = Path.Combine(Application.persistentDataPath, "Luchadores", $"Jugador_{id}");
+            string dir2 = Path.Combine(Application.persistentDataPath, "Luchadores", $"Luchador_{id}");
+
+            if (Directory.Exists(dir1) && profile.LoadFromDirectory(dir1))
+            {
+                return profile;
+            }
+            if (Directory.Exists(dir2) && profile.LoadFromDirectory(dir2))
+            {
+                return profile;
+            }
+
+            FaceProfile def = CreateDefaultProceduralProfile(id);
+            def.fighterName = defaultName;
+            return def;
         }
     }
 }

@@ -70,10 +70,12 @@ namespace FightFace
 
             var tm = starsObj.AddComponent<TextMesh>();
             tm.text = "★  💫  ★";
-            tm.fontSize = 42;
+            tm.fontSize = 28;
+            tm.characterSize = 1f;
             tm.alignment = TextAlignment.Center;
             tm.anchor = TextAnchor.MiddleCenter;
             tm.color = new Color(1f, 0.95f, 0.2f);
+            starsObj.transform.localScale = Vector3.one * 0.025f;
 
             float elapsed = 0f;
             while (elapsed < duration && head != null)

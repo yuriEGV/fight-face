@@ -5,37 +5,71 @@ using UnityEngine;
 namespace FightFace
 {
     /// <summary>
-    /// Controlador del cuerpo articulado 2D del luchador ("DECONSTRUCTED FIGHTER"):
-    /// - Esqueleto jerárquico modular: Pelvis -> Torso -> Cuello/Cabeza, Hombros -> Codos -> Puños, Caderas -> Rodillas -> Botas.
-    /// - Soporte para sprites modulares de alta resolución (El Gordo, El Flaco, etc.) y texturas estilizadas.
-    /// - Animaciones procedurales vivas en tiempo real: Respiración con guardia atlética, Zancada de caminata,
-    ///   Puñetazo con extensión completa de codo y hombro, Patada con chamber y estiramiento de rodilla,
-    ///   Reacción de dolor con sacudida y K.O. ragdoll contra la lona del MGM Grand.
+    /// Controlador del cuerpo articulado 2D del luchador basado en el sistema de Huesos/Rig 2D:
+    ///
+    ///               CABEZA (Face Sticker con 4 emociones)
+    ///                  ●
+    ///                  │
+    ///               CUELLO
+    ///                  ●
+    ///           ┌──────┴──────┐
+    ///           ●             ●
+    ///        HOMBRO        HOMBRO
+    ///           │             │
+    ///         CODO           CODO
+    ///           │             │
+    ///        MUÑECA         MUÑECA
+    ///
+    ///               TORSO
+    ///                  │
+    ///           ┌──────┴──────┐
+    ///         CADERA        CADERA
+    ///            │             │
+    ///          RODILLA       RODILLA
+    ///            │             │
+    ///         TOBILLO       TOBILLO
+    ///
+    /// Y para "El Dos Cabezas" (mutante especial de dos cabezas):
+    ///         😡         😱
+    ///          \         /
+    ///           \       /
+    ///          CUELLO_L CUELLO_R
+    ///               │
+    ///             TORSO
+    ///
+    /// - Cada articulación utiliza tapas de unión circulares superpuestas (ball-and-socket)
+    ///   para garantizar que los miembros NUNCA se separen ni aparezcan huecos al rotar.
+    /// - Soporta los 5 personajes canónicos:
+    ///   1. El Gordo (Luchador de sumo/wrestling con overol a rayas azul y blanco).
+    ///   2. El Flaco (Maestro de artes marciales estilo Bruce Lee, pantalones verdes y torso marcado).
+    ///   3. El Musculoso (Campeón peso pesado de Muay Thai, shorts dorados y guantes rojos).
+    ///   4. La Mujer (Peleadora de kickboxing con top deportivo y mallas atléticas).
+    ///   5. El Dos Cabezas (Coloso de doble cuello y dos cabezas animadas simultáneamente).
     /// </summary>
     public class FighterBodyController : MonoBehaviour
     {
-        [Header("Núcleo y Columna")]
-        public Transform pelvis;
-        public Transform torso;
-        public Transform neckPoint;
-        public Transform neckPointLeft;
-        public Transform neckPointRight;
+        [Header("Núcleo y Columna (Rig 2D)")]
+        public Transform pelvis;         // CADERA / Centro de masa del esqueleto
+        public Transform torso;          // TORSO
+        public Transform neckPoint;      // CUELLO (Cabeza central o Izquierda 😡 en Dos Cabezas)
+        public Transform neckPointLeft;  // CUELLO IZQ (Dos Cabezas)
+        public Transform neckPointRight; // CUELLO DER (Dos Cabezas 😱)
 
         [Header("Brazos Articulados")]
-        public Transform leftArm;       // Hombro delantero / Lead Shoulder
-        public Transform leftForearm;   // Codo / Antebrazo delantero
-        public Transform leftFist;      // Muñeca / Puño delantero
-        public Transform rightArm;      // Hombro trasero / Rear Shoulder
-        public Transform rightForearm;  // Codo / Antebrazo trasero
-        public Transform rightFist;     // Muñeca / Puño trasero
+        public Transform leftArm;        // HOMBRO DELANTERO / Lead Shoulder
+        public Transform leftForearm;    // CODO DELANTERO / Lead Forearm
+        public Transform leftFist;       // MUÑECA DELANTERA / Lead Fist
+        public Transform rightArm;       // HOMBRO TRASERO / Rear Shoulder
+        public Transform rightForearm;   // CODO TRASERO / Rear Forearm
+        public Transform rightFist;      // MUÑECA TRASERA / Rear Fist
 
         [Header("Piernas Articuladas")]
-        public Transform leftLeg;       // Cadera / Muslo delantero
-        public Transform leftCalf;      // Rodilla / Pantorrilla delantera
-        public Transform leftFoot;      // Tobillo / Bota delantera
-        public Transform rightLeg;      // Cadera / Muslo trasero
-        public Transform rightCalf;     // Rodilla / Pantorrilla trasera
-        public Transform rightFoot;     // Tobillo / Bota trasera
+        public Transform leftLeg;        // CADERA / MUSLO DELANTERO
+        public Transform leftCalf;       // RODILLA / PANTORRILLA DELANTERA
+        public Transform leftFoot;       // TOBILLO / BOTA DELANTERA
+        public Transform rightLeg;       // CADERA / MUSLO TRASERO
+        public Transform rightCalf;      // RODILLA / PANTORRILLA TRASERA
+        public Transform rightFoot;      // TOBILLO / BOTA TRASERA
 
         [Header("Efectos")]
         public Transform groundShadow;
@@ -63,13 +97,14 @@ namespace FightFace
         private SpriteRenderer[] allRenderers;
         private Color[] originalColors;
         private float walkCycle = 0f;
+        private float breatheCycle = 0f;
         private bool isAttacking = false;
         private bool isKO = false;
         private bool isHurt = false;
 
-        // Poses base locales para interpolación
-        private Vector3 pelvisBasePos = new Vector3(0, 0.72f, 0);
-        private Vector3 torsoBasePos = new Vector3(0, 0.35f, 0);
+        // Poses base locales del rig esquelético
+        private Vector3 pelvisBasePos = new Vector3(0, 0.75f, 0);
+        private Vector3 torsoBasePos = new Vector3(0, 0.16f, 0);
         private Quaternion leadShoulderBaseRot = Quaternion.Euler(0, 0, 22f);
         private Quaternion leadForearmBaseRot = Quaternion.Euler(0, 0, 68f);
         private Quaternion rearShoulderBaseRot = Quaternion.Euler(0, 0, -14f);
@@ -102,7 +137,7 @@ namespace FightFace
         }
 
         /// <summary>
-        /// Aplica y reconstruye el esqueleto articulado con las partes de El Gordo, El Flaco o personajes modulares.
+        /// Aplica y reconstruye el esqueleto articulado según el personaje elegido.
         /// </summary>
         public void SetClassicBody(FighterBodyType bodyType)
         {
@@ -112,15 +147,15 @@ namespace FightFace
         }
 
         /// <summary>
-        /// Construye el esqueleto 2D jerárquico exacto según el esquema modular enviado por el usuario.
+        /// Construye el esqueleto 2D jerárquico exacto solicitado por el usuario con uniones superpuestas.
         /// </summary>
         public void BuildArticulatedHierarchy(FighterBodyType bodyType)
         {
-            // Eliminar cualquier quad monolítico antiguo "ClassicBodySprite"
+            // Eliminar restos antiguos no jerárquicos
             Transform oldSprite = transform.Find("ClassicBodySprite");
             if (oldSprite != null) Destroy(oldSprite.gameObject);
 
-            // 1. Sombra en la lona del ring (pies en y = 0)
+            // 1. SOMBRA EN LA LONA DEL RING (Y = -0.05)
             if (groundShadow == null)
             {
                 Transform exShadow = transform.Find("GroundShadow");
@@ -137,7 +172,7 @@ namespace FightFace
                 }
             }
 
-            // 2. Pelvis Núcleo (Raíz móvil del cuerpo)
+            // 2. CADERA / PELVIS NÚCLEO (Raíz móvil del esqueleto a Y = 0.75)
             if (pelvis == null)
             {
                 Transform exPelvis = transform.Find("Pelvis_Core");
@@ -146,157 +181,280 @@ namespace FightFace
                 {
                     GameObject pObj = new GameObject("Pelvis_Core");
                     pObj.transform.SetParent(transform, false);
-                    pObj.transform.localPosition = pelvisBasePos;
                     pelvis = pObj.transform;
                 }
             }
             pelvis.localPosition = pelvisBasePos;
-            var pelvisSr = EnsureSpriteRenderer(pelvis.gameObject, 5);
-            pelvisSr.sprite = LoadOrGeneratePart(bodyType, "Pelvis", 0.40f);
+            var pelvisSr = EnsureSpriteRenderer(pelvis.gameObject, 6);
+            pelvisSr.sprite = GenerateProceduralPartSprite("Pelvis", bodyType);
 
-            // 3. Piernas (Caderas -> Rodillas -> Pies)
-            // Pierna Trasera (detrás del cuerpo, sortingOrder 2)
+            // 3. PIERNA TRASERA (detrás del cuerpo, sortingOrder 1, 2, 3)
+            // Cadera -> Muslo Trasero
             if (rightLeg == null)
             {
-                GameObject rThighObj = new GameObject("Thigh_Rear");
-                rThighObj.transform.SetParent(pelvis, false);
-                rThighObj.transform.localPosition = new Vector3(-0.16f, -0.08f, 0);
-                rightLeg = rThighObj.transform;
+                Transform ex = pelvis.Find("Thigh_Rear");
+                if (ex != null) rightLeg = ex;
+                else
+                {
+                    GameObject rThighObj = new GameObject("Thigh_Rear");
+                    rThighObj.transform.SetParent(pelvis, false);
+                    rightLeg = rThighObj.transform;
+                }
             }
-            var rThighSr = EnsureSpriteRenderer(rightLeg.gameObject, 2);
-            rThighSr.sprite = LoadOrGeneratePart(bodyType, "Leg_Thigh_R", 0.50f);
+            rightLeg.localPosition = new Vector3(-0.16f, -0.06f, 0);
+            var rThighSr = EnsureSpriteRenderer(rightLeg.gameObject, 1);
+            rThighSr.sprite = GenerateProceduralPartSprite("Thigh", bodyType);
 
+            // Rodilla -> Pantorrilla Trasera
             if (rightCalf == null)
             {
-                GameObject rCalfObj = new GameObject("Calf_Rear");
-                rCalfObj.transform.SetParent(rightLeg, false);
-                rCalfObj.transform.localPosition = new Vector3(-0.02f, -0.32f, 0);
-                rightCalf = rCalfObj.transform;
+                Transform ex = rightLeg.Find("Calf_Rear");
+                if (ex != null) rightCalf = ex;
+                else
+                {
+                    GameObject rCalfObj = new GameObject("Calf_Rear");
+                    rCalfObj.transform.SetParent(rightLeg, false);
+                    rightCalf = rCalfObj.transform;
+                }
             }
+            rightCalf.localPosition = new Vector3(0f, -0.32f, 0);
             var rCalfSr = EnsureSpriteRenderer(rightCalf.gameObject, 2);
-            rCalfSr.sprite = LoadOrGeneratePart(bodyType, "Leg_Calf_R", 0.45f);
+            rCalfSr.sprite = GenerateProceduralPartSprite("Calf", bodyType);
 
-            // Pierna Delantera (frente a la pelvis, sortingOrder 6)
+            // Tobillo -> Bota Trasera
+            if (rightFoot == null)
+            {
+                Transform ex = rightCalf.Find("Foot_Rear");
+                if (ex != null) rightFoot = ex;
+                else
+                {
+                    GameObject rFootObj = new GameObject("Foot_Rear");
+                    rFootObj.transform.SetParent(rightCalf, false);
+                    rightFoot = rFootObj.transform;
+                }
+            }
+            rightFoot.localPosition = new Vector3(0.04f, -0.30f, 0);
+            var rFootSr = EnsureSpriteRenderer(rightFoot.gameObject, 3);
+            rFootSr.sprite = GenerateProceduralPartSprite("Foot", bodyType);
+
+            // 4. PIERNA DELANTERA (frente a la pelvis, sortingOrder 9, 10, 11)
+            // Cadera -> Muslo Delantero
             if (leftLeg == null)
             {
-                GameObject lThighObj = new GameObject("Thigh_Lead");
-                lThighObj.transform.SetParent(pelvis, false);
-                lThighObj.transform.localPosition = new Vector3(0.16f, -0.08f, 0);
-                leftLeg = lThighObj.transform;
+                Transform ex = pelvis.Find("Thigh_Lead");
+                if (ex != null) leftLeg = ex;
+                else
+                {
+                    GameObject lThighObj = new GameObject("Thigh_Lead");
+                    lThighObj.transform.SetParent(pelvis, false);
+                    leftLeg = lThighObj.transform;
+                }
             }
-            var lThighSr = EnsureSpriteRenderer(leftLeg.gameObject, 6);
-            lThighSr.sprite = LoadOrGeneratePart(bodyType, "Leg_Thigh_L", 0.50f);
+            leftLeg.localPosition = new Vector3(0.16f, -0.06f, 0);
+            var lThighSr = EnsureSpriteRenderer(leftLeg.gameObject, 9);
+            lThighSr.sprite = GenerateProceduralPartSprite("Thigh", bodyType);
 
+            // Rodilla -> Pantorrilla Delantera
             if (leftCalf == null)
             {
-                GameObject lCalfObj = new GameObject("Calf_Lead");
-                lCalfObj.transform.SetParent(leftLeg, false);
-                lCalfObj.transform.localPosition = new Vector3(0.02f, -0.32f, 0);
-                leftCalf = lCalfObj.transform;
+                Transform ex = leftLeg.Find("Calf_Lead");
+                if (ex != null) leftCalf = ex;
+                else
+                {
+                    GameObject lCalfObj = new GameObject("Calf_Lead");
+                    lCalfObj.transform.SetParent(leftLeg, false);
+                    leftCalf = lCalfObj.transform;
+                }
             }
-            var lCalfSr = EnsureSpriteRenderer(leftCalf.gameObject, 6);
-            lCalfSr.sprite = LoadOrGeneratePart(bodyType, "Leg_Calf_L", 0.45f);
+            leftCalf.localPosition = new Vector3(0f, -0.32f, 0);
+            var lCalfSr = EnsureSpriteRenderer(leftCalf.gameObject, 10);
+            lCalfSr.sprite = GenerateProceduralPartSprite("Calf", bodyType);
 
-            // 4. Torso (Unido a la Pelvis)
+            // Tobillo -> Bota Delantera
+            if (leftFoot == null)
+            {
+                Transform ex = leftCalf.Find("Foot_Lead");
+                if (ex != null) leftFoot = ex;
+                else
+                {
+                    GameObject lFootObj = new GameObject("Foot_Lead");
+                    lFootObj.transform.SetParent(leftCalf, false);
+                    leftFoot = lFootObj.transform;
+                }
+            }
+            leftFoot.localPosition = new Vector3(0.04f, -0.30f, 0);
+            var lFootSr = EnsureSpriteRenderer(leftFoot.gameObject, 11);
+            lFootSr.sprite = GenerateProceduralPartSprite("Foot", bodyType);
+            articulatedKickFoot = leftFoot;
+            articulatedKickSr = lFootSr;
+
+            // 5. TORSO (Hijo de la Pelvis, superponiéndose suavemente en la cintura)
             if (torso == null)
             {
-                GameObject tObj = new GameObject("Torso");
-                tObj.transform.SetParent(pelvis, false);
-                tObj.transform.localPosition = torsoBasePos;
-                torso = tObj.transform;
+                Transform ex = pelvis.Find("Torso");
+                if (ex != null) torso = ex;
+                else
+                {
+                    GameObject tObj = new GameObject("Torso");
+                    tObj.transform.SetParent(pelvis, false);
+                    torso = tObj.transform;
+                }
             }
             torso.localPosition = torsoBasePos;
             var torsoSr = EnsureSpriteRenderer(torso.gameObject, 7);
-            torsoSr.sprite = LoadOrGeneratePart(bodyType, "Torso", 0.82f);
+            torsoSr.sprite = GenerateProceduralPartSprite("Torso", bodyType);
 
-            // 5. Cuello / NeckPoint (En la apertura superior del cuello del torso)
+            // 6. CUELLO Y CABEZA
             if (neckPoint == null)
             {
-                GameObject neckObj = new GameObject("NeckPoint");
-                neckObj.transform.SetParent(torso, false);
-                neckPoint = neckObj.transform;
+                Transform ex = torso.Find("NeckPoint");
+                if (ex != null) neckPoint = ex;
+                else
+                {
+                    GameObject neckObj = new GameObject("NeckPoint");
+                    neckObj.transform.SetParent(torso, false);
+                    neckPoint = neckObj.transform;
+                }
             }
-            // Altura del cuello directamente sobre el pecho
-            neckPoint.localPosition = new Vector3(0f, 0.52f, 0);
 
-            // Dos Cabezas compatibilidad
             if (bodyType == FighterBodyType.DosCabezas)
             {
-                neckPoint.localPosition = new Vector3(-0.20f, 0.48f, 0);
+                // RIG ESPECIAL DE DOS CABEZAS (😡 y 😱)
+                neckPoint.localPosition = new Vector3(-0.22f, 0.62f, 0);
+                neckPointLeft = neckPoint;
+                var nSrL = EnsureSpriteRenderer(neckPoint.gameObject, 8);
+                nSrL.sprite = GenerateProceduralPartSprite("Neck", bodyType);
+
                 if (neckPointRight == null)
                 {
-                    GameObject rNeck = new GameObject("NeckPointRight");
-                    rNeck.transform.SetParent(torso, false);
-                    neckPointRight = rNeck.transform;
+                    Transform ex = torso.Find("NeckPointRight");
+                    if (ex != null) neckPointRight = ex;
+                    else
+                    {
+                        GameObject rNeck = new GameObject("NeckPointRight");
+                        rNeck.transform.SetParent(torso, false);
+                        neckPointRight = rNeck.transform;
+                    }
                 }
-                neckPointRight.localPosition = new Vector3(0.20f, 0.48f, 0);
+                neckPointRight.localPosition = new Vector3(0.22f, 0.62f, 0);
+                var nSrR = EnsureSpriteRenderer(neckPointRight.gameObject, 8);
+                nSrR.sprite = GenerateProceduralPartSprite("Neck", bodyType);
+            }
+            else
+            {
+                // RIG NORMAL (1 CUELLO CENTRAL)
+                neckPoint.localPosition = new Vector3(0f, 0.65f, 0);
+                var neckSr = EnsureSpriteRenderer(neckPoint.gameObject, 8);
+                neckSr.sprite = GenerateProceduralPartSprite("Neck", bodyType);
+
+                if (neckPointRight != null)
+                {
+                    Destroy(neckPointRight.gameObject);
+                    neckPointRight = null;
+                }
             }
 
-            // 6. Brazo Trasero (Hombro -> Codo -> Mano, detrás del torso, sortingOrder 3-4)
+            // 7. BRAZO TRASERO (detrás del torso, sortingOrder 3, 4, 5)
+            // Hombro Trasero
             if (rightArm == null)
             {
-                GameObject rShoulderObj = new GameObject("Shoulder_Rear");
-                rShoulderObj.transform.SetParent(torso, false);
-                rShoulderObj.transform.localPosition = new Vector3(-0.20f, 0.28f, 0);
-                rightArm = rShoulderObj.transform;
+                Transform ex = torso.Find("Shoulder_Rear");
+                if (ex != null) rightArm = ex;
+                else
+                {
+                    GameObject rShoulderObj = new GameObject("Shoulder_Rear");
+                    rShoulderObj.transform.SetParent(torso, false);
+                    rightArm = rShoulderObj.transform;
+                }
             }
+            rightArm.localPosition = new Vector3(-0.25f, 0.46f, 0);
             var rArmSr = EnsureSpriteRenderer(rightArm.gameObject, 3);
-            rArmSr.sprite = LoadOrGeneratePart(bodyType, "Arm_Upper_R", 0.45f);
+            rArmSr.sprite = GenerateProceduralPartSprite("UpperArm", bodyType);
 
+            // Codo Trasero
             if (rightForearm == null)
             {
-                GameObject rForearmObj = new GameObject("Forearm_Rear");
-                rForearmObj.transform.SetParent(rightArm, false);
-                rForearmObj.transform.localPosition = new Vector3(-0.10f, -0.26f, 0);
-                rightForearm = rForearmObj.transform;
+                Transform ex = rightArm.Find("Forearm_Rear");
+                if (ex != null) rightForearm = ex;
+                else
+                {
+                    GameObject rForearmObj = new GameObject("Forearm_Rear");
+                    rForearmObj.transform.SetParent(rightArm, false);
+                    rightForearm = rForearmObj.transform;
+                }
             }
+            rightForearm.localPosition = new Vector3(0f, -0.28f, 0);
             var rForearmSr = EnsureSpriteRenderer(rightForearm.gameObject, 4);
-            rForearmSr.sprite = LoadOrGeneratePart(bodyType, "Arm_Forearm_R", 0.40f);
+            rForearmSr.sprite = GenerateProceduralPartSprite("Forearm", bodyType);
 
+            // Muñeca / Puño Trasero
             if (rightFist == null)
             {
-                GameObject rFistObj = new GameObject("Fist_Rear");
-                rFistObj.transform.SetParent(rightForearm, false);
-                rFistObj.transform.localPosition = new Vector3(-0.06f, -0.22f, 0);
-                rightFist = rFistObj.transform;
+                Transform ex = rightForearm.Find("Fist_Rear");
+                if (ex != null) rightFist = ex;
+                else
+                {
+                    GameObject rFistObj = new GameObject("Fist_Rear");
+                    rFistObj.transform.SetParent(rightForearm, false);
+                    rightFist = rFistObj.transform;
+                }
             }
-            var rFistSr = EnsureSpriteRenderer(rightFist.gameObject, 4);
-            rFistSr.sprite = LoadOrGeneratePart(bodyType, "Arm_Hand_R", 0.28f);
+            rightFist.localPosition = new Vector3(0f, -0.24f, 0);
+            var rFistSr = EnsureSpriteRenderer(rightFist.gameObject, 5);
+            rFistSr.sprite = GenerateProceduralPartSprite("Hand", bodyType);
 
-            // 7. Brazo Delantero (Hombro -> Codo -> Puño, al frente en guardia, sortingOrder 14-16)
+            // 8. BRAZO DELANTERO (al frente en guardia atlética, sortingOrder 13, 14, 15)
+            // Hombro Delantero
             if (leftArm == null)
             {
-                GameObject lShoulderObj = new GameObject("Shoulder_Lead");
-                lShoulderObj.transform.SetParent(torso, false);
-                lShoulderObj.transform.localPosition = new Vector3(0.22f, 0.28f, 0);
-                leftArm = lShoulderObj.transform;
+                Transform ex = torso.Find("Shoulder_Lead");
+                if (ex != null) leftArm = ex;
+                else
+                {
+                    GameObject lShoulderObj = new GameObject("Shoulder_Lead");
+                    lShoulderObj.transform.SetParent(torso, false);
+                    leftArm = lShoulderObj.transform;
+                }
             }
-            var lArmSr = EnsureSpriteRenderer(leftArm.gameObject, 14);
-            lArmSr.sprite = LoadOrGeneratePart(bodyType, "Arm_Upper_L", 0.45f);
+            leftArm.localPosition = new Vector3(0.25f, 0.46f, 0);
+            var lArmSr = EnsureSpriteRenderer(leftArm.gameObject, 13);
+            lArmSr.sprite = GenerateProceduralPartSprite("UpperArm", bodyType);
 
+            // Codo Delantero
             if (leftForearm == null)
             {
-                GameObject lForearmObj = new GameObject("Forearm_Lead");
-                lForearmObj.transform.SetParent(leftArm, false);
-                lForearmObj.transform.localPosition = new Vector3(0.12f, -0.26f, 0);
-                leftForearm = lForearmObj.transform;
+                Transform ex = leftArm.Find("Forearm_Lead");
+                if (ex != null) leftForearm = ex;
+                else
+                {
+                    GameObject lForearmObj = new GameObject("Forearm_Lead");
+                    lForearmObj.transform.SetParent(leftArm, false);
+                    leftForearm = lForearmObj.transform;
+                }
             }
-            var lForearmSr = EnsureSpriteRenderer(leftForearm.gameObject, 15);
-            lForearmSr.sprite = LoadOrGeneratePart(bodyType, "Arm_Forearm_L", 0.40f);
+            leftForearm.localPosition = new Vector3(0f, -0.28f, 0);
+            var lForearmSr = EnsureSpriteRenderer(leftForearm.gameObject, 14);
+            lForearmSr.sprite = GenerateProceduralPartSprite("Forearm", bodyType);
 
+            // Muñeca / Puño Delantero
             if (leftFist == null)
             {
-                GameObject lFistObj = new GameObject("Fist_Lead");
-                lFistObj.transform.SetParent(leftForearm, false);
-                lFistObj.transform.localPosition = new Vector3(0.08f, -0.22f, 0);
-                leftFist = lFistObj.transform;
+                Transform ex = leftForearm.Find("Fist_Lead");
+                if (ex != null) leftFist = ex;
+                else
+                {
+                    GameObject lFistObj = new GameObject("Fist_Lead");
+                    lFistObj.transform.SetParent(leftForearm, false);
+                    leftFist = lFistObj.transform;
+                }
             }
-            var lFistSr = EnsureSpriteRenderer(leftFist.gameObject, 16);
-            lFistSr.sprite = LoadOrGeneratePart(bodyType, "Arm_Hand_L", 0.28f);
+            leftFist.localPosition = new Vector3(0f, -0.24f, 0);
+            var lFistSr = EnsureSpriteRenderer(leftFist.gameObject, 15);
+            lFistSr.sprite = GenerateProceduralPartSprite("Hand", bodyType);
             articulatedPunchFist = leftFist;
             articulatedPunchSr = lFistSr;
 
-            // 8. Estela de Velocidad (Whoosh Trail) en el puño delantero
+            // 9. ESTELAS DE VELOCIDAD
             if (punchTrailObj == null && leftFist != null)
             {
                 GameObject trail = new GameObject("PunchTrail");
@@ -304,12 +462,11 @@ namespace FightFace
                 trail.transform.localPosition = new Vector3(-0.35f, 0, 0);
                 var sr = trail.AddComponent<SpriteRenderer>();
                 sr.sprite = CreateSpeedTrailSprite(90, 45);
-                sr.sortingOrder = 17;
+                sr.sortingOrder = 16;
                 punchTrailObj = trail;
             }
             if (punchTrailObj != null) punchTrailObj.SetActive(false);
 
-            // 9. Estela de Patada
             if (kickTrailObj == null && leftCalf != null)
             {
                 GameObject kTrail = new GameObject("KickTrail");
@@ -317,7 +474,7 @@ namespace FightFace
                 kTrail.transform.localPosition = new Vector3(-0.30f, -0.15f, 0);
                 var sr = kTrail.AddComponent<SpriteRenderer>();
                 sr.sprite = CreateSpeedTrailSprite(100, 50);
-                sr.sortingOrder = 17;
+                sr.sortingOrder = 16;
                 kickTrailObj = kTrail;
             }
             if (kickTrailObj != null) kickTrailObj.SetActive(false);
@@ -332,77 +489,6 @@ namespace FightFace
             if (sr == null) sr = go.AddComponent<SpriteRenderer>();
             sr.sortingOrder = sortingOrder;
             return sr;
-        }
-
-        private Sprite LoadOrGeneratePart(FighterBodyType bodyType, string partName, float desiredWorldHeight)
-        {
-            string charFolder = bodyType == FighterBodyType.Gordo ? "Gordo" : (bodyType == FighterBodyType.Flaco ? "Flaco" : "");
-            Sprite modularSprite = null;
-
-            if (!string.IsNullOrEmpty(charFolder))
-            {
-                modularSprite = FaceLoader.LoadModularPartSprite(charFolder, partName);
-                if (modularSprite == null && partName.EndsWith("_L"))
-                {
-                    // Fallback a versión R si no existe L separada
-                    string altPart = partName.Substring(0, partName.Length - 2) + "_R";
-                    modularSprite = FaceLoader.LoadModularPartSprite(charFolder, altPart);
-                }
-            }
-
-            if (modularSprite != null)
-            {
-                return modularSprite;
-            }
-
-            // Fallback procedimental con sombreado y colores profesionales
-            return GenerateProceduralPartSprite(partName, bodyType);
-        }
-
-        private Sprite GenerateProceduralPartSprite(string partName, FighterBodyType bodyType)
-        {
-            int w = 64, h = 64;
-            Color primary = suitColor;
-            Color skin = skinColor;
-            Color accent = gloveColor;
-
-            if (partName.Contains("Torso"))
-            {
-                w = 90; h = 110;
-                return CreateMuscularTorsoTexture(w, h, primary, skin);
-            }
-            if (partName.Contains("Pelvis"))
-            {
-                w = 80; h = 50;
-                return CreatePelvisTexture(w, h, primary);
-            }
-            if (partName.Contains("Upper"))
-            {
-                w = 46; h = 60;
-                return CreateLimbTexture(w, h, skin);
-            }
-            if (partName.Contains("Forearm"))
-            {
-                w = 42; h = 56;
-                return CreateLimbTexture(w, h, skin);
-            }
-            if (partName.Contains("Hand"))
-            {
-                w = 48; h = 48;
-                return CreateProBoxingGlove(w, accent);
-            }
-            if (partName.Contains("Thigh"))
-            {
-                w = 54; h = 68;
-                return CreateThighTexture(w, h, primary, skin);
-            }
-            if (partName.Contains("Calf"))
-            {
-                w = 48; h = 64;
-                return CreateCalfBootTexture(w, h, skin, bootColor);
-            }
-
-            return CreateLimbTexture(40, 40, skin);
         }
 
         // ----------------- ANIMACIÓN ARTICULADA CONTINUA EN UPDATE -----------------
@@ -425,48 +511,48 @@ namespace FightFace
 
             if (Mathf.Abs(moveInput) > 0.1f)
             {
-                // Zancada de caminata: oscilación contraria de brazos y piernas con rebote de pelvis
+                // ZANCADA DE CAMINATA: oscilación coordinada de piernas y brazos con rebote de pelvis
                 walkCycle += Time.deltaTime * 14f;
-                float stride = Mathf.Sin(walkCycle) * 30f;
-                float hipBob = Mathf.Abs(Mathf.Sin(walkCycle)) * 0.05f;
+                float stride = Mathf.Sin(walkCycle) * 26f;
+                float hipBob = Mathf.Abs(Mathf.Sin(walkCycle)) * 0.04f;
 
                 if (pelvis != null) pelvis.localPosition = pelvisBasePos + new Vector3(0, hipBob, 0);
                 if (torso != null) torso.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(walkCycle) * 3f);
 
                 // Piernas
                 if (leftLeg != null) leftLeg.localRotation = Quaternion.Euler(0, 0, stride);
-                if (leftCalf != null) leftCalf.localRotation = Quaternion.Euler(0, 0, Mathf.Clamp(-stride * 0.85f, 0f, 38f));
+                if (leftCalf != null) leftCalf.localRotation = Quaternion.Euler(0, 0, Mathf.Clamp(-stride * 0.85f, 0f, 35f));
 
                 if (rightLeg != null) rightLeg.localRotation = Quaternion.Euler(0, 0, -stride);
-                if (rightCalf != null) rightCalf.localRotation = Quaternion.Euler(0, 0, Mathf.Clamp(stride * 0.85f, 0f, 38f));
+                if (rightCalf != null) rightCalf.localRotation = Quaternion.Euler(0, 0, Mathf.Clamp(stride * 0.85f, 0f, 35f));
 
                 // Brazos en contra-fase natural
-                if (leftArm != null) leftArm.localRotation = Quaternion.Euler(0, 0, 20f - stride * 0.7f);
+                if (leftArm != null) leftArm.localRotation = Quaternion.Euler(0, 0, 20f - stride * 0.6f);
                 if (leftForearm != null) leftForearm.localRotation = Quaternion.Euler(0, 0, 65f);
 
-                if (rightArm != null) rightArm.localRotation = Quaternion.Euler(0, 0, -14f + stride * 0.7f);
+                if (rightArm != null) rightArm.localRotation = Quaternion.Euler(0, 0, -14f + stride * 0.6f);
                 if (rightForearm != null) rightForearm.localRotation = Quaternion.Euler(0, 0, 72f);
             }
             else
             {
-                // Idle de combate profesional: respiración con ritmo de boxeo y guardia alta
-                walkCycle = 0f;
-                float breath = Mathf.Sin(Time.time * 5.2f);
-                float slowSway = Mathf.Sin(Time.time * 2.6f);
+                // GUARDIA ACTIVA EN REPOSO (Idle Breathing): respiración profunda y balanceo atlético
+                breatheCycle += Time.deltaTime * 3.2f;
+                float breath = Mathf.Sin(breatheCycle);
+                float slowSway = Mathf.Sin(breatheCycle * 0.5f);
 
-                if (pelvis != null) pelvis.localPosition = pelvisBasePos;
-                if (torso != null)
-                {
-                    torso.localPosition = torsoBasePos + new Vector3(0, breath * 0.035f, 0);
-                    torso.localRotation = Quaternion.Euler(0, 0, slowSway * 1.5f);
-                }
+                if (pelvis != null) pelvis.localPosition = pelvisBasePos + new Vector3(0, breath * 0.025f, 0);
+                if (torso != null) torso.localRotation = Quaternion.Euler(0, 0, slowSway * 1.5f);
 
                 if (neckPoint != null)
                 {
-                    neckPoint.localRotation = Quaternion.Euler(0, 0, slowSway * 2.2f);
+                    neckPoint.localRotation = Quaternion.Euler(0, 0, slowSway * 1.8f);
+                }
+                if (neckPointRight != null)
+                {
+                    neckPointRight.localRotation = Quaternion.Euler(0, 0, -slowSway * 1.8f);
                 }
 
-                // Guardia delantera con rebote sutil
+                // Guardia delantera cubriendo el mentón
                 if (leftArm != null) leftArm.localRotation = Quaternion.Euler(0, 0, 22f + breath * 3.5f);
                 if (leftForearm != null) leftForearm.localRotation = Quaternion.Euler(0, 0, 68f + breath * 4.5f);
 
@@ -501,7 +587,7 @@ namespace FightFace
         {
             isAttacking = true;
 
-            // 1. STARTUP: Anticipación (carga del golpe, retroceso de hombro y flexión cerrada del codo)
+            // 1. STARTUP: Carga del golpe, retroceso de hombro y flexión cerrada del codo
             float t = 0f;
             while (t < startup)
             {
@@ -523,9 +609,8 @@ namespace FightFace
                 t += Time.deltaTime;
                 float progress = Mathf.Clamp01(t / active);
 
-                // El torso gira hacia el rival; el hombro se proyecta hacia adelante y el codo se extiende a 0°
-                if (torso != null) torso.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(-14f, 24f, progress));
-                if (leftArm != null) leftArm.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(-28f, 50f, progress));
+                if (torso != null) torso.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(-14f, 22f, progress));
+                if (leftArm != null) leftArm.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(-28f, 48f, progress));
                 if (leftForearm != null) leftForearm.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(105f, 0f, progress));
                 yield return null;
             }
@@ -539,8 +624,8 @@ namespace FightFace
                 t += Time.deltaTime;
                 float progress = Mathf.Clamp01(t / recovery);
 
-                if (torso != null) torso.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 24f), Quaternion.identity, progress);
-                if (leftArm != null) leftArm.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 50f), leadShoulderBaseRot, progress);
+                if (torso != null) torso.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 22f), Quaternion.identity, progress);
+                if (leftArm != null) leftArm.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 48f), leadShoulderBaseRot, progress);
                 if (leftForearm != null) leftForearm.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 0f), leadForearmBaseRot, progress);
                 yield return null;
             }
@@ -568,16 +653,16 @@ namespace FightFace
         {
             isAttacking = true;
 
-            // 1. STARTUP: El torso se inclina hacia atrás para equilibrar y la cadera sube con la rodilla doblada
+            // 1. STARTUP: El torso se inclina para equilibrar y la cadera sube con la rodilla doblada
             float t = 0f;
             while (t < startup)
             {
                 t += Time.deltaTime;
                 float progress = Mathf.Clamp01(t / startup);
 
-                if (torso != null) torso.localRotation = Quaternion.Lerp(Quaternion.identity, Quaternion.Euler(0, 0, -28f), progress);
-                if (leftLeg != null) leftLeg.localRotation = Quaternion.Lerp(leadThighBaseRot, Quaternion.Euler(0, 0, 65f), progress);
-                if (leftCalf != null) leftCalf.localRotation = Quaternion.Lerp(leadCalfBaseRot, Quaternion.Euler(0, 0, -60f), progress);
+                if (torso != null) torso.localRotation = Quaternion.Lerp(Quaternion.identity, Quaternion.Euler(0, 0, -25f), progress);
+                if (leftLeg != null) leftLeg.localRotation = Quaternion.Lerp(leadThighBaseRot, Quaternion.Euler(0, 0, 60f), progress);
+                if (leftCalf != null) leftCalf.localRotation = Quaternion.Lerp(leadCalfBaseRot, Quaternion.Euler(0, 0, -55f), progress);
                 yield return null;
             }
 
@@ -590,8 +675,8 @@ namespace FightFace
                 t += Time.deltaTime;
                 float progress = Mathf.Clamp01(t / active);
 
-                if (leftLeg != null) leftLeg.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(65f, 48f, progress));
-                if (leftCalf != null) leftCalf.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(-60f, 40f, progress));
+                if (leftLeg != null) leftLeg.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(60f, 45f, progress));
+                if (leftCalf != null) leftCalf.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(-55f, 35f, progress));
                 yield return null;
             }
 
@@ -604,9 +689,9 @@ namespace FightFace
                 t += Time.deltaTime;
                 float progress = Mathf.Clamp01(t / recovery);
 
-                if (torso != null) torso.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -28f), Quaternion.identity, progress);
-                if (leftLeg != null) leftLeg.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 48f), leadThighBaseRot, progress);
-                if (leftCalf != null) leftCalf.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 40f), leadCalfBaseRot, progress);
+                if (torso != null) torso.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -25f), Quaternion.identity, progress);
+                if (leftLeg != null) leftLeg.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 45f), leadThighBaseRot, progress);
+                if (leftCalf != null) leftCalf.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 35f), leadCalfBaseRot, progress);
                 yield return null;
             }
 
@@ -632,10 +717,11 @@ namespace FightFace
             ApplyDamageFlash(new Color(1f, 0.3f, 0.3f));
 
             // Sacudida violenta hacia atrás
-            if (torso != null) torso.localRotation = Quaternion.Euler(0, 0, -32f);
-            if (neckPoint != null) neckPoint.localRotation = Quaternion.Euler(0, 0, -26f);
-            if (leftArm != null) leftArm.localRotation = Quaternion.Euler(0, 0, -42f);
-            if (rightArm != null) rightArm.localRotation = Quaternion.Euler(0, 0, -38f);
+            if (torso != null) torso.localRotation = Quaternion.Euler(0, 0, -28f);
+            if (neckPoint != null) neckPoint.localRotation = Quaternion.Euler(0, 0, -24f);
+            if (neckPointRight != null) neckPointRight.localRotation = Quaternion.Euler(0, 0, 24f);
+            if (leftArm != null) leftArm.localRotation = Quaternion.Euler(0, 0, -36f);
+            if (rightArm != null) rightArm.localRotation = Quaternion.Euler(0, 0, -32f);
 
             yield return new WaitForSeconds(duration * 0.65f);
 
@@ -649,10 +735,11 @@ namespace FightFace
                 t += Time.deltaTime;
                 float progress = Mathf.Clamp01(t / returnTime);
 
-                if (torso != null) torso.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -32f), Quaternion.identity, progress);
-                if (neckPoint != null) neckPoint.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -26f), Quaternion.identity, progress);
-                if (leftArm != null) leftArm.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -42f), leadShoulderBaseRot, progress);
-                if (rightArm != null) rightArm.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -38f), rearShoulderBaseRot, progress);
+                if (torso != null) torso.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -28f), Quaternion.identity, progress);
+                if (neckPoint != null) neckPoint.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -24f), Quaternion.identity, progress);
+                if (neckPointRight != null) neckPointRight.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, 24f), Quaternion.identity, progress);
+                if (leftArm != null) leftArm.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -36f), leadShoulderBaseRot, progress);
+                if (rightArm != null) rightArm.localRotation = Quaternion.Lerp(Quaternion.Euler(0, 0, -32f), rearShoulderBaseRot, progress);
                 yield return null;
             }
 
@@ -685,7 +772,7 @@ namespace FightFace
             float t = 0f;
 
             Vector3 startPelvis = pelvis != null ? pelvis.localPosition : pelvisBasePos;
-            Vector3 koPelvisPos = new Vector3(0, 0.22f, 0); // La pelvis cae casi hasta la lona
+            Vector3 koPelvisPos = new Vector3(0, 0.24f, 0); // La pelvis colapsa sobre la lona
 
             while (t < duration)
             {
@@ -698,25 +785,52 @@ namespace FightFace
                 // El torso cae colapsado hacia atrás (-75°)
                 if (torso != null) torso.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(0f, -75f, ease));
 
-                // La cabeza descansa en la lona
-                if (neckPoint != null) neckPoint.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(0f, -40f, ease));
+                // Cuello y cabeza reclinados contra la lona
+                if (neckPoint != null) neckPoint.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(0f, -35f, ease));
+                if (neckPointRight != null) neckPointRight.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(0f, -40f, ease));
 
-                // Piernas dobladas en la lona
-                if (leftLeg != null) leftLeg.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(-8f, 55f, ease));
+                // Brazos caen inertes a los lados
+                if (leftArm != null) leftArm.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(22f, -85f, ease));
+                if (leftForearm != null) leftForearm.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(68f, 10f, ease));
+
+                if (rightArm != null) rightArm.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(-14f, 80f, ease));
+                if (rightForearm != null) rightForearm.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(75f, 15f, ease));
+
+                // Piernas dobladas en el suelo
+                if (leftLeg != null) leftLeg.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(-8f, 40f, ease));
                 if (leftCalf != null) leftCalf.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(14f, -70f, ease));
 
-                if (rightLeg != null) rightLeg.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(12f, 40f, ease));
-                if (rightCalf != null) rightCalf.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(-10f, -65f, ease));
-
-                // Brazos caídos flácidos
-                if (leftArm != null) leftArm.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(22f, -65f, ease));
-                if (leftForearm != null) leftForearm.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(68f, 20f, ease));
-
-                if (rightArm != null) rightArm.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(-14f, -80f, ease));
-                if (rightForearm != null) rightForearm.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(75f, 15f, ease));
+                if (rightLeg != null) rightLeg.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(12f, -50f, ease));
+                if (rightCalf != null) rightCalf.localRotation = Quaternion.Euler(0, 0, Mathf.Lerp(-10f, 65f, ease));
 
                 yield return null;
             }
+        }
+
+        public void ResetJointsToStance()
+        {
+            if (isKO) return;
+
+            if (pelvis != null) pelvis.localPosition = pelvisBasePos;
+            if (torso != null) { torso.localPosition = torsoBasePos; torso.localRotation = Quaternion.identity; }
+            if (neckPoint != null) neckPoint.localRotation = Quaternion.identity;
+            if (neckPointRight != null) neckPointRight.localRotation = Quaternion.identity;
+
+            if (leftArm != null) leftArm.localRotation = leadShoulderBaseRot;
+            if (leftForearm != null) leftForearm.localRotation = leadForearmBaseRot;
+            if (leftFist != null) leftFist.localRotation = Quaternion.identity;
+
+            if (rightArm != null) rightArm.localRotation = rearShoulderBaseRot;
+            if (rightForearm != null) rightForearm.localRotation = rearForearmBaseRot;
+            if (rightFist != null) rightFist.localRotation = Quaternion.identity;
+
+            if (leftLeg != null) leftLeg.localRotation = leadThighBaseRot;
+            if (leftCalf != null) leftCalf.localRotation = leadCalfBaseRot;
+            if (leftFoot != null) leftFoot.localRotation = Quaternion.identity;
+
+            if (rightLeg != null) rightLeg.localRotation = rearThighBaseRot;
+            if (rightCalf != null) rightCalf.localRotation = rearCalfBaseRot;
+            if (rightFoot != null) rightFoot.localRotation = Quaternion.identity;
         }
 
         public void ResetBody()
@@ -724,29 +838,10 @@ namespace FightFace
             isKO = false;
             isAttacking = false;
             isHurt = false;
-            ResetJointsToStance();
+            if (activeAttackRoutine != null) { StopCoroutine(activeAttackRoutine); activeAttackRoutine = null; }
+            if (activeHurtRoutine != null) { StopCoroutine(activeHurtRoutine); activeHurtRoutine = null; }
             RestoreOriginalColors();
-        }
-
-        public void ResetJointsToStance()
-        {
-            if (pelvis != null) pelvis.localPosition = pelvisBasePos;
-            if (torso != null)
-            {
-                torso.localPosition = torsoBasePos;
-                torso.localRotation = Quaternion.identity;
-            }
-            if (neckPoint != null) neckPoint.localRotation = Quaternion.identity;
-
-            if (leftArm != null) leftArm.localRotation = leadShoulderBaseRot;
-            if (leftForearm != null) leftForearm.localRotation = leadForearmBaseRot;
-            if (rightArm != null) rightArm.localRotation = rearShoulderBaseRot;
-            if (rightForearm != null) rightForearm.localRotation = rearForearmBaseRot;
-
-            if (leftLeg != null) leftLeg.localRotation = leadThighBaseRot;
-            if (leftCalf != null) leftCalf.localRotation = leadCalfBaseRot;
-            if (rightLeg != null) rightLeg.localRotation = rearThighBaseRot;
-            if (rightCalf != null) rightCalf.localRotation = rearCalfBaseRot;
+            ResetJointsToStance();
         }
 
         private void ApplyDamageFlash(Color flashColor)
@@ -754,7 +849,7 @@ namespace FightFace
             if (allRenderers == null) return;
             for (int i = 0; i < allRenderers.Length; i++)
             {
-                if (allRenderers[i] != null && allRenderers[i].gameObject != groundShadow.gameObject)
+                if (allRenderers[i] != null && (groundShadow == null || allRenderers[i].gameObject != groundShadow.gameObject))
                 {
                     allRenderers[i].color = flashColor;
                 }
@@ -773,7 +868,541 @@ namespace FightFace
             }
         }
 
-        // ----------------- TEXTURAS Y SPRITES PROCEDURALES ESTILIZADOS -----------------
+        // ----------------- SPRITES PROCEDURALES DE ALTA CALIDAD CON TAPAS DE UNIÓN SUPERPUESTAS -----------------
+
+        private Sprite GenerateProceduralPartSprite(string partName, FighterBodyType bodyType)
+        {
+            // Paletas por personaje
+            Color primaryCloth;
+            Color secondaryCloth;
+            Color skin;
+            Color gloves;
+            Color boots;
+
+            switch (bodyType)
+            {
+                case FighterBodyType.Gordo:
+                    primaryCloth = new Color(0.20f, 0.45f, 0.85f); // Singlet a rayas azul
+                    secondaryCloth = new Color(0.95f, 0.95f, 0.98f); // Rayas blancas
+                    skin = new Color(1f, 0.82f, 0.70f);
+                    gloves = new Color(0.90f, 0.18f, 0.18f); // Guantes rojos
+                    boots = new Color(0.35f, 0.22f, 0.14f); // Botas cuero marrón
+                    break;
+                case FighterBodyType.Flaco:
+                    primaryCloth = new Color(0.18f, 0.50f, 0.28f); // Pantalón kung-fu verde
+                    secondaryCloth = new Color(0.12f, 0.12f, 0.15f); // Cinturón negro
+                    skin = new Color(0.98f, 0.80f, 0.65f);
+                    gloves = new Color(0.18f, 0.18f, 0.20f); // Vendas negras
+                    boots = new Color(0.15f, 0.15f, 0.18f); // Zapatillas kung-fu
+                    break;
+                case FighterBodyType.Musculoso:
+                    primaryCloth = new Color(0.95f, 0.80f, 0.15f); // Shorts Muay Thai oro
+                    secondaryCloth = new Color(0.85f, 0.15f, 0.15f); // Borde rojo
+                    skin = new Color(0.92f, 0.72f, 0.55f); // Bronceado atlético
+                    gloves = new Color(0.92f, 0.15f, 0.15f); // Guantes rojos pro
+                    boots = new Color(0.85f, 0.20f, 0.20f); // Tobilleras rojas
+                    break;
+                case FighterBodyType.Mujer:
+                    primaryCloth = new Color(0.15f, 0.15f, 0.18f); // Top negro
+                    secondaryCloth = new Color(0.95f, 0.20f, 0.65f); // Franjas magenta
+                    skin = new Color(1f, 0.85f, 0.74f);
+                    gloves = new Color(0.95f, 0.22f, 0.65f); // Guantes magenta
+                    boots = new Color(0.20f, 0.18f, 0.22f); // Botas combate
+                    break;
+                case FighterBodyType.DosCabezas:
+                default:
+                    primaryCloth = new Color(0.25f, 0.26f, 0.30f); // Arnés combate carbón
+                    secondaryCloth = new Color(0.85f, 0.70f, 0.25f); // Tachuelas doradas
+                    skin = new Color(0.95f, 0.76f, 0.60f);
+                    gloves = new Color(0.40f, 0.40f, 0.45f); // Guanteletes hierro
+                    boots = new Color(0.15f, 0.15f, 0.18f); // Botas pesadas
+                    break;
+            }
+
+            if (partName.Contains("Torso"))
+            {
+                int w = bodyType == FighterBodyType.DosCabezas ? 130 : (bodyType == FighterBodyType.Gordo ? 120 : 96);
+                int h = 95;
+                return CreateArticulatedTorso(w, h, bodyType, primaryCloth, secondaryCloth, skin);
+            }
+            if (partName.Contains("Pelvis"))
+            {
+                int w = bodyType == FighterBodyType.Gordo ? 110 : (bodyType == FighterBodyType.Musculoso ? 100 : 90);
+                int h = 55;
+                return CreateArticulatedPelvis(w, h, bodyType, primaryCloth, secondaryCloth);
+            }
+            if (partName.Contains("Neck"))
+            {
+                return CreateArticulatedNeck(32, 35, skin);
+            }
+            if (partName.Contains("UpperArm"))
+            {
+                int w = (bodyType == FighterBodyType.Gordo || bodyType == FighterBodyType.Musculoso) ? 54 : 44;
+                int h = 65;
+                return CreateArticulatedLimb(w, h, skin, true, false, Color.clear);
+            }
+            if (partName.Contains("Forearm"))
+            {
+                int w = (bodyType == FighterBodyType.Gordo || bodyType == FighterBodyType.Musculoso) ? 48 : 40;
+                int h = 62;
+                return CreateArticulatedLimb(w, h, skin, false, true, gloves);
+            }
+            if (partName.Contains("Hand"))
+            {
+                int s = (bodyType == FighterBodyType.Gordo || bodyType == FighterBodyType.Musculoso) ? 52 : 46;
+                return CreateArticulatedGlove(s, gloves);
+            }
+            if (partName.Contains("Thigh"))
+            {
+                int w = (bodyType == FighterBodyType.Gordo || bodyType == FighterBodyType.Musculoso) ? 62 : 52;
+                int h = 75;
+                return CreateArticulatedThigh(w, h, bodyType, primaryCloth, skin);
+            }
+            if (partName.Contains("Calf"))
+            {
+                int w = (bodyType == FighterBodyType.Gordo || bodyType == FighterBodyType.Musculoso) ? 54 : 44;
+                int h = 70;
+                return CreateArticulatedCalf(w, h, skin, boots);
+            }
+            if (partName.Contains("Foot"))
+            {
+                return CreateArticulatedFoot(64, 38, boots);
+            }
+
+            return CreateOvalShadowSprite();
+        }
+
+        private Sprite CreateArticulatedTorso(int w, int h, FighterBodyType bodyType, Color primary, Color secondary, Color skin)
+        {
+            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            Color clear = new Color(0, 0, 0, 0);
+            Color outline = new Color(0.12f, 0.12f, 0.15f, 1f);
+            Vector2 center = new Vector2(w / 2f, h * 0.45f);
+
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    float dx = (x - center.x) / (w * 0.44f);
+                    float dy = (y - center.y) / (h * 0.48f);
+                    float dSq = (dx * dx) + (dy * dy);
+
+                    if (dSq <= 1.0f)
+                    {
+                        if (dSq >= 0.88f)
+                        {
+                            tex.SetPixel(x, y, outline);
+                        }
+                        else
+                        {
+                            // Interior con diseño estilizado
+                            Color col;
+                            if (bodyType == FighterBodyType.Gordo)
+                            {
+                                // Overol con franjas verticales azules y blancas
+                                bool isStripe = ((x / 14) % 2 == 0);
+                                if (y > h * 0.68f) col = skin; // Pecho descubierto
+                                else col = isStripe ? primary : secondary;
+                            }
+                            else if (bodyType == FighterBodyType.Flaco)
+                            {
+                                // Torso musculoso descubierto con abdominales y sombras
+                                col = skin;
+                                if (Mathf.Abs(x - center.x) < 2f && y < h * 0.65f) col = Color.Lerp(skin, outline, 0.25f); // Línea alba
+                                else if (y > h * 0.50f && y < h * 0.53f && Mathf.Abs(dx) < 0.6f) col = Color.Lerp(skin, outline, 0.20f); // Pectoral inferior
+                            }
+                            else if (bodyType == FighterBodyType.Musculoso)
+                            {
+                                // Heavyweight musculoso con pectorales gigantes
+                                col = skin;
+                                if (Mathf.Abs(x - center.x) < 2.5f && y < h * 0.70f) col = Color.Lerp(skin, outline, 0.30f);
+                                else if (y > h * 0.52f && y < h * 0.56f && Mathf.Abs(dx) < 0.7f) col = Color.Lerp(skin, outline, 0.25f);
+                            }
+                            else if (bodyType == FighterBodyType.Mujer)
+                            {
+                                // Top deportivo negro con ribete magenta
+                                if (y > h * 0.45f && y < h * 0.82f) col = (y > h * 0.78f) ? secondary : primary;
+                                else col = skin;
+                            }
+                            else // Dos Cabezas
+                            {
+                                // Arnés táctico con correas cruzadas
+                                bool isHarness = (Mathf.Abs((x - center.x) - (y - center.y)) < 6 || Mathf.Abs((x - center.x) + (y - center.y)) < 6);
+                                col = isHarness ? primary : skin;
+                            }
+
+                            // Sombreado de borde sutil
+                            col = Color.Lerp(col, outline, dSq * 0.20f);
+                            tex.SetPixel(x, y, col);
+                        }
+                    }
+                    else
+                    {
+                        tex.SetPixel(x, y, clear);
+                    }
+                }
+            }
+
+            tex.Apply();
+            // Pivote en (0.5, 0.15) para descansar perfectamente superpuesto dentro de la pelvis
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.15f), 100f);
+        }
+
+        private Sprite CreateArticulatedPelvis(int w, int h, FighterBodyType bodyType, Color primary, Color secondary)
+        {
+            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            Color clear = new Color(0, 0, 0, 0);
+            Color outline = new Color(0.12f, 0.12f, 0.15f, 1f);
+            Vector2 c = new Vector2(w / 2f, h / 2f);
+
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    float dx = (x - c.x) / (w * 0.45f);
+                    float dy = (y - c.y) / (h * 0.44f);
+                    float dSq = (dx * dx) + (dy * dy);
+
+                    if (dSq <= 1.0f)
+                    {
+                        if (dSq >= 0.86f)
+                        {
+                            tex.SetPixel(x, y, outline);
+                        }
+                        else
+                        {
+                            Color col;
+                            if (bodyType == FighterBodyType.Gordo)
+                            {
+                                bool isStripe = ((x / 14) % 2 == 0);
+                                col = isStripe ? primary : secondary;
+                            }
+                            else if (bodyType == FighterBodyType.Flaco)
+                            {
+                                col = (y > h * 0.70f) ? secondary : primary; // Cinturón negro
+                            }
+                            else if (bodyType == FighterBodyType.Musculoso)
+                            {
+                                col = (y > h * 0.72f) ? new Color(0.12f, 0.12f, 0.15f) : primary; // Cintura negra de shorts dorados
+                            }
+                            else
+                            {
+                                col = (y > h * 0.72f) ? secondary : primary;
+                            }
+                            tex.SetPixel(x, y, col);
+                        }
+                    }
+                    else
+                    {
+                        tex.SetPixel(x, y, clear);
+                    }
+                }
+            }
+
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.50f), 100f);
+        }
+
+        private Sprite CreateArticulatedNeck(int w, int h, Color skin)
+        {
+            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            Color clear = new Color(0, 0, 0, 0);
+            Color outline = new Color(0.12f, 0.12f, 0.15f, 1f);
+            Vector2 c = new Vector2(w / 2f, h / 2f);
+
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    float dx = (x - c.x) / (w * 0.38f);
+                    float dy = (y - c.y) / (h * 0.46f);
+                    float dSq = (dx * dx) + (dy * dy);
+
+                    if (dSq <= 1.0f)
+                    {
+                        if (dSq >= 0.84f) tex.SetPixel(x, y, outline);
+                        else tex.SetPixel(x, y, skin);
+                    }
+                    else tex.SetPixel(x, y, clear);
+                }
+            }
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.20f), 100f);
+        }
+
+        private Sprite CreateArticulatedLimb(int w, int h, Color skin, bool isUpper, bool hasWraps, Color wrapColor)
+        {
+            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            Color clear = new Color(0, 0, 0, 0);
+            Color outline = new Color(0.12f, 0.12f, 0.15f, 1f);
+
+            // Centros de las dos tapas circulares superpuestas (ball-joints)
+            Vector2 topJoint = new Vector2(w / 2f, h * 0.85f);
+            Vector2 bottomJoint = new Vector2(w / 2f, h * 0.15f);
+            float topRadius = w * 0.42f;
+            float bottomRadius = w * 0.38f;
+
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    Vector2 p = new Vector2(x, y);
+                    float t = Mathf.Clamp01((y - bottomJoint.y) / (topJoint.y - bottomJoint.y));
+                    float currRadius = Mathf.Lerp(bottomRadius, topRadius, t);
+                    float distCenter = Mathf.Abs(x - w / 2f);
+
+                    bool inside = false;
+                    bool edge = false;
+
+                    // Comprobar tapa superior
+                    if (y >= topJoint.y)
+                    {
+                        float d = Vector2.Distance(p, topJoint);
+                        if (d <= topRadius)
+                        {
+                            inside = true;
+                            if (d >= topRadius - 2.5f) edge = true;
+                        }
+                    }
+                    // Comprobar tapa inferior
+                    else if (y <= bottomJoint.y)
+                    {
+                        float d = Vector2.Distance(p, bottomJoint);
+                        if (d <= bottomRadius)
+                        {
+                            inside = true;
+                            if (d >= bottomRadius - 2.5f) edge = true;
+                        }
+                    }
+                    // Cuerpo cilíndrico de unión
+                    else
+                    {
+                        if (distCenter <= currRadius)
+                        {
+                            inside = true;
+                            if (distCenter >= currRadius - 2.5f) edge = true;
+                        }
+                    }
+
+                    if (inside)
+                    {
+                        if (edge)
+                        {
+                            tex.SetPixel(x, y, outline);
+                        }
+                        else
+                        {
+                            Color c = skin;
+                            if (hasWraps && y < h * 0.45f)
+                            {
+                                c = wrapColor; // Vendas / cintas en el antebrazo
+                            }
+                            tex.SetPixel(x, y, c);
+                        }
+                    }
+                    else
+                    {
+                        tex.SetPixel(x, y, clear);
+                    }
+                }
+            }
+
+            tex.Apply();
+            // Pivote exacto en la tapa circular superior (0.5, 0.85)
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.85f), 100f);
+        }
+
+        private Sprite CreateArticulatedGlove(int size, Color gloveCol)
+        {
+            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            Color clear = new Color(0, 0, 0, 0);
+            Color outline = new Color(0.12f, 0.12f, 0.15f, 1f);
+            Color highlight = Color.Lerp(gloveCol, Color.white, 0.45f);
+
+            Vector2 c = new Vector2(size / 2f, size * 0.50f);
+            float radius = size * 0.42f;
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float d = Vector2.Distance(new Vector2(x, y), c);
+                    if (d <= radius)
+                    {
+                        if (d >= radius - 2.6f) tex.SetPixel(x, y, outline);
+                        else if (Vector2.Distance(new Vector2(x, y), c + new Vector2(-4, 5)) < radius * 0.35f)
+                            tex.SetPixel(x, y, highlight);
+                        else tex.SetPixel(x, y, gloveCol);
+                    }
+                    else tex.SetPixel(x, y, clear);
+                }
+            }
+
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.65f), 100f);
+        }
+
+        private Sprite CreateArticulatedThigh(int w, int h, FighterBodyType bodyType, Color cloth, Color skin)
+        {
+            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            Color clear = new Color(0, 0, 0, 0);
+            Color outline = new Color(0.12f, 0.12f, 0.15f, 1f);
+
+            Vector2 topJoint = new Vector2(w / 2f, h * 0.85f);
+            Vector2 bottomJoint = new Vector2(w / 2f, h * 0.15f);
+            float topRadius = w * 0.44f;
+            float bottomRadius = w * 0.40f;
+
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    Vector2 p = new Vector2(x, y);
+                    float t = Mathf.Clamp01((y - bottomJoint.y) / (topJoint.y - bottomJoint.y));
+                    float currRadius = Mathf.Lerp(bottomRadius, topRadius, t);
+                    float distCenter = Mathf.Abs(x - w / 2f);
+
+                    bool inside = false;
+                    bool edge = false;
+
+                    if (y >= topJoint.y)
+                    {
+                        float d = Vector2.Distance(p, topJoint);
+                        if (d <= topRadius) { inside = true; if (d >= topRadius - 2.5f) edge = true; }
+                    }
+                    else if (y <= bottomJoint.y)
+                    {
+                        float d = Vector2.Distance(p, bottomJoint);
+                        if (d <= bottomRadius) { inside = true; if (d >= bottomRadius - 2.5f) edge = true; }
+                    }
+                    else
+                    {
+                        if (distCenter <= currRadius) { inside = true; if (distCenter >= currRadius - 2.5f) edge = true; }
+                    }
+
+                    if (inside)
+                    {
+                        if (edge) tex.SetPixel(x, y, outline);
+                        else
+                        {
+                            Color c;
+                            // En Flaco el pantalón cubre toda la pierna
+                            if (bodyType == FighterBodyType.Flaco) c = cloth;
+                            // En Gordo / Musculoso / Mujer, parte superior son los shorts y luego pierna
+                            else c = (y > h * 0.45f) ? cloth : skin;
+                            tex.SetPixel(x, y, c);
+                        }
+                    }
+                    else tex.SetPixel(x, y, clear);
+                }
+            }
+
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.85f), 100f);
+        }
+
+        private Sprite CreateArticulatedCalf(int w, int h, Color skin, Color bootCol)
+        {
+            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            Color clear = new Color(0, 0, 0, 0);
+            Color outline = new Color(0.12f, 0.12f, 0.15f, 1f);
+
+            Vector2 topJoint = new Vector2(w / 2f, h * 0.85f);
+            Vector2 bottomJoint = new Vector2(w / 2f, h * 0.15f);
+            float topRadius = w * 0.42f;
+            float bottomRadius = w * 0.38f;
+
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    Vector2 p = new Vector2(x, y);
+                    float t = Mathf.Clamp01((y - bottomJoint.y) / (topJoint.y - bottomJoint.y));
+                    float currRadius = Mathf.Lerp(bottomRadius, topRadius, t);
+                    float distCenter = Mathf.Abs(x - w / 2f);
+
+                    bool inside = false;
+                    bool edge = false;
+
+                    if (y >= topJoint.y)
+                    {
+                        float d = Vector2.Distance(p, topJoint);
+                        if (d <= topRadius) { inside = true; if (d >= topRadius - 2.5f) edge = true; }
+                    }
+                    else if (y <= bottomJoint.y)
+                    {
+                        float d = Vector2.Distance(p, bottomJoint);
+                        if (d <= bottomRadius) { inside = true; if (d >= bottomRadius - 2.5f) edge = true; }
+                    }
+                    else
+                    {
+                        if (distCenter <= currRadius) { inside = true; if (distCenter >= currRadius - 2.5f) edge = true; }
+                    }
+
+                    if (inside)
+                    {
+                        if (edge) tex.SetPixel(x, y, outline);
+                        else
+                        {
+                            Color c = (y < h * 0.65f) ? bootCol : skin; // Caña de la bota
+                            tex.SetPixel(x, y, c);
+                        }
+                    }
+                    else tex.SetPixel(x, y, clear);
+                }
+            }
+
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.85f), 100f);
+        }
+
+        private Sprite CreateArticulatedFoot(int w, int h, Color bootCol)
+        {
+            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            Color clear = new Color(0, 0, 0, 0);
+            Color outline = new Color(0.12f, 0.12f, 0.15f, 1f);
+            Color soleCol = new Color(0.9f, 0.9f, 0.9f);
+
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    // Forma anatómica de zapato/bota de boxeo apoyada en la lona
+                    float nx = (float)x / w;
+                    float ny = (float)y / h;
+
+                    bool inside = false;
+                    bool edge = false;
+
+                    if (ny < 0.20f && nx >= 0.15f && nx <= 0.95f)
+                    {
+                        inside = true; // Suela
+                    }
+                    else if (nx >= 0.20f && nx <= 0.55f && ny < 0.85f)
+                    {
+                        inside = true; // Empeine / Tobillo
+                    }
+                    else if (nx > 0.55f && nx < 0.92f && ny < 0.55f)
+                    {
+                        inside = true; // Punta del pie
+                    }
+
+                    if (inside)
+                    {
+                        if (x <= 13 || x >= w - 3 || y <= 1 || y >= h - 3) edge = true;
+                        if (edge) tex.SetPixel(x, y, outline);
+                        else tex.SetPixel(x, y, (ny < 0.22f) ? soleCol : bootCol);
+                    }
+                    else
+                    {
+                        tex.SetPixel(x, y, clear);
+                    }
+                }
+            }
+
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.35f, 0.72f), 100f);
+        }
 
         private Sprite CreateOvalShadowSprite()
         {
@@ -835,159 +1464,6 @@ namespace FightFace
             }
             tex.Apply();
             return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.85f, 0.5f), 100f);
-        }
-
-        private Sprite CreateMuscularTorsoTexture(int w, int h, Color cloth, Color skin)
-        {
-            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
-            Color outline = new Color(0.12f, 0.12f, 0.15f);
-            Vector2 c = new Vector2(w / 2f, h / 2f);
-
-            for (int y = 0; y < h; y++)
-            {
-                for (int x = 0; x < w; x++)
-                {
-                    float dx = (x - c.x) / (w * 0.44f);
-                    float dy = (y - c.y) / (h * 0.46f);
-                    float dSq = (dx * dx) + (dy * dy);
-
-                    if (dSq <= 1f)
-                    {
-                        if (dSq >= 0.88f || y <= 1 || y >= h - 2)
-                            tex.SetPixel(x, y, outline);
-                        else if (y > h * 0.65f)
-                            tex.SetPixel(x, y, skin); // Pecho / Clavícula
-                        else
-                            tex.SetPixel(x, y, cloth); // Singlet de lucha
-                    }
-                    else tex.SetPixel(x, y, new Color(0, 0, 0, 0));
-                }
-            }
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.15f), 100f);
-        }
-
-        private Sprite CreatePelvisTexture(int w, int h, Color cloth)
-        {
-            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
-            Color outline = new Color(0.12f, 0.12f, 0.15f);
-            Vector2 c = new Vector2(w / 2f, h / 2f);
-
-            for (int y = 0; y < h; y++)
-            {
-                for (int x = 0; x < w; x++)
-                {
-                    float dx = (x - c.x) / (w * 0.45f);
-                    float dy = (y - c.y) / (h * 0.42f);
-                    if ((dx * dx) + (dy * dy) <= 1f)
-                    {
-                        if ((dx * dx) + (dy * dy) >= 0.85f) tex.SetPixel(x, y, outline);
-                        else tex.SetPixel(x, y, cloth);
-                    }
-                    else tex.SetPixel(x, y, new Color(0, 0, 0, 0));
-                }
-            }
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100f);
-        }
-
-        private Sprite CreateLimbTexture(int w, int h, Color col)
-        {
-            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
-            Color outline = new Color(0.12f, 0.12f, 0.15f);
-            Vector2 c = new Vector2(w / 2f, h / 2f);
-
-            for (int y = 0; y < h; y++)
-            {
-                for (int x = 0; x < w; x++)
-                {
-                    float dx = (x - c.x) / (w * 0.42f);
-                    float dy = (y - c.y) / (h * 0.45f);
-                    if ((dx * dx) + (dy * dy) <= 1f)
-                    {
-                        if ((dx * dx) + (dy * dy) >= 0.85f) tex.SetPixel(x, y, outline);
-                        else tex.SetPixel(x, y, col);
-                    }
-                    else tex.SetPixel(x, y, new Color(0, 0, 0, 0));
-                }
-            }
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.85f), 100f);
-        }
-
-        private Sprite CreateProBoxingGlove(int size, Color gloveCol)
-        {
-            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            Color outline = new Color(0.12f, 0.12f, 0.15f);
-            Color highlight = Color.Lerp(gloveCol, Color.white, 0.55f);
-            Vector2 center = new Vector2(size / 2f, size * 0.52f);
-            float radius = size * 0.42f;
-
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    float d = Vector2.Distance(new Vector2(x, y), center);
-                    if (d <= radius)
-                    {
-                        if (d >= radius - 2.8f) tex.SetPixel(x, y, outline);
-                        else if (Vector2.Distance(new Vector2(x, y), center + new Vector2(-4, 6)) < radius * 0.35f)
-                            tex.SetPixel(x, y, highlight);
-                        else tex.SetPixel(x, y, gloveCol);
-                    }
-                    else tex.SetPixel(x, y, new Color(0, 0, 0, 0));
-                }
-            }
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
-        }
-
-        private Sprite CreateThighTexture(int w, int h, Color cloth, Color skin)
-        {
-            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
-            Color outline = new Color(0.12f, 0.12f, 0.15f);
-
-            for (int y = 0; y < h; y++)
-            {
-                for (int x = 0; x < w; x++)
-                {
-                    float dx = (x - w / 2f) / (w * 0.42f);
-                    float dy = (y - h / 2f) / (h * 0.46f);
-                    if ((dx * dx) + (dy * dy) <= 1f)
-                    {
-                        if ((dx * dx) + (dy * dy) >= 0.85f) tex.SetPixel(x, y, outline);
-                        else if (y > h * 0.45f) tex.SetPixel(x, y, cloth);
-                        else tex.SetPixel(x, y, skin);
-                    }
-                    else tex.SetPixel(x, y, new Color(0, 0, 0, 0));
-                }
-            }
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.85f), 100f);
-        }
-
-        private Sprite CreateCalfBootTexture(int w, int h, Color skin, Color boot)
-        {
-            Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
-            Color outline = new Color(0.12f, 0.12f, 0.15f);
-
-            for (int y = 0; y < h; y++)
-            {
-                for (int x = 0; x < w; x++)
-                {
-                    float dx = (x - w / 2f) / (w * 0.40f);
-                    float dy = (y - h / 2f) / (h * 0.46f);
-                    if ((dx * dx) + (dy * dy) <= 1f)
-                    {
-                        if ((dx * dx) + (dy * dy) >= 0.85f) tex.SetPixel(x, y, outline);
-                        else if (y < h * 0.50f) tex.SetPixel(x, y, boot);
-                        else tex.SetPixel(x, y, skin);
-                    }
-                    else tex.SetPixel(x, y, new Color(0, 0, 0, 0));
-                }
-            }
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.85f), 100f);
         }
     }
 }
