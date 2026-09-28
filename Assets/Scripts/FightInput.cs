@@ -113,6 +113,15 @@ namespace FightFace
             return Input.GetKeyDown(KeyCode.R);
         }
 
+        public static bool GetTournamentStart()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var kb = Keyboard.current;
+            if (kb != null) return kb.tKey.wasPressedThisFrame;
+#endif
+            return Input.GetKeyDown(KeyCode.T);
+        }
+
         public static bool GetToggleCustomizer()
         {
 #if ENABLE_INPUT_SYSTEM

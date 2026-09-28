@@ -40,6 +40,7 @@ namespace FightFace
         public Button rematchButton;
         public Button openCustomizerButton;
         public Button closeCustomizerButton;
+        public Button tournamentButton;
 
         private float p1TargetFill = 1f;
         private float p2TargetFill = 1f;
@@ -68,6 +69,15 @@ namespace FightFace
                 });
             }
 
+            if (tournamentButton != null)
+            {
+                tournamentButton.onClick.AddListener(() =>
+                {
+                    if (TournamentManager.Instance != null)
+                        TournamentManager.Instance.StartNewTournament(1);
+                });
+            }
+
             if (openCustomizerButton != null)
             {
                 openCustomizerButton.onClick.AddListener(ToggleFaceCustomizer);
@@ -91,6 +101,12 @@ namespace FightFace
             {
                 if (BattleManager.Instance != null)
                     BattleManager.Instance.RestartMatch();
+            }
+
+            if (FightInput.GetTournamentStart())
+            {
+                if (TournamentManager.Instance != null)
+                    TournamentManager.Instance.StartNewTournament(1);
             }
 
             if (FightInput.GetToggleCustomizer())

@@ -114,7 +114,11 @@ namespace FightFace
 
             Debug.Log($"[BattleManager] ¡Fin del combate! Ganador: {winnerName}");
 
-            if (BattleUI.Instance != null)
+            if (TournamentManager.Instance != null && TournamentManager.Instance.isTournamentModeActive)
+            {
+                TournamentManager.Instance.OnMatchWonBy(winner);
+            }
+            else if (BattleUI.Instance != null)
             {
                 BattleUI.Instance.ShowBanner($"¡K.O.!\n¡GANADOR: {winnerName.ToUpper()}!", 5f);
             }

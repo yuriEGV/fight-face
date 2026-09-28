@@ -110,7 +110,7 @@ namespace FightFace
         }
 
         /// <summary>
-        /// Aplica la textura correspondiente del perfil al SpriteRenderer.
+        /// Aplica la textura correspondiente del perfil al SpriteRenderer y calibra la escala.
         /// </summary>
         private void ApplyEmotion(FaceType emotion)
         {
@@ -119,6 +119,17 @@ namespace FightFace
             if (spriteToUse != null && headRenderer != null)
             {
                 headRenderer.sprite = spriteToUse;
+                headRenderer.sortingOrder = 10;
+
+                // Calibrar la escala del transform para que la cabeza siempre mida ~1.05 unidades
+                float worldHeight = spriteToUse.rect.height / spriteToUse.pixelsPerUnit;
+                if (worldHeight > 0.01f)
+                {
+                    float targetHeight = 1.05f;
+                    float factor = targetHeight / worldHeight;
+                    initialLocalScale = new Vector3(factor, factor, 1f);
+                    transform.localScale = initialLocalScale;
+                }
             }
         }
 

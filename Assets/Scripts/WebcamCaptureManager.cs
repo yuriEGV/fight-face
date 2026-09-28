@@ -6,9 +6,11 @@ using UnityEngine.UI;
 namespace FightFace
 {
     /// <summary>
-    /// Gestiona la captura de rostros en tiempo real mediante la Webcam,
-    /// el guardado automático de las 4 fotos en disco (Base, Enojo, Dolor, KO)
-    /// y la asignación directa al luchador seleccionado.
+    /// Gestiona la captura de rostros con Webcam:
+    /// - Soporte para Jugador 1, Jugador 2 y todos los luchadores del Campeonato (1 a 8).
+    /// - Recorte automático ovalado con borde cómic (Sticker).
+    /// - Corrección de orientación (Invertir verticalmente / Espejo horizontal).
+    /// - Persistencia de las 4 fotos (Base, Enojo, Dolor, KO).
     /// </summary>
     public class WebcamCaptureManager : MonoBehaviour
     {
@@ -16,16 +18,21 @@ namespace FightFace
 
         [Header("UI de Previsualización")]
         public RawImage cameraPreviewUI;
-        public AspectRatioFitter previewAspectRatio;
 
-        [Header("Miniaturas de las 4 Caras Capturadas")]
+        [Header("Miniaturas de las 4 Caras")]
         public Image previewThumbBase;
         public Image previewThumbAngry;
         public Image previewThumbHurt;
         public Image previewThumbKO;
 
-        [Header("Luchador Objetivo")]
-        public int targetPlayerId = 1; // 1 = Jugador 1, 2 = Jugador 2
+        [Header("Luchador Activo")]
+        public int targetFighterId = 1;
+        public Text targetFighterLabel;
+
+        [Header("Orientación")]
+        public bool flipVertical = false;
+        public bool flipHorizontal = false;
+        public Text flipStatusText;
 
         private WebCamTexture webcamTexture;
         private FaceProfile activeProfile;
@@ -52,47 +59,85 @@ namespace FightFace
 
         private void Start()
         {
-            UpdateSaveFolderPath();
-            // Intentar cargar fotos existentes si ya fueron capturadas previamente
-            if (Directory.Exists(saveFolderPath))
-            {
-                activeProfile.LoadFromDirectory(saveFolderPath);
-                UpdateThumbnailPreviews();
-            }
+            SetTargetFighter(1);
         }
 
-        public void SetTargetPlayer(int playerId)
+        public void SetTargetFighter(int fighterId)
         {
-            targetPlayerId = playerId;
+            targetFighterId = fighterId;
             UpdateSaveFolderPath();
 
-            // Cargar perfil del jugador objetivo
             activeProfile = new FaceProfile();
-            if (Directory.Exists(saveFolderPath))
+            activeProfile.fighterId = targetFighterId;
+            activeProfile.fighterName = GetFighterDefaultName(targetFighterId);
+
+            if (Directory.Exists(saveFolderPath) && activeProfile.LoadFromDirectory(saveFolderPath))
             {
-                activeProfile.LoadFromDirectory(saveFolderPath);
+                Debug.Log($"[WebcamCapture] Fotos cargadas para Luchador {targetFighterId}");
             }
             else
             {
-                // Cargar perfil cómico por defecto
-                activeProfile = FaceLoader.CreateDefaultProceduralProfile(targetPlayerId);
+                activeProfile = FaceLoader.CreateDefaultProceduralProfile(targetFighterId);
+                activeProfile.fighterName = GetFighterDefaultName(targetFighterId);
             }
+
+            if (targetFighterLabel != null)
+            {
+                targetFighterLabel.text = $"Editando: <b>Luchador {targetFighterId} ({activeProfile.fighterName})</b>";
+            }
+
             UpdateThumbnailPreviews();
+            UpdateFlipStatusText();
+        }
+
+        public string GetFighterDefaultName(int id)
+        {
+            string[] names = {
+                "Panchito 'El Bravo'",
+                "Rocky 'El Furioso'",
+                "Don Ramón 'El Pájaro'",
+                "La Máscara 'El Titán'",
+                "La Furia 'Relámpago'",
+                "Míster K.O.",
+                "El Fantasma",
+                "El Jefe Final"
+            };
+            int idx = Mathf.Clamp(id - 1, 0, names.Length - 1);
+            return names[idx];
         }
 
         private void UpdateSaveFolderPath()
         {
-            saveFolderPath = Path.Combine(Application.persistentDataPath, "Luchadores", $"Jugador_{targetPlayerId}");
+            saveFolderPath = Path.Combine(Application.persistentDataPath, "Luchadores", $"Luchador_{targetFighterId}");
         }
 
-        /// <summary>
-        /// Inicia el feed en vivo de la cámara web.
-        /// </summary>
+        public void ToggleFlipVertical()
+        {
+            flipVertical = !flipVertical;
+            UpdateFlipStatusText();
+            Debug.Log($"[WebcamCapture] Invertir Vertical: {flipVertical}");
+        }
+
+        public void ToggleFlipHorizontal()
+        {
+            flipHorizontal = !flipHorizontal;
+            UpdateFlipStatusText();
+            Debug.Log($"[WebcamCapture] Espejo Horizontal: {flipHorizontal}");
+        }
+
+        private void UpdateFlipStatusText()
+        {
+            if (flipStatusText != null)
+            {
+                flipStatusText.text = $"Giro Vertical: {(flipVertical ? "ON" : "OFF")} | Espejo: {(flipHorizontal ? "ON" : "OFF")}";
+            }
+        }
+
         public void StartWebcam()
         {
             if (WebCamTexture.devices.Length == 0)
             {
-                Debug.LogWarning("[WebcamCapture] No se detectó ninguna cámara web conectada al equipo.");
+                Debug.LogWarning("[WebcamCapture] No se detectó ninguna cámara web.");
                 return;
             }
 
@@ -112,13 +157,8 @@ namespace FightFace
                 cameraPreviewUI.texture = webcamTexture;
                 cameraPreviewUI.enabled = true;
             }
-
-            Debug.Log($"[WebcamCapture] Cámara iniciada: {webcamTexture.deviceName}");
         }
 
-        /// <summary>
-        /// Detiene la cámara web para liberar recursos.
-        /// </summary>
         public void StopWebcam()
         {
             if (webcamTexture != null && webcamTexture.isPlaying)
@@ -133,8 +173,7 @@ namespace FightFace
         }
 
         /// <summary>
-        /// Captura el fotograma actual de la webcam para una de las 4 emociones:
-        /// Base, Enojo, Dolor o KO.
+        /// Captura el fotograma actual de la webcam para una emoción y lo recorta como cabeza ovalada cómica.
         /// </summary>
         public void CaptureCurrentFrameAs(FaceType emotion)
         {
@@ -142,14 +181,12 @@ namespace FightFace
 
             if (webcamTexture != null && webcamTexture.isPlaying)
             {
-                // Capturar desde webcam
-                snapshot = CaptureSquareFromWebcam(webcamTexture);
+                snapshot = CaptureStickerFromWebcam(webcamTexture);
             }
             else
             {
-                // Si la webcam no está activa, generar o usar textura cómica para permitir pruebas
-                Debug.LogWarning("[WebcamCapture] Webcam inactiva. Generando fotograma de prueba.");
-                snapshot = FaceLoader.CreateDefaultProceduralProfile(targetPlayerId).GetSprite(emotion).texture;
+                Debug.LogWarning("[WebcamCapture] Webcam inactiva. Generando fotograma de muestra.");
+                snapshot = FaceLoader.CreateDefaultProceduralProfile(targetFighterId).GetSprite(emotion).texture;
             }
 
             if (snapshot == null) return;
@@ -157,7 +194,6 @@ namespace FightFace
             Sprite newSprite = FaceLoader.CreateSpriteFromTexture(snapshot);
             activeProfile.SetSprite(emotion, newSprite);
 
-            // Guardar automáticamente la foto en el disco
             if (!Directory.Exists(saveFolderPath))
             {
                 Directory.CreateDirectory(saveFolderPath);
@@ -167,10 +203,10 @@ namespace FightFace
             string fullPath = Path.Combine(saveFolderPath, filename);
             FaceLoader.SaveTextureToFile(snapshot, fullPath);
 
-            Debug.Log($"[WebcamCapture] ¡Foto {emotion} capturada y guardada en {fullPath}!");
+            Debug.Log($"[WebcamCapture] Foto {emotion} capturada y guardada en {fullPath}");
 
             UpdateThumbnailPreviews();
-            ApplyToTargetFighter();
+            ApplyToActiveFighters();
         }
 
         private string GetFilenameForEmotion(FaceType emotion)
@@ -178,7 +214,7 @@ namespace FightFace
             switch (emotion)
             {
                 case FaceType.Base: return "Foto_Base.png";
-                case FaceType.Enojo: return "Foto_Enojo.png"; // ¡4ta cara!
+                case FaceType.Enojo: return "Foto_Enojo.png";
                 case FaceType.Dolor: return "Foto_Dolor.png";
                 case FaceType.KO: return "Foto_KO.png";
                 default: return "Foto_Base.png";
@@ -186,49 +222,46 @@ namespace FightFace
         }
 
         /// <summary>
-        /// Extrae un recorte cuadrado centrado de la cámara web para enfocar el rostro.
+        /// Captura desde la webcam y aplica el recorte ovalado con borde blanco para sticker.
         /// </summary>
-        private Texture2D CaptureSquareFromWebcam(WebCamTexture cam)
+        private Texture2D CaptureStickerFromWebcam(WebCamTexture cam)
         {
             int w = cam.width;
             int h = cam.height;
-            int size = Mathf.Min(w, h);
-            int xOffset = (w - size) / 2;
-            int yOffset = (h - size) / 2;
 
             Texture2D rawFrame = new Texture2D(w, h, TextureFormat.RGBA32, false);
             Color32[] pixels = cam.GetPixels32();
             rawFrame.SetPixels32(pixels);
             rawFrame.Apply();
 
-            // Extraer el cuadrado
-            Color[] squarePixels = rawFrame.GetPixels(xOffset, yOffset, size, size);
-            Texture2D squareTex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            squareTex.SetPixels(squarePixels);
-            squareTex.Apply();
+            // Detectar si la webcam está invertida por hardware
+            bool shouldFlipY = flipVertical ^ cam.videoVerticallyMirrored;
+
+            // Recortar en forma de óvalo con borde sticker
+            Texture2D sticker = FaceLoader.MaskAsOvalHead(rawFrame, shouldFlipY, flipHorizontal);
 
             Destroy(rawFrame);
-            return squareTex;
+            return sticker;
         }
 
         /// <summary>
-        /// Aplica el perfil facial capturado al luchador activo en el combate.
+        /// Aplica el perfil facial capturado al luchador activo si está en combate.
         /// </summary>
-        public void ApplyToTargetFighter()
+        public void ApplyToActiveFighters()
         {
             if (BattleManager.Instance != null)
             {
-                FighterController fighter = targetPlayerId == 1 ? BattleManager.Instance.player1 : BattleManager.Instance.player2;
-                if (fighter != null && fighter.faceController != null)
+                if (BattleManager.Instance.player1 != null && BattleManager.Instance.player1.playerId == targetFighterId)
                 {
-                    fighter.faceController.SetProfile(activeProfile);
+                    BattleManager.Instance.player1.faceController.SetProfile(activeProfile);
+                }
+                else if (BattleManager.Instance.player2 != null && BattleManager.Instance.player2.playerId == targetFighterId)
+                {
+                    BattleManager.Instance.player2.faceController.SetProfile(activeProfile);
                 }
             }
         }
 
-        /// <summary>
-        /// Actualiza los recuadros de preview en la UI del creador.
-        /// </summary>
         public void UpdateThumbnailPreviews()
         {
             if (previewThumbBase != null && activeProfile.faceBase != null)

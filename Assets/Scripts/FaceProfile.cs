@@ -11,6 +11,7 @@ namespace FightFace
     [Serializable]
     public class FaceProfile
     {
+        public int fighterId = 1;
         public string fighterName = "Luchador";
 
         public Sprite faceBase;
