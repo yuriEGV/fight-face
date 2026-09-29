@@ -1518,6 +1518,7 @@ namespace FightFace
             bm.player1 = p1;
             bm.player2 = p2;
             bm.isP2ControlledByAI = true;
+            bm.startInSelectMenu = true;
         }
 
         private void SetupTournamentManager(FighterController p1, FighterController p2)

@@ -121,16 +121,16 @@ namespace FightFace
                 headRenderer.sprite = spriteToUse;
                 headRenderer.sortingOrder = 12;
 
-                // Calibrar la escala y posición del cuello para que la barbilla descanse sobre el torso
+                // Calibrar la escala para que la cabeza cómica descanse de forma natural y firme sobre el cuello
                 float worldHeight = spriteToUse.rect.height / spriteToUse.pixelsPerUnit;
                 if (worldHeight > 0.01f)
                 {
-                    float targetHeight = 0.95f;
+                    float targetHeight = 0.90f;
                     float factor = targetHeight / worldHeight;
                     initialLocalScale = new Vector3(factor, factor, 1f);
                     transform.localScale = initialLocalScale;
-                    transform.localPosition = new Vector3(0, targetHeight * 0.40f, 0);
-                    initialLocalPosition = transform.localPosition;
+                    transform.localPosition = Vector3.zero;
+                    initialLocalPosition = Vector3.zero;
                 }
             }
         }

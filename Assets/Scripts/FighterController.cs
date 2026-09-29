@@ -390,7 +390,7 @@ namespace FightFace
             float startup = 0.06f;
             float active = 0.08f;
             float recovery = 0.10f;
-            int dmg = Mathf.RoundToInt(8 * statFuerza * (isRageActive ? 1.25f : 1.0f));
+            int dmg = Mathf.RoundToInt(14 * statFuerza * (isRageActive ? 1.25f : 1.0f));
 
             StartAttackRoutine(startup, active, recovery, dmg, 4.5f, false, isPunch: true);
         }
@@ -405,7 +405,7 @@ namespace FightFace
             float startup = 0.12f;
             float active = 0.12f;
             float recovery = 0.18f;
-            int dmg = Mathf.RoundToInt(18 * statFuerza * (isRageActive ? 1.25f : 1.0f));
+            int dmg = Mathf.RoundToInt(26 * statFuerza * (isRageActive ? 1.25f : 1.0f));
 
             StartAttackRoutine(startup, active, recovery, dmg, 7.5f, true, isPunch: true);
         }
@@ -420,7 +420,7 @@ namespace FightFace
             float startup = 0.08f;
             float active = 0.10f;
             float recovery = 0.12f;
-            int dmg = Mathf.RoundToInt(10 * statFuerza * (isRageActive ? 1.25f : 1.0f));
+            int dmg = Mathf.RoundToInt(16 * statFuerza * (isRageActive ? 1.25f : 1.0f));
 
             StartAttackRoutine(startup, active, recovery, dmg, 5.5f, false, isPunch: false);
         }
@@ -435,7 +435,7 @@ namespace FightFace
             float startup = 0.14f;
             float active = 0.14f;
             float recovery = 0.22f;
-            int dmg = Mathf.RoundToInt(24 * statFuerza * (isRageActive ? 1.25f : 1.0f));
+            int dmg = Mathf.RoundToInt(30 * statFuerza * (isRageActive ? 1.25f : 1.0f));
 
             StartAttackRoutine(startup, active, recovery, dmg, 9.5f, true, isPunch: false);
         }
@@ -464,7 +464,7 @@ namespace FightFace
             // Impulso hacia adelante
             rb.linearVelocity = new Vector2(facingDirection * 10f * statVelocidad, rb.linearVelocity.y);
 
-            int dmg = Mathf.RoundToInt(28 * statFuerza * (isRageActive ? 1.35f : 1.0f));
+            int dmg = Mathf.RoundToInt(38 * statFuerza * (isRageActive ? 1.35f : 1.0f));
             if (punchHitbox != null)
             {
                 punchHitbox.ActivateHitbox(dmg, 10.5f, true);
@@ -579,8 +579,8 @@ namespace FightFace
             // 1. COMPROBAR BLOQUEO (DEFENSA ←)
             if (!ignoreGuard && IsGuarding())
             {
-                // Daño reducido un 75%
-                int danioBloqueado = Mathf.Max(1, Mathf.RoundToInt(danio * 0.25f / statDefensa));
+                // Daño reducido un 65% (chip damage tangible)
+                int danioBloqueado = Mathf.Max(2, Mathf.RoundToInt(danio * 0.35f));
                 currentHealth = Mathf.Max(1, currentHealth - danioBloqueado);
 
                 // Acumular stun reducido
@@ -604,7 +604,7 @@ namespace FightFace
             }
 
             // 2. IMPACTO LIMPIO (SIN BLOQUEAR)
-            int danioFinal = Mathf.Max(1, Mathf.RoundToInt(danio / statDefensa));
+            int danioFinal = Mathf.Max(1, Mathf.RoundToInt(danio / Mathf.Clamp(statDefensa, 0.75f, 1.25f)));
             currentHealth = Mathf.Max(0, currentHealth - danioFinal);
 
             // Acumular Stun: +15 en golpe normal, +28 en golpe pesado

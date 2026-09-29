@@ -96,7 +96,8 @@ namespace FightFace
                 {
                     player1.bodyController.SetClassicBody(p1Body);
                 }
-                FaceProfile p1Profile = FaceLoader.LoadProfileForFighter((int)p1Body + 1, player1.fighterName);
+                // Jugador 1 siempre carga su propio perfil de fotos (Jugador_1)
+                FaceProfile p1Profile = FaceLoader.LoadProfileForFighter(1, player1.fighterName);
                 if (player1.faceController != null)
                 {
                     if (player1.bodyController != null && player1.bodyController.neckPoint != null)
@@ -117,9 +118,10 @@ namespace FightFace
                         rHead.transform.localPosition = Vector3.zero;
                         player1.faceControllerRight = rHead.AddComponent<DynamicFaceController>();
                         var sr = rHead.GetComponent<SpriteRenderer>();
-                        sr.sortingOrder = 12;
+                        sr.sortingOrder = 15;
                     }
                     player1.faceControllerRight.transform.SetParent(player1.bodyController.neckPointRight, false);
+                    player1.faceControllerRight.transform.localPosition = Vector3.zero;
                     player1.faceControllerRight.SetProfile(p1Profile);
                     player1.faceControllerRight.SetFace(FaceType.Dolor);
                 }
@@ -138,7 +140,8 @@ namespace FightFace
                 {
                     player2.bodyController.SetClassicBody(p2Body);
                 }
-                FaceProfile p2Profile = FaceLoader.LoadProfileForFighter((int)p2Body + 1, player2.fighterName);
+                // Jugador 2 siempre carga su propio perfil de fotos (Jugador_2)
+                FaceProfile p2Profile = FaceLoader.LoadProfileForFighter(2, player2.fighterName);
                 if (player2.faceController != null)
                 {
                     if (player2.bodyController != null && player2.bodyController.neckPoint != null)
@@ -159,9 +162,10 @@ namespace FightFace
                         rHead.transform.localPosition = Vector3.zero;
                         player2.faceControllerRight = rHead.AddComponent<DynamicFaceController>();
                         var sr = rHead.GetComponent<SpriteRenderer>();
-                        sr.sortingOrder = 12;
+                        sr.sortingOrder = 15;
                     }
                     player2.faceControllerRight.transform.SetParent(player2.bodyController.neckPointRight, false);
+                    player2.faceControllerRight.transform.localPosition = Vector3.zero;
                     player2.faceControllerRight.SetProfile(p2Profile);
                     player2.faceControllerRight.SetFace(FaceType.Dolor);
                 }
@@ -184,8 +188,12 @@ namespace FightFace
 
         public void RestartMatch()
         {
+            Time.timeScale = 1.0f;
             currentRoundTime = roundTimeSeconds;
             isMatchActive = true;
+
+            // Recargar perfiles frescos de disco por si el usuario actualizó fotos con webcam
+            ApplyFighterSetup(p1BodyType, p2BodyType, isP2ControlledByAI);
 
             if (player1 != null)
             {
@@ -207,6 +215,8 @@ namespace FightFace
 
             if (BattleUI.Instance != null)
             {
+                if (BattleUI.Instance.winnerModalPanel != null)
+                    BattleUI.Instance.winnerModalPanel.SetActive(false);
                 BattleUI.Instance.UpdateHealth(1, 100, 100);
                 BattleUI.Instance.UpdateHealth(2, 100, 100);
                 BattleUI.Instance.UpdateTimer(roundTimeSeconds);
@@ -244,7 +254,10 @@ namespace FightFace
             FighterController winner = (defeated == player1) ? player2 : player1;
             string winnerName = winner != null ? winner.fighterName : "¡Ganador!";
 
-            Debug.Log($"[BattleManager] ¡Fin del combate! Ganador: {winnerName}");
+            Debug.Log($"[BattleManager] ¡Fin del combate por K.O.! Ganador: {winnerName}");
+
+            // Hitstop / Cámara lenta dramática de K.O.
+            StartCoroutine(KOSlowMotionRoutine(0.40f));
 
             if (winner != null)
             {
@@ -262,6 +275,13 @@ namespace FightFace
             }
         }
 
+        private IEnumerator KOSlowMotionRoutine(float realSeconds)
+        {
+            Time.timeScale = 0.25f;
+            yield return new WaitForSecondsRealtime(realSeconds);
+            Time.timeScale = 1.0f;
+        }
+
         private IEnumerator ShowWinnerModalDelayed(FighterController winner, FighterController loser, float delay)
         {
             yield return new WaitForSeconds(delay);
@@ -273,24 +293,43 @@ namespace FightFace
 
         private void OnTimeOver()
         {
+            if (!isMatchActive) return;
             isMatchActive = false;
-            string winnerMsg = "¡EMPATE!";
+
+            FighterController winner = null;
+            FighterController loser = null;
+            string bannerMsg = "¡TIEMPO!";
 
             if (player1 != null && player2 != null)
             {
                 if (player1.currentHealth > player2.currentHealth)
                 {
-                    winnerMsg = $"¡TIEMPO!\nGANADOR: {player1.fighterName.ToUpper()}";
+                    winner = player1;
+                    loser = player2;
+                    bannerMsg = $"¡TIEMPO!\nGANADOR: {player1.fighterName.ToUpper()}";
                 }
                 else if (player2.currentHealth > player1.currentHealth)
                 {
-                    winnerMsg = $"¡TIEMPO!\nGANADOR: {player2.fighterName.ToUpper()}";
+                    winner = player2;
+                    loser = player1;
+                    bannerMsg = $"¡TIEMPO!\nGANADOR: {player2.fighterName.ToUpper()}";
+                }
+                else
+                {
+                    // Empate
+                    winner = player1;
+                    loser = player2;
+                    bannerMsg = "¡TIEMPO!\n¡EMPATE TÉCNICO!";
                 }
             }
 
+            if (winner != null) winner.TriggerVictory();
+            if (loser != null && winner != loser) loser.PlayHurtAnimation(1.0f);
+
             if (BattleUI.Instance != null)
             {
-                BattleUI.Instance.ShowBanner(winnerMsg, 5f);
+                BattleUI.Instance.ShowBanner(bannerMsg, 2.2f);
+                StartCoroutine(ShowWinnerModalDelayed(winner, loser, 1.5f));
             }
         }
 

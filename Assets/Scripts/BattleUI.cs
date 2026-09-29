@@ -304,6 +304,61 @@ namespace FightFace
             }
         }
 
+        private void Update()
+        {
+            // 1. Pantalla de Victoria K.O.: Revancha instantánea con ENTER/ESPACIO o Menú con M/ESC
+            if (winnerModalPanel != null && winnerModalPanel.activeSelf)
+            {
+                if (FightInput.GetConfirm() || FightInput.GetRestart())
+                {
+                    winnerModalPanel.SetActive(false);
+                    if (BattleManager.Instance != null) BattleManager.Instance.RestartMatch();
+                    return;
+                }
+                if (FightInput.GetMenuToggle())
+                {
+                    winnerModalPanel.SetActive(false);
+                    ShowCharacterSelectMenu();
+                    return;
+                }
+                return;
+            }
+
+            // 2. Si el creador de rostros está abierto
+            if (faceCustomizerPanel != null && faceCustomizerPanel.activeSelf)
+            {
+                if (FightInput.GetMenuToggle() || FightInput.GetToggleCustomizer())
+                {
+                    ToggleFaceCustomizer();
+                }
+                return;
+            }
+
+            // 3. Si el menú de selección de personajes está abierto, CharacterSelectUI maneja los inputs
+            if (characterSelectPanel != null && characterSelectPanel.activeSelf)
+            {
+                return;
+            }
+
+            // 4. Durante el combate libre en el ring
+            if (FightInput.GetRestart())
+            {
+                if (BattleManager.Instance != null) BattleManager.Instance.RestartMatch();
+            }
+            else if (FightInput.GetMenuToggle())
+            {
+                ToggleCharacterSelectMenu();
+            }
+            else if (FightInput.GetToggleCustomizer())
+            {
+                ToggleFaceCustomizer();
+            }
+            else if (FightInput.GetTournamentStart())
+            {
+                ToggleTournamentMenu();
+            }
+        }
+
         public void UpdateTimer(int seconds)
         {
             if (timerText != null)
@@ -337,6 +392,12 @@ namespace FightFace
             if (characterSelectPanel != null)
             {
                 characterSelectPanel.SetActive(true);
+                Time.timeScale = 0f;
+                if (CharacterSelectUI.Instance != null)
+                {
+                    CharacterSelectUI.Instance.RefreshP1UI();
+                    CharacterSelectUI.Instance.RefreshP2UI();
+                }
             }
         }
 
@@ -345,6 +406,7 @@ namespace FightFace
             if (characterSelectPanel != null)
             {
                 characterSelectPanel.SetActive(false);
+                Time.timeScale = 1f;
             }
         }
 
@@ -353,7 +415,8 @@ namespace FightFace
             if (characterSelectPanel != null)
             {
                 bool active = !characterSelectPanel.activeSelf;
-                characterSelectPanel.SetActive(active);
+                if (active) ShowCharacterSelectMenu();
+                else HideCharacterSelectMenu();
             }
         }
 
@@ -379,11 +442,13 @@ namespace FightFace
 
             if (isActive)
             {
+                Time.timeScale = 0f; // Pausa el combate para tomar fotos con calma
                 if (WebcamCaptureManager.Instance != null)
                     WebcamCaptureManager.Instance.StartWebcam();
             }
             else
             {
+                Time.timeScale = 1f; // Reanuda el combate
                 if (WebcamCaptureManager.Instance != null)
                     WebcamCaptureManager.Instance.StopWebcam();
                 RefreshFacePortraits();

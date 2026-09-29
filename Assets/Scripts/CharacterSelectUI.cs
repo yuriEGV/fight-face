@@ -187,7 +187,7 @@ namespace FightFace
         public void SelectP1Body(FighterBodyType body)
         {
             p1BodyType = body;
-            FaceProfile profile = FaceLoader.LoadProfileForFighter((int)body + 1, FaceLoader.GetFighterDisplayName(body));
+            FaceProfile profile = FaceLoader.LoadProfileForFighter(1, FaceLoader.GetFighterDisplayName(body));
             if (BattleManager.Instance != null && BattleManager.Instance.player1 != null)
             {
                 BattleManager.Instance.p1BodyType = body;
@@ -208,7 +208,7 @@ namespace FightFace
         public void SelectP2Body(FighterBodyType body)
         {
             p2BodyType = body;
-            FaceProfile profile = FaceLoader.LoadProfileForFighter((int)body + 1, FaceLoader.GetFighterDisplayName(body));
+            FaceProfile profile = FaceLoader.LoadProfileForFighter(2, FaceLoader.GetFighterDisplayName(body));
             if (BattleManager.Instance != null && BattleManager.Instance.player2 != null)
             {
                 BattleManager.Instance.p2BodyType = body;
@@ -237,7 +237,7 @@ namespace FightFace
         {
             if (WebcamCaptureManager.Instance != null)
             {
-                WebcamCaptureManager.Instance.SetTargetFighter((int)p1BodyType + 1);
+                WebcamCaptureManager.Instance.SetTargetFighter(1);
             }
             if (BattleUI.Instance != null)
             {
@@ -249,7 +249,7 @@ namespace FightFace
         {
             if (WebcamCaptureManager.Instance != null)
             {
-                WebcamCaptureManager.Instance.SetTargetFighter((int)p2BodyType + 1);
+                WebcamCaptureManager.Instance.SetTargetFighter(2);
             }
             if (BattleUI.Instance != null)
             {
@@ -262,6 +262,10 @@ namespace FightFace
             if (BattleManager.Instance != null)
             {
                 BattleManager.Instance.StartFightWithCharacters(p1BodyType, p2BodyType, p2IsAI);
+            }
+            if (BattleUI.Instance != null)
+            {
+                BattleUI.Instance.HideCharacterSelectMenu();
             }
             gameObject.SetActive(false);
         }
@@ -287,15 +291,7 @@ namespace FightFace
             if (p1HeadPreviewImage != null)
             {
                 p1HeadPreviewImage.transform.localScale = Vector3.one;
-                FaceProfile prof = null;
-                if (BattleManager.Instance != null && BattleManager.Instance.player1 != null && BattleManager.Instance.player1.faceController != null)
-                {
-                    prof = BattleManager.Instance.player1.faceController.Profile;
-                }
-                if (prof == null)
-                {
-                    prof = FaceLoader.LoadProfileForFighter((int)p1BodyType + 1, FaceLoader.GetFighterDisplayName(p1BodyType));
-                }
+                FaceProfile prof = FaceLoader.LoadProfileForFighter(1, FaceLoader.GetFighterDisplayName(p1BodyType));
                 if (prof != null)
                 {
                     p1HeadPreviewImage.sprite = prof.GetSprite(FaceType.Base);
@@ -328,15 +324,7 @@ namespace FightFace
             if (p2HeadPreviewImage != null)
             {
                 p2HeadPreviewImage.transform.localScale = Vector3.one;
-                FaceProfile prof = null;
-                if (BattleManager.Instance != null && BattleManager.Instance.player2 != null && BattleManager.Instance.player2.faceController != null)
-                {
-                    prof = BattleManager.Instance.player2.faceController.Profile;
-                }
-                if (prof == null)
-                {
-                    prof = FaceLoader.LoadProfileForFighter((int)p2BodyType + 1, FaceLoader.GetFighterDisplayName(p2BodyType));
-                }
+                FaceProfile prof = FaceLoader.LoadProfileForFighter(2, FaceLoader.GetFighterDisplayName(p2BodyType));
                 if (prof != null)
                 {
                     p2HeadPreviewImage.sprite = prof.GetSprite(FaceType.Base);

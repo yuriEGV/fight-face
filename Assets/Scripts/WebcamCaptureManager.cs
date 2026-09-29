@@ -355,7 +355,7 @@ namespace FightFace
             if (BattleManager.Instance != null)
             {
                 bool isP1Match = (BattleManager.Instance.player1 != null) && 
-                    ((int)BattleManager.Instance.p1BodyType + 1 == targetFighterId || BattleManager.Instance.player1.playerId == targetFighterId);
+                    (targetFighterId == 1 || (int)BattleManager.Instance.p1BodyType + 1 == targetFighterId);
                 
                 if (isP1Match)
                 {
@@ -363,11 +363,15 @@ namespace FightFace
                     {
                         BattleManager.Instance.player1.faceController.SetProfile(activeProfile);
                     }
+                    if (BattleManager.Instance.player1.faceControllerRight != null)
+                    {
+                        BattleManager.Instance.player1.faceControllerRight.SetProfile(activeProfile);
+                    }
                     BattleManager.Instance.player1.fighterName = activeProfile.fighterName;
                 }
 
                 bool isP2Match = (BattleManager.Instance.player2 != null) && 
-                    ((int)BattleManager.Instance.p2BodyType + 1 == targetFighterId || BattleManager.Instance.player2.playerId == targetFighterId);
+                    (targetFighterId == 2 || (int)BattleManager.Instance.p2BodyType + 1 == targetFighterId);
                 
                 if (isP2Match)
                 {
@@ -375,8 +379,17 @@ namespace FightFace
                     {
                         BattleManager.Instance.player2.faceController.SetProfile(activeProfile);
                     }
+                    if (BattleManager.Instance.player2.faceControllerRight != null)
+                    {
+                        BattleManager.Instance.player2.faceControllerRight.SetProfile(activeProfile);
+                    }
                     BattleManager.Instance.player2.fighterName = activeProfile.fighterName;
                 }
+            }
+
+            if (BattleUI.Instance != null)
+            {
+                BattleUI.Instance.RefreshFacePortraits();
             }
 
             if (CharacterSelectUI.Instance != null)

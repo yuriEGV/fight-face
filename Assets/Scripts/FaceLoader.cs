@@ -524,14 +524,23 @@ namespace FightFace
         {
             switch (bodyType)
             {
-                case FighterBodyType.Gordo: return new Vector3(0.04f, 1.63f, 0);
-                case FighterBodyType.Flaco: return new Vector3(0.15f, 1.01f, 0);
-                case FighterBodyType.Musculoso: return new Vector3(0.08f, 2.20f, 0);
-                case FighterBodyType.Mujer: return new Vector3(-0.45f, 1.20f, 0);
-                case FighterBodyType.Mujer2: return new Vector3(-0.45f, 1.20f, 0);
-                case FighterBodyType.DosCabezas: return new Vector3(0f, 0.95f, 0);
-                default: return new Vector3(0, 1.25f, 0);
+                case FighterBodyType.Gordo: return new Vector3(-0.12f, 1.87f, 0);
+                case FighterBodyType.Flaco: return new Vector3(0.25f, 1.69f, 0);
+                case FighterBodyType.Musculoso: return new Vector3(0.29f, 2.12f, 0);
+                case FighterBodyType.Mujer: return new Vector3(0.62f, 2.19f, 0);
+                case FighterBodyType.Mujer2: return new Vector3(0.00f, 1.71f, 0);
+                case FighterBodyType.DosCabezas: return new Vector3(-0.30f, 1.85f, 0);
+                default: return new Vector3(0, 1.85f, 0);
             }
+        }
+
+        public static Vector3 GetRightNeckLocalOffset(FighterBodyType bodyType)
+        {
+            if (bodyType == FighterBodyType.DosCabezas)
+            {
+                return new Vector3(0.44f, 1.85f, 0);
+            }
+            return GetNeckLocalOffset(bodyType);
         }
 
         public static Sprite LoadFighterBodySprite(FighterBodyType bodyType)
@@ -552,7 +561,7 @@ namespace FightFace
                 {
                     tex.filterMode = FilterMode.Bilinear;
                     tex.wrapMode = TextureWrapMode.Clamp;
-                    return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0f), 130f);
+                    return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0f), 175f);
                 }
             }
             return null;
