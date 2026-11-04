@@ -2,6 +2,7 @@
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/
+.utmp/
 [Bb]uild/
 [Bb]uilds/
 [Ll]ogs/
@@ -36,6 +37,8 @@ desktop.ini
 # Standalone Builds & temporary exports
 [Bb]uild_*/
 build_log.txt
+build_android_log.txt
+Assets/Resources/PerformanceTestRun*
 
 # Local temporary images / generator scripts
 *.py

@@ -118,6 +118,7 @@ namespace FightFace.Editor
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel24;
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
+            EditorUserBuildSettings.buildAppBundle = false; // Generar archivo .apk instalable directamente
 
             Debug.Log($"[BuildGame] 📱 Iniciando compilación de Android APK...");
             Debug.Log($"[BuildGame] Destino: {apkPath}");
