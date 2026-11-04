@@ -89,9 +89,10 @@ namespace FightFace
             currentEmotion = emotion;
             ApplyEmotion(emotion);
 
-            // Reacción física cómica: sacudida o estiramiento de cabeza
+            // Reacción física cómica: deformación cómica Munch-Punch y sacudida
             if (emotion == FaceType.Dolor)
             {
+                TriggerMunchPunchDeform(1.2f, 1);
                 StartCoroutine(HurtShakeRoutine(duration));
             }
             else if (emotion == FaceType.Enojo)
@@ -107,6 +108,80 @@ namespace FightFace
                 ApplyEmotion(FaceType.Base);
             }
             temporaryFaceCoroutine = null;
+        }
+
+        private Coroutine activeDeformCoroutine;
+
+        /// <summary>
+        /// Deformación elástica cómica instantánea de la foto del rostro al recibir un impacto ("Munch Punch").
+        /// </summary>
+        public void TriggerMunchPunchDeform(float impactStrength = 1.0f, int hitDirection = 1)
+        {
+            if (activeDeformCoroutine != null)
+            {
+                StopCoroutine(activeDeformCoroutine);
+            }
+            activeDeformCoroutine = StartCoroutine(MunchPunchDeformRoutine(impactStrength, hitDirection));
+        }
+
+        private IEnumerator MunchPunchDeformRoutine(float strength, int hitDir)
+        {
+            strength = Mathf.Clamp(strength, 0.5f, 2.0f);
+            float elapsed = 0f;
+
+            // 1. Squash & Stretch extremo instantáneo (0 a 0.06s)
+            float squashX = 1f + (0.50f * strength);
+            float squashY = 1f - (0.35f * strength);
+            float tiltAngle = hitDir * (-18f * strength);
+
+            Vector3 squashed = new Vector3(initialLocalScale.x * squashX, initialLocalScale.y * squashY, 1f);
+            Quaternion squashedRot = Quaternion.Euler(0, 0, tiltAngle);
+
+            float phase1 = 0.06f;
+            while (elapsed < phase1)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / phase1;
+                transform.localScale = Vector3.Lerp(initialLocalScale, squashed, t);
+                transform.localRotation = Quaternion.Lerp(Quaternion.identity, squashedRot, t);
+                yield return null;
+            }
+
+            // 2. Rebound elástico alto (0.06s a 0.14s)
+            float stretchX = 1f - (0.28f * strength);
+            float stretchY = 1f + (0.40f * strength);
+            Vector3 stretched = new Vector3(initialLocalScale.x * stretchX, initialLocalScale.y * stretchY, 1f);
+            Quaternion stretchRot = Quaternion.Euler(0, 0, -tiltAngle * 0.6f);
+
+            elapsed = 0f;
+            float phase2 = 0.08f;
+            while (elapsed < phase2)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / phase2;
+                transform.localScale = Vector3.Lerp(squashed, stretched, t);
+                transform.localRotation = Quaternion.Lerp(squashedRot, stretchRot, t);
+                yield return null;
+            }
+
+            // 3. Resorte oscilatorio amortiguado (0.14s a 0.28s)
+            elapsed = 0f;
+            float phase3 = 0.14f;
+            while (elapsed < phase3)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / phase3;
+                float decay = 1f - t;
+                float wobble = Mathf.Sin(t * Mathf.PI * 4f) * (0.18f * decay * strength);
+                transform.localScale = new Vector3(initialLocalScale.x * (1f + wobble), initialLocalScale.y * (1f - wobble), 1f);
+                transform.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(t * Mathf.PI * 3f) * (10f * decay));
+                yield return null;
+            }
+
+            transform.localScale = initialLocalScale;
+            transform.localRotation = Quaternion.identity;
+            transform.localPosition = initialLocalPosition;
+            activeDeformCoroutine = null;
         }
 
         /// <summary>
@@ -125,7 +200,7 @@ namespace FightFace
                 float worldHeight = spriteToUse.rect.height / spriteToUse.pixelsPerUnit;
                 if (worldHeight > 0.01f)
                 {
-                    float targetHeight = 0.90f;
+                    float targetHeight = 1.18f;
                     float factor = targetHeight / worldHeight;
                     initialLocalScale = new Vector3(factor, factor, 1f);
                     transform.localScale = initialLocalScale;

@@ -58,14 +58,70 @@ namespace FightFace
         public Hitbox punchHitbox;
         public Hitbox kickHitbox;
 
+        [Header("Voces de Batalla")]
+        public FighterVoiceProfile voiceProfile;
+        public FighterVoiceProfile voiceProfileHead2;
+        private float lastAttackVoiceTime = -1f;
+        private float lastHurtVoiceTime = -1f;
+
+        public void PlayVoice(VoiceType type, float volume = 1f)
+        {
+            // Bloquear totalmente voces de combate si los menús están abiertos o si la pelea aún no ha comenzado
+            bool isMenuOpen = (BattleUI.Instance != null && BattleUI.Instance.characterSelectPanel != null && BattleUI.Instance.characterSelectPanel.activeSelf)
+                           || (BattleUI.Instance != null && BattleUI.Instance.faceCustomizerPanel != null && BattleUI.Instance.faceCustomizerPanel.activeSelf);
+
+            if (isMenuOpen) return;
+            if (BattleManager.Instance != null && !BattleManager.Instance.IsMatchActive && type != VoiceType.Victory) return;
+            if (Time.timeScale <= 0f) return;
+
+            if (type == VoiceType.Attack)
+            {
+                if (Time.time - lastAttackVoiceTime < 0.55f) return;
+                lastAttackVoiceTime = Time.time;
+            }
+            else if (type == VoiceType.Hurt)
+            {
+                if (Time.time - lastHurtVoiceTime < 0.35f) return;
+                lastHurtVoiceTime = Time.time;
+            }
+
+            float pitch = UnityEngine.Random.Range(0.96f, 1.04f) * (playerId == 2 ? 1.05f : 0.98f);
+
+            if (voiceProfile != null && voiceProfile.HasCustomVoice(type))
+            {
+                if (FightAudioManager.Instance != null)
+                {
+                    FightAudioManager.Instance.PlayFighterVoice(voiceProfile.GetVoice(type), volume, pitch);
+                }
+            }
+            else
+            {
+                if (FightAudioManager.Instance != null)
+                {
+                    FightAudioManager.Instance.PlayProceduralVoice(type, volume, pitch);
+                }
+            }
+
+            // Para Hombre-Máquina (Dos Cabezas), la segunda cabeza puede reaccionar en estéreo
+            if (faceControllerRight != null && voiceProfileHead2 != null && voiceProfileHead2.HasCustomVoice(type))
+            {
+                if (FightAudioManager.Instance != null)
+                {
+                    FightAudioManager.Instance.PlayFighterVoice(voiceProfileHead2.GetVoice(type), volume * 0.9f, pitch * 1.10f);
+                }
+            }
+        }
+
         [Header("Estado y Hitstun")]
         public bool estaEnStun = false;
+        public bool isTrainingDummy = false;
+        private float lastDummyHitTime = 0f;
         private Coroutine activeAttackRoutine;
         private Coroutine activeHitstunRoutine;
 
         private Rigidbody2D rb;
         private bool isGrounded = true;
-        private bool isAlive = true;
+        public bool isAlive = true;
         private bool isAttacking = false;
         private float facingDirection = 1f;
         private float nextAttackTime = 0f;
@@ -75,7 +131,7 @@ namespace FightFace
         private float aiNextDecisionTime = 0f;
         private float aiMoveDir = 0f;
 
-        public bool IsAlive => isAlive;
+        public bool IsAlive { get => isAlive; set => isAlive = value; }
         public float FacingDirection => facingDirection;
         public float HealthPercent => (float)currentHealth / maxHealth;
         public float StunPercent => Mathf.Clamp01(currentStun / maxStun);
@@ -123,10 +179,12 @@ namespace FightFace
                 box.size = new Vector2(0.9f * statAlcance, 0.6f);
                 box.isTrigger = true;
                 punchHitbox = punchObj.AddComponent<Hitbox>();
+                punchHitbox.isKickAttack = false;
                 punchHitbox.Initialize(this);
             }
             else
             {
+                punchHitbox.isKickAttack = false;
                 punchHitbox.Initialize(this);
             }
 
@@ -139,10 +197,12 @@ namespace FightFace
                 box.size = new Vector2(0.95f * statAlcance, 0.65f);
                 box.isTrigger = true;
                 kickHitbox = kickObj.AddComponent<Hitbox>();
+                kickHitbox.isKickAttack = true;
                 kickHitbox.Initialize(this);
             }
             else
             {
+                kickHitbox.isKickAttack = true;
                 kickHitbox.Initialize(this);
             }
         }
@@ -150,6 +210,26 @@ namespace FightFace
         private void Update()
         {
             if (!isAlive) return;
+
+            // Si el combate no está activo o si el menú de selección / personalizador / modal está abierto, congelar input y ataques
+            bool isMenuOpen = (BattleUI.Instance != null && BattleUI.Instance.characterSelectPanel != null && BattleUI.Instance.characterSelectPanel.activeSelf)
+                           || (BattleUI.Instance != null && BattleUI.Instance.faceCustomizerPanel != null && BattleUI.Instance.faceCustomizerPanel.activeSelf)
+                           || (BattleUI.Instance != null && BattleUI.Instance.winnerModalPanel != null && BattleUI.Instance.winnerModalPanel.activeSelf);
+
+            if (isMenuOpen || BattleManager.Instance == null || !BattleManager.Instance.IsMatchActive)
+            {
+                currentHorizontalInput = 0f;
+                if (rb != null)
+                {
+                    rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
+                }
+                stateMachine.Tick(FighterState.IDLE);
+                if (bodyController != null)
+                {
+                    bodyController.UpdateAnimation(0f, isGrounded, false);
+                }
+                return;
+            }
 
             // Orientación hacia el oponente
             if (!estaEnStun && !isFullStunned)
@@ -177,7 +257,12 @@ namespace FightFace
             // Controles / IA si no está en aturdimiento
             if (!estaEnStun && !isFullStunned)
             {
-                if (isAI)
+                if (isTrainingDummy)
+                {
+                    // El dummy de entrenamiento no ataca, se mantiene en neutral
+                    currentHorizontalInput = 0f;
+                }
+                else if (isAI)
                 {
                     HandleAIUpdate();
                 }
@@ -187,11 +272,40 @@ namespace FightFace
                 }
             }
 
+            // Regeneración progresiva de salud del dummy en modo entrenamiento tras terminar el combo
+            if (isTrainingDummy && isAlive && currentHealth < maxHealth && (Time.time - lastDummyHitTime > 1.1f))
+            {
+                currentHealth = Mathf.Min(maxHealth, currentHealth + Mathf.Max(1, Mathf.RoundToInt(maxHealth * 3f * Time.deltaTime)));
+                if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.UpdateHealth(playerId, currentHealth, maxHealth);
+                }
+            }
+
+            // Máquina de estados (IDLE / WALKING / JUMPING / ATTACKING / BLOCKING / HIT / KNOCKED_OUT)
+            stateMachine.Tick(DeriveState());
+
             // Animación del cuerpo
             if (bodyController != null)
             {
-                bodyController.UpdateAnimation(rb.linearVelocity.x, isGrounded);
+                bodyController.UpdateAnimation(rb.linearVelocity.x, isGrounded, IsGuarding());
             }
+        }
+
+        private readonly FighterStateMachine stateMachine = new FighterStateMachine();
+        private readonly CommandRecognizer commands = new CommandRecognizer();
+        public FighterState CurrentState => stateMachine.state;
+        public int StateFrame => stateMachine.frame;
+
+        private FighterState DeriveState()
+        {
+            if (!isAlive) return FighterState.KNOCKED_OUT;
+            if (estaEnStun || isFullStunned) return FighterState.HIT;
+            if (isAttacking) return FighterState.ATTACKING;
+            if (!isGrounded) return FighterState.JUMPING;
+            if (IsGuarding()) return FighterState.BLOCKING;
+            if (Mathf.Abs(currentHorizontalInput) > 0.2f) return FighterState.WALKING;
+            return FighterState.IDLE;
         }
 
         private void UpdateFacingDirection()
@@ -276,7 +390,17 @@ namespace FightFace
             // Ejecución de ataques
             if (Time.time >= nextAttackTime && !isAttacking)
             {
-                if (grabPressed)
+                // Reconocedor de comandos: ↓ ↘ → + PUÑO = Hadouken (relativo a la dirección del rival)
+                bool downHeld = playerId == 1 ? FightInput.GetP1Down() : FightInput.GetP2Down();
+                float relX = currentHorizontalInput * facingDirection;
+                commands.Feed(downHeld, relX > 0.2f, relX < -0.2f, lpPressed || hpPressed, Time.time);
+
+                if (commands.DetectHadouken(Time.time))
+                {
+                    commands.Clear();
+                    ExecuteHadouken();
+                }
+                else if (grabPressed)
                 {
                     ExecuteGrab();
                 }
@@ -314,16 +438,30 @@ namespace FightFace
             {
                 aiNextDecisionTime = Time.time + Random.Range(0.2f, 0.45f);
 
-                // Si el rival está atacando muy cerca, la IA intenta bloquear con 40% de probabilidad
+                // IA: chooseAction(distancia, vida del rival, rival atacando)
                 FighterController oppFighter = opponent.GetComponent<FighterController>();
-                if (oppFighter != null && oppFighter.isAttacking && dist < 1.8f && Random.value < 0.40f)
+                bool oppAttacking = oppFighter != null && oppFighter.isAttacking && dist < 1.8f;
+                int oppHp = oppFighter != null ? Mathf.RoundToInt(oppFighter.HealthPercent * 1000f) : 1000;
+                AIAction aiAction = FighterAI.ChooseAction(Mathf.RoundToInt(dist * FighterAI.UnitsToPixels), oppHp, oppAttacking);
+
+                if (aiAction == AIAction.DEFEND && Random.value < 0.40f)
                 {
                     aiMoveDir = -dirToOpponent; // Retroceder para bloquear
                     currentHorizontalInput = aiMoveDir;
                 }
-                else if (dist > 1.6f)
+                else if (aiAction == AIAction.APPROACH)
                 {
+                    // Zoning: lanza Hadouken desde lejos
+                    if (dist > 2.6f && Time.time >= nextAttackTime && !isAttacking && Random.value < 0.18f)
+                    {
+                        ExecuteHadouken();
+                    }
                     aiMoveDir = dirToOpponent; // Acercarse
+                    currentHorizontalInput = aiMoveDir;
+                }
+                else if (aiAction == AIAction.RETREAT && Random.value < 0.5f)
+                {
+                    aiMoveDir = -dirToOpponent; // Tomar distancia
                     currentHorizontalInput = aiMoveDir;
                 }
                 else
@@ -387,12 +525,18 @@ namespace FightFace
         {
             if (isAttacking || estaEnStun || isFullStunned || !isAlive) return;
 
-            float startup = 0.06f;
-            float active = 0.08f;
-            float recovery = 0.10f;
-            int dmg = Mathf.RoundToInt(14 * statFuerza * (isRageActive ? 1.25f : 1.0f));
+            Attack atk = AttackLibrary.LightPunch;
+            float startup = atk.StartupSeconds;
+            float active = atk.ActiveSeconds;
+            float recovery = atk.RecoverySeconds;
+            int dmg = Mathf.RoundToInt(atk.damage * statFuerza * (isRageActive ? 1.25f : 1.0f));
 
-            StartAttackRoutine(startup, active, recovery, dmg, 4.5f, false, isPunch: true);
+            if (playerId == 1 && BattleUI.Instance != null && BattleManager.Instance != null && BattleManager.Instance.isTrainingMode)
+            {
+                BattleUI.Instance.ShowTrainingMove("Jab Ligero [F]", dmg);
+            }
+
+            StartAttackRoutine(startup, active, recovery, dmg, atk.knockback, false, isPunch: true);
         }
 
         /// <summary>
@@ -402,12 +546,18 @@ namespace FightFace
         {
             if (isAttacking || estaEnStun || isFullStunned || !isAlive) return;
 
-            float startup = 0.12f;
-            float active = 0.12f;
-            float recovery = 0.18f;
-            int dmg = Mathf.RoundToInt(26 * statFuerza * (isRageActive ? 1.25f : 1.0f));
+            Attack atk = AttackLibrary.HeavyPunch;
+            float startup = atk.StartupSeconds;
+            float active = atk.ActiveSeconds;
+            float recovery = atk.RecoverySeconds;
+            int dmg = Mathf.RoundToInt(atk.damage * statFuerza * (isRageActive ? 1.25f : 1.0f));
 
-            StartAttackRoutine(startup, active, recovery, dmg, 7.5f, true, isPunch: true);
+            if (playerId == 1 && BattleUI.Instance != null && BattleManager.Instance != null && BattleManager.Instance.isTrainingMode)
+            {
+                BattleUI.Instance.ShowTrainingMove("Cross Fuerte [R]", dmg);
+            }
+
+            StartAttackRoutine(startup, active, recovery, dmg, atk.knockback, true, isPunch: true);
         }
 
         /// <summary>
@@ -417,12 +567,18 @@ namespace FightFace
         {
             if (isAttacking || estaEnStun || isFullStunned || !isAlive) return;
 
-            float startup = 0.08f;
-            float active = 0.10f;
-            float recovery = 0.12f;
-            int dmg = Mathf.RoundToInt(16 * statFuerza * (isRageActive ? 1.25f : 1.0f));
+            Attack atk = AttackLibrary.LightKick;
+            float startup = atk.StartupSeconds;
+            float active = atk.ActiveSeconds;
+            float recovery = atk.RecoverySeconds;
+            int dmg = Mathf.RoundToInt(atk.damage * statFuerza * (isRageActive ? 1.25f : 1.0f));
 
-            StartAttackRoutine(startup, active, recovery, dmg, 5.5f, false, isPunch: false);
+            if (playerId == 1 && BattleUI.Instance != null && BattleManager.Instance != null && BattleManager.Instance.isTrainingMode)
+            {
+                BattleUI.Instance.ShowTrainingMove("Patada Baja [G]", dmg);
+            }
+
+            StartAttackRoutine(startup, active, recovery, dmg, atk.knockback, false, isPunch: false);
         }
 
         /// <summary>
@@ -432,12 +588,66 @@ namespace FightFace
         {
             if (isAttacking || estaEnStun || isFullStunned || !isAlive) return;
 
-            float startup = 0.14f;
-            float active = 0.14f;
-            float recovery = 0.22f;
-            int dmg = Mathf.RoundToInt(30 * statFuerza * (isRageActive ? 1.25f : 1.0f));
+            Attack atk = AttackLibrary.HeavyKick;
+            float startup = atk.StartupSeconds;
+            float active = atk.ActiveSeconds;
+            float recovery = atk.RecoverySeconds;
+            int dmg = Mathf.RoundToInt(atk.damage * statFuerza * (isRageActive ? 1.25f : 1.0f));
 
-            StartAttackRoutine(startup, active, recovery, dmg, 9.5f, true, isPunch: false);
+            if (playerId == 1 && BattleUI.Instance != null && BattleManager.Instance != null && BattleManager.Instance.isTrainingMode)
+            {
+                BattleUI.Instance.ShowTrainingMove("Patada Alta [T]", dmg);
+            }
+
+            StartAttackRoutine(startup, active, recovery, dmg, atk.knockback, true, isPunch: false);
+        }
+
+        /// <summary>
+        /// HADOUKEN (↓ ↘ → + PUÑO): lanza un orbe de energía. Comando reconocido por CommandRecognizer.
+        /// </summary>
+        public void ExecuteHadouken()
+        {
+            if (isAttacking || estaEnStun || isFullStunned || !isAlive) return;
+
+            Attack atk = AttackLibrary.Hadouken;
+            int dmg = Mathf.RoundToInt(atk.damage * statFuerza * (isRageActive ? 1.25f : 1.0f));
+            nextAttackTime = Time.time + atk.TotalSeconds + 0.35f;
+
+            if (playerId == 1 && BattleUI.Instance != null && BattleManager.Instance != null && BattleManager.Instance.isTrainingMode)
+            {
+                BattleUI.Instance.ShowTrainingMove("Hadouken [↓↘→ + F]", dmg);
+            }
+
+            if (activeAttackRoutine != null) StopCoroutine(activeAttackRoutine);
+            activeAttackRoutine = StartCoroutine(HadoukenRoutine(atk, dmg));
+        }
+
+        private IEnumerator HadoukenRoutine(Attack atk, int dmg)
+        {
+            isAttacking = true;
+            rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
+
+            if (faceController != null) faceController.ShowTemporaryFace(FaceType.Enojo, atk.StartupSeconds + atk.ActiveSeconds + 0.2f);
+            if (faceControllerRight != null) faceControllerRight.ShowTemporaryFace(FaceType.Enojo, atk.StartupSeconds + atk.ActiveSeconds + 0.2f);
+            if (bodyController != null) bodyController.PlayHadoukenAnimation(atk.StartupSeconds, atk.ActiveSeconds, atk.RecoverySeconds);
+
+            yield return new WaitForSeconds(atk.StartupSeconds);
+
+            if (isAlive && !estaEnStun && !isFullStunned)
+            {
+                if (FightAudioManager.Instance != null)
+                {
+                    FightAudioManager.Instance.PlayHadouken();
+                }
+                PlayVoice(VoiceType.Special);
+                Vector3 spawn = transform.position + new Vector3(facingDirection * 0.95f, 1.35f, 0f);
+                Fireball.Spawn(this, spawn, facingDirection, dmg, atk.knockback);
+            }
+
+            yield return new WaitForSeconds(atk.ActiveSeconds + atk.RecoverySeconds);
+
+            isAttacking = false;
+            activeAttackRoutine = null;
         }
 
         /// <summary>
@@ -447,6 +657,12 @@ namespace FightFace
         public void ExecuteSpecialMove()
         {
             if (isAttacking || estaEnStun || isFullStunned || !isAlive) return;
+
+            if (playerId == 1 && BattleUI.Instance != null && BattleManager.Instance != null && BattleManager.Instance.isTrainingMode)
+            {
+                int dmgPreview = Mathf.RoundToInt(38 * statFuerza * (isRageActive ? 1.35f : 1.0f));
+                BattleUI.Instance.ShowTrainingMove("Ataque Especial [Q]", dmgPreview);
+            }
 
             if (activeAttackRoutine != null) StopCoroutine(activeAttackRoutine);
             activeAttackRoutine = StartCoroutine(SpecialDashPunchRoutine());
@@ -460,6 +676,8 @@ namespace FightFace
             if (faceController != null) faceController.ShowTemporaryFace(FaceType.Enojo, 0.50f);
             if (faceControllerRight != null) faceControllerRight.ShowTemporaryFace(FaceType.Enojo, 0.50f);
             if (bodyController != null) bodyController.PlayPunchAnimation(0.08f, 0.25f, 0.15f);
+
+            PlayVoice(VoiceType.Special);
 
             // Impulso hacia adelante
             rb.linearVelocity = new Vector2(facingDirection * 10f * statVelocidad, rb.linearVelocity.y);
@@ -505,6 +723,12 @@ namespace FightFace
 
                     // Daño directo inbloqueable
                     int dmg = Mathf.RoundToInt(22 * statFuerza);
+
+                    if (playerId == 1 && BattleUI.Instance != null && BattleManager.Instance != null && BattleManager.Instance.isTrainingMode)
+                    {
+                        BattleUI.Instance.ShowTrainingMove("Agarre / Proyección [H]", dmg);
+                    }
+
                     oppFighter.RecibirImpacto(dmg, 8.5f, transform.position.x, this, isHeavy: true, ignoreGuard: true);
 
                     RegisterComboHit(dmg);
@@ -538,10 +762,20 @@ namespace FightFace
             if (faceController != null) faceController.ShowTemporaryFace(FaceType.Enojo, startup + active);
             if (faceControllerRight != null) faceControllerRight.ShowTemporaryFace(FaceType.Enojo, startup + active);
 
+            if (FightAudioManager.Instance != null)
+            {
+                FightAudioManager.Instance.PlayWhoosh();
+            }
+
+            if (isHeavy)
+            {
+                PlayVoice(VoiceType.Attack);
+            }
+
             if (bodyController != null)
             {
-                if (isPunch) bodyController.PlayPunchAnimation(startup, active, recovery);
-                else bodyController.PlayKickAnimation(startup, active, recovery);
+                if (isPunch) bodyController.PlayPunchAnimation(startup, active, recovery, isHeavy);
+                else bodyController.PlayKickAnimation(startup, active, recovery, isHeavy);
             }
 
             yield return new WaitForSeconds(startup);
@@ -614,6 +848,23 @@ namespace FightFace
                 BattleUI.Instance.UpdateStun(playerId, currentStun, maxStun);
             }
 
+            // Reacción cómica física Munch-Punch (squash & stretch elástico)
+            int hitDir = (origenX < transform.position.x) ? 1 : -1;
+            if (faceController != null)
+            {
+                faceController.TriggerMunchPunchDeform(isHeavy ? 1.4f : 0.9f, hitDir);
+            }
+            if (faceControllerRight != null)
+            {
+                faceControllerRight.TriggerMunchPunchDeform(isHeavy ? 1.4f : 0.9f, hitDir);
+            }
+
+            // Reacción interactiva del público en las gradas
+            if (CrowdCheerManager.Instance != null)
+            {
+                CrowdCheerManager.Instance.CheerOnHit(atacante != null ? atacante.currentComboHits : 1);
+            }
+
             // Notificar combo al atacante
             if (atacante != null)
             {
@@ -636,7 +887,14 @@ namespace FightFace
             }
 
             // 4. VERIFICAR DERROTA / STUN COMPLETO / HITSTUN NORMAL
-            if (currentHealth <= 0)
+            if (isTrainingDummy)
+            {
+                lastDummyHitTime = Time.time;
+                currentHealth = Mathf.Max(1, currentHealth);
+                if (activeHitstunRoutine != null) StopCoroutine(activeHitstunRoutine);
+                activeHitstunRoutine = StartCoroutine(RutinaHitstun(isHeavy ? 0.32f : 0.20f, fuerzaEmpuje, origenX, isHeavy));
+            }
+            else if (currentHealth <= 0)
             {
                 Die();
             }
@@ -646,6 +904,7 @@ namespace FightFace
             }
             else
             {
+                PlayVoice(VoiceType.Hurt);
                 if (activeHitstunRoutine != null) StopCoroutine(activeHitstunRoutine);
                 activeHitstunRoutine = StartCoroutine(RutinaHitstun(isHeavy ? 0.32f : 0.20f, fuerzaEmpuje, origenX, isHeavy));
             }
@@ -826,6 +1085,21 @@ namespace FightFace
                 bodyController.PlayKODefeatedAnimation();
             }
 
+            PlayVoice(VoiceType.KO);
+
+            // Remate cómico final (Pastelazo de merengue o Yunque 100 Tons con pajaritos mareados)
+            if (ComicFinisherManager.Instance != null)
+            {
+                int attDir = (opponent != null && opponent.position.x < transform.position.x) ? 1 : -1;
+                ComicFinisherManager.Instance.TriggerComicFinisher(transform.position, attDir);
+            }
+
+            // Ovación y confeti del público en las gradas
+            if (CrowdCheerManager.Instance != null)
+            {
+                CrowdCheerManager.Instance.CheerOnKO();
+            }
+
             rb.linearVelocity = Vector2.zero;
 
             // 3. Ganador celebra con FOTO GANADOR 😎
@@ -867,8 +1141,10 @@ namespace FightFace
 
             if (bodyController != null)
             {
-                bodyController.ResetJointsToStance();
+                bodyController.PlayVictoryAnimation();
             }
+
+            PlayVoice(VoiceType.Victory);
 
             rb.linearVelocity = Vector2.zero;
         }

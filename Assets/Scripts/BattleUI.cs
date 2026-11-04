@@ -52,11 +52,14 @@ namespace FightFace
         [Header("Pantalla Modal de Victoria (Winner Screen)")]
         public GameObject winnerModalPanel;
         public Image winnerPortraitImage;
+        public Image loserPortraitImage;
         public Text winnerTitleText;
         public Text winnerNameText;
+        public Text loserNameText;
         public Text winnerStatsText;
         public Button winnerRematchButton;
         public Button winnerSelectButton;
+        private float winnerModalOpenTime = 0f;
 
         [Header("Paneles y Navegación")]
         public GameObject characterSelectPanel;
@@ -67,6 +70,17 @@ namespace FightFace
         public Button closeCustomizerButton;
         public Button tournamentButton;
         public Button openSelectMenuButton;
+
+        [Header("Modo Entrenamiento UI")]
+        public GameObject trainingOverlayPanel;
+        public Text trainingBadgeText;
+        public Text trainingMoveText;
+
+        [Header("Marcadores de Rondas Street Fighter (V-Markers)")]
+        public Image[] p1RoundMarkers;
+        public Image[] p2RoundMarkers;
+
+        private bool wasSelectMenuOpenBeforeWebcam = false;
 
         private float p1TargetFill = 1f;
         private float p2TargetFill = 1f;
@@ -131,7 +145,7 @@ namespace FightFace
 
             if (closeCustomizerButton != null)
             {
-                closeCustomizerButton.onClick.AddListener(ToggleFaceCustomizer);
+                closeCustomizerButton.onClick.AddListener(CloseFaceCustomizer);
             }
 
             if (openSelectMenuButton != null)
@@ -150,30 +164,7 @@ namespace FightFace
 
         private void Update()
         {
-            // Atajos de teclado
-            if (FightInput.GetRestart())
-            {
-                if (winnerModalPanel != null && winnerModalPanel.activeSelf)
-                    winnerModalPanel.SetActive(false);
-                if (BattleManager.Instance != null)
-                    BattleManager.Instance.RestartMatch();
-            }
-
-            if (FightInput.GetTournamentStart())
-            {
-                if (TournamentManager.Instance != null)
-                    TournamentManager.Instance.StartNewTournament(1);
-            }
-
-            if (FightInput.GetToggleCustomizer())
-            {
-                ToggleFaceCustomizer();
-            }
-
-            if (FightInput.GetMenuToggle())
-            {
-                ToggleCharacterSelectMenu();
-            }
+            HandleInput();
 
             // Suavizado de barras de vida y stun
             if (p1HealthFill != null)
@@ -193,6 +184,89 @@ namespace FightFace
 
             // Actualizar retratos
             UpdateFacePortraits();
+        }
+
+        private void HandleInput()
+        {
+            // 1. Pantalla de Victoria K.O.: Altiro a Selección de Personajes con Confirmar (ENTER / ESPACIO) o M / ESC
+            if (winnerModalPanel != null && winnerModalPanel.activeSelf)
+            {
+                // Buffer de seguridad de 0.8s para evitar que botones presionados durante el combate cierren la pantalla inmediatamente
+                if (Time.unscaledTime - winnerModalOpenTime > 0.8f)
+                {
+                    if (FightInput.GetConfirm() || FightInput.GetMenuToggle())
+                    {
+                        winnerModalPanel.SetActive(false);
+                        ShowCharacterSelectMenu();
+                    }
+                    else if (FightInput.GetRestart())
+                    {
+                        winnerModalPanel.SetActive(false);
+                        if (BattleManager.Instance != null) BattleManager.Instance.RestartMatch();
+                    }
+                }
+                return;
+            }
+
+            // 2. Si el creador de rostros está abierto
+            if (faceCustomizerPanel != null && faceCustomizerPanel.activeSelf)
+            {
+                if (FightInput.GetMenuToggle() || FightInput.GetToggleCustomizer())
+                    ToggleFaceCustomizer();
+                return;
+            }
+
+            // 3. Si el menú de selección de personajes está abierto, CharacterSelectUI maneja los inputs
+            if (characterSelectPanel != null && characterSelectPanel.activeSelf)
+                return;
+
+            // 4. Durante el combate libre en el ring
+            if (FightInput.GetRestart())
+            {
+                if (BattleManager.Instance != null) BattleManager.Instance.RestartMatch();
+            }
+            else if (FightInput.GetMenuToggle())
+            {
+                if (BattleManager.Instance != null && BattleManager.Instance.isTrainingMode)
+                {
+                    ExitTrainingToSelectMenu();
+                }
+                else
+                {
+                    ToggleCharacterSelectMenu();
+                }
+            }
+            else if (FightInput.GetToggleCustomizer())
+            {
+                ToggleFaceCustomizer();
+            }
+            else if (FightInput.GetTournamentStart())
+            {
+                ToggleTournamentMenu();
+            }
+            else if (FightInput.GetToggleMusic())
+            {
+                if (FightAudioManager.Instance != null)
+                {
+                    bool isEnabled = FightAudioManager.Instance.ToggleMusic();
+                    ShowBanner(isEnabled ? "🎵 MÚSICA ACTIVADA" : "🔇 MÚSICA DESACTIVADA", 1.8f);
+                }
+            }
+            else if (FightInput.GetToggleVoiceVolume())
+            {
+                if (FightAudioManager.Instance != null)
+                {
+                    float mult = FightAudioManager.Instance.CycleVoiceVolume();
+                    ShowBanner($"🗣️ VOLUMEN VOCES: {Mathf.RoundToInt(mult * 100f)}%", 1.8f);
+                }
+            }
+            else if (FightInput.GetKeyT())
+            {
+                if (VirtualTouchControls.Instance != null)
+                {
+                    VirtualTouchControls.Instance.ToggleTouchControls();
+                }
+            }
         }
 
         private void UpdateFacePortraits()
@@ -256,6 +330,11 @@ namespace FightFace
 
         public void ShowComboNotification(int attackerPlayerId, int hits, int damage)
         {
+            if (trainingOverlayPanel != null && trainingOverlayPanel.activeSelf && trainingMoveText != null)
+            {
+                trainingMoveText.text = $"💥 COMBO: <color=#FFDD00>{hits} GOLPES</color>  |  DAÑO TOTAL: <color=#FF4444>{damage}</color>";
+            }
+
             if (comboPanel == null || comboHitsText == null || comboDamageText == null) return;
 
             comboHitsText.text = $"🔥 {hits} HITS!";
@@ -273,23 +352,198 @@ namespace FightFace
             hideComboCoroutine = null;
         }
 
+        public void UpdateTimerString(string text)
+        {
+            if (timerText != null)
+            {
+                timerText.text = text;
+            }
+        }
+
+        public void SetTrainingModeUI(bool active)
+        {
+            if (active)
+            {
+                if (trainingOverlayPanel == null)
+                {
+                    BuildTrainingOverlay();
+                }
+                if (trainingOverlayPanel != null)
+                {
+                    trainingOverlayPanel.SetActive(true);
+                }
+                ResetTrainingComboFeedback();
+            }
+            else
+            {
+                if (trainingOverlayPanel != null)
+                {
+                    trainingOverlayPanel.SetActive(false);
+                }
+            }
+        }
+
+        public void ShowTrainingMove(string moveName, int damage)
+        {
+            if (trainingMoveText != null)
+            {
+                trainingMoveText.text = $"ÚLTIMO GOLPE: <color=#FFE600>{moveName.ToUpper()}</color>  |  DAÑO BASE: <color=#FF5555>{damage}</color>";
+            }
+        }
+
+        public void ResetTrainingComboFeedback()
+        {
+            if (trainingMoveText != null)
+            {
+                trainingMoveText.text = "PROBANDO GOLPES: [F] Jab | [R] Cross | [G] Patada Baja | [T] Patada Alta | [Q] Especial";
+            }
+        }
+
+        private void BuildTrainingOverlay()
+        {
+            Canvas canvas = GetComponentInParent<Canvas>();
+            if (canvas == null) canvas = GetComponent<Canvas>();
+            if (canvas == null) return;
+
+            trainingOverlayPanel = new GameObject("TrainingOverlayPanel");
+            trainingOverlayPanel.transform.SetParent(canvas.transform, false);
+            var rect = trainingOverlayPanel.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.12f, 0.76f);
+            rect.anchorMax = new Vector2(0.88f, 0.86f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            var bg = trainingOverlayPanel.AddComponent<Image>();
+            bg.color = new Color(0.06f, 0.08f, 0.14f, 0.94f);
+            var outline = trainingOverlayPanel.AddComponent<Outline>();
+            outline.effectColor = new Color(1f, 0.75f, 0.1f, 0.9f);
+            outline.effectDistance = new Vector2(2, 2);
+
+            // Botón Izquierdo: Reiniciar Posición [F1]
+            GameObject rstBtnObj = new GameObject("Btn_ResetPos");
+            rstBtnObj.transform.SetParent(trainingOverlayPanel.transform, false);
+            var rbRect = rstBtnObj.AddComponent<RectTransform>();
+            rbRect.anchorMin = new Vector2(0.015f, 0.12f);
+            rbRect.anchorMax = new Vector2(0.19f, 0.88f);
+            rbRect.offsetMin = Vector2.zero;
+            rbRect.offsetMax = Vector2.zero;
+            var rbImg = rstBtnObj.AddComponent<Image>();
+            rbImg.color = new Color(0.18f, 0.40f, 0.85f);
+            var rbOutline = rstBtnObj.AddComponent<Outline>();
+            rbOutline.effectColor = new Color(0.4f, 0.7f, 1f);
+            rbOutline.effectDistance = new Vector2(1, 1);
+            var rbBtn = rstBtnObj.AddComponent<Button>();
+            rbBtn.onClick.AddListener(() => {
+                if (BattleManager.Instance != null) BattleManager.Instance.ResetTrainingPositions();
+            });
+
+            GameObject rbTxtObj = new GameObject("Text");
+            rbTxtObj.transform.SetParent(rstBtnObj.transform, false);
+            var rbTRect = rbTxtObj.AddComponent<RectTransform>();
+            rbTRect.anchorMin = Vector2.zero;
+            rbTRect.anchorMax = Vector2.one;
+            rbTRect.sizeDelta = Vector2.zero;
+            var rbTxt = rbTxtObj.AddComponent<Text>();
+            rbTxt.text = "🔄 REINICIAR [F1]";
+            rbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            rbTxt.fontSize = 11;
+            rbTxt.fontStyle = FontStyle.Bold;
+            rbTxt.alignment = TextAnchor.MiddleCenter;
+            rbTxt.color = Color.white;
+
+            // Título Badge Central
+            GameObject badgeObj = new GameObject("Badge");
+            badgeObj.transform.SetParent(trainingOverlayPanel.transform, false);
+            var bRect = badgeObj.AddComponent<RectTransform>();
+            bRect.anchorMin = new Vector2(0.20f, 0.48f);
+            bRect.anchorMax = new Vector2(0.79f, 0.98f);
+            bRect.offsetMin = Vector2.zero;
+            bRect.offsetMax = Vector2.zero;
+            trainingBadgeText = badgeObj.AddComponent<Text>();
+            trainingBadgeText.text = "🥋 MODO ENTRENAMIENTO  •  PRÁCTICA Y PRUEBA DE COMBOS";
+            trainingBadgeText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            trainingBadgeText.fontSize = 14;
+            trainingBadgeText.fontStyle = FontStyle.Bold;
+            trainingBadgeText.alignment = TextAnchor.MiddleCenter;
+            trainingBadgeText.color = new Color(1f, 0.85f, 0.2f);
+
+            // Move & Damage readout
+            GameObject moveObj = new GameObject("MoveText");
+            moveObj.transform.SetParent(trainingOverlayPanel.transform, false);
+            var mRect = moveObj.AddComponent<RectTransform>();
+            mRect.anchorMin = new Vector2(0.20f, 0.02f);
+            mRect.anchorMax = new Vector2(0.79f, 0.50f);
+            mRect.offsetMin = Vector2.zero;
+            mRect.offsetMax = Vector2.zero;
+            trainingMoveText = moveObj.AddComponent<Text>();
+            trainingMoveText.text = "[F] Jab • [R] Cross • [G] Patada Baja • [T] Patada Alta • [Q] Super";
+            trainingMoveText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            trainingMoveText.fontSize = 12;
+            trainingMoveText.fontStyle = FontStyle.Normal;
+            trainingMoveText.alignment = TextAnchor.MiddleCenter;
+            trainingMoveText.color = Color.white;
+
+            // Botón Derecho: Salir al Menú [M / ESC]
+            GameObject exitBtnObj = new GameObject("Btn_ExitTraining");
+            exitBtnObj.transform.SetParent(trainingOverlayPanel.transform, false);
+            var ebRect = exitBtnObj.AddComponent<RectTransform>();
+            ebRect.anchorMin = new Vector2(0.80f, 0.12f);
+            ebRect.anchorMax = new Vector2(0.985f, 0.88f);
+            ebRect.offsetMin = Vector2.zero;
+            ebRect.offsetMax = Vector2.zero;
+            var ebImg = exitBtnObj.AddComponent<Image>();
+            ebImg.color = new Color(0.85f, 0.22f, 0.15f);
+            var ebOutline = exitBtnObj.AddComponent<Outline>();
+            ebOutline.effectColor = new Color(1f, 0.5f, 0.4f);
+            ebOutline.effectDistance = new Vector2(1, 1);
+            var ebBtn = exitBtnObj.AddComponent<Button>();
+            ebBtn.onClick.AddListener(ExitTrainingToSelectMenu);
+
+            GameObject ebTxtObj = new GameObject("Text");
+            ebTxtObj.transform.SetParent(exitBtnObj.transform, false);
+            var ebTRect = ebTxtObj.AddComponent<RectTransform>();
+            ebTRect.anchorMin = Vector2.zero;
+            ebTRect.anchorMax = Vector2.one;
+            ebTRect.sizeDelta = Vector2.zero;
+            var ebTxt = ebTxtObj.AddComponent<Text>();
+            ebTxt.text = "SALIR [M / ESC]";
+            ebTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            ebTxt.fontSize = 11;
+            ebTxt.fontStyle = FontStyle.Bold;
+            ebTxt.alignment = TextAnchor.MiddleCenter;
+            ebTxt.color = Color.white;
+        }
+
+        public void ExitTrainingToSelectMenu()
+        {
+            if (trainingOverlayPanel != null) trainingOverlayPanel.SetActive(false);
+            if (BattleManager.Instance != null)
+            {
+                BattleManager.Instance.isTrainingMode = false;
+            }
+            ShowCharacterSelectMenu();
+        }
+
         /// <summary>
         /// Muestra la pantalla oficial de ganador usando la FOTO GANADOR (Foto 4).
+        /// Sirve de celebración arcade y separación definitiva de combate para elegir otro personaje.
         /// </summary>
         public void ShowWinnerScreen(FighterController winner, FighterController loser)
         {
             if (winnerModalPanel == null) return;
 
+            winnerModalPanel.transform.SetAsLastSibling();
             winnerModalPanel.SetActive(true);
+            winnerModalOpenTime = Time.unscaledTime;
 
-            if (winnerTitleText != null) winnerTitleText.text = "🏆 WINNER 🏆";
-            if (winnerNameText != null && winner != null) winnerNameText.text = winner.fighterName.ToUpper();
+            if (winnerTitleText != null) winnerTitleText.text = "🏆 ★ ¡VICTORIA TOTAL! ★ 🏆";
+            if (winnerNameText != null && winner != null) winnerNameText.text = $"👑 {winner.fighterName.ToUpper()} ES EL CAMPEÓN 👑";
 
             if (winnerStatsText != null && winner != null)
             {
                 int healthPct = Mathf.RoundToInt(winner.HealthPercent * 100f);
                 int maxHits = winner.maxComboHits > 0 ? winner.maxComboHits : 1;
-                winnerStatsText.text = $"❤️ {healthPct}% SALUD RESTANTE\n🔥 MAX COMBO: {maxHits} HITS";
+                winnerStatsText.text = $"❤️ {healthPct}% SALUD RESTANTE   •   🔥 MAX COMBO: {maxHits} HITS\n✨ ¡2 RONDAS GANADAS SEGUIDAS! ELIGE TU PRÓXIMO COMBATE ✨";
             }
 
             // Foto Ganador
@@ -302,62 +556,24 @@ namespace FightFace
                     if (winSprite != null) winnerPortraitImage.sprite = winSprite;
                 }
             }
+
+            // Foto Perdedor (K.O.)
+            if (loserPortraitImage != null && loser != null && loser.faceController != null)
+            {
+                var loserProf = loser.faceController.Profile;
+                if (loserProf != null)
+                {
+                    Sprite koSprite = loserProf.faceKO != null ? loserProf.faceKO : loserProf.GetSprite(FaceType.KO);
+                    if (koSprite != null) loserPortraitImage.sprite = koSprite;
+                }
+            }
+            if (loserNameText != null && loser != null)
+            {
+                loserNameText.text = $"DERROTADO: <b>{loser.fighterName.ToUpper()}</b>";
+            }
         }
 
-        private void Update()
-        {
-            // 1. Pantalla de Victoria K.O.: Revancha instantánea con ENTER/ESPACIO o Menú con M/ESC
-            if (winnerModalPanel != null && winnerModalPanel.activeSelf)
-            {
-                if (FightInput.GetConfirm() || FightInput.GetRestart())
-                {
-                    winnerModalPanel.SetActive(false);
-                    if (BattleManager.Instance != null) BattleManager.Instance.RestartMatch();
-                    return;
-                }
-                if (FightInput.GetMenuToggle())
-                {
-                    winnerModalPanel.SetActive(false);
-                    ShowCharacterSelectMenu();
-                    return;
-                }
-                return;
-            }
 
-            // 2. Si el creador de rostros está abierto
-            if (faceCustomizerPanel != null && faceCustomizerPanel.activeSelf)
-            {
-                if (FightInput.GetMenuToggle() || FightInput.GetToggleCustomizer())
-                {
-                    ToggleFaceCustomizer();
-                }
-                return;
-            }
-
-            // 3. Si el menú de selección de personajes está abierto, CharacterSelectUI maneja los inputs
-            if (characterSelectPanel != null && characterSelectPanel.activeSelf)
-            {
-                return;
-            }
-
-            // 4. Durante el combate libre en el ring
-            if (FightInput.GetRestart())
-            {
-                if (BattleManager.Instance != null) BattleManager.Instance.RestartMatch();
-            }
-            else if (FightInput.GetMenuToggle())
-            {
-                ToggleCharacterSelectMenu();
-            }
-            else if (FightInput.GetToggleCustomizer())
-            {
-                ToggleFaceCustomizer();
-            }
-            else if (FightInput.GetTournamentStart())
-            {
-                ToggleTournamentMenu();
-            }
-        }
 
         public void UpdateTimer(int seconds)
         {
@@ -389,14 +605,21 @@ namespace FightFace
 
         public void ShowCharacterSelectMenu()
         {
+            if (trainingOverlayPanel != null)
+            {
+                trainingOverlayPanel.SetActive(false);
+            }
+
             if (characterSelectPanel != null)
             {
+                characterSelectPanel.transform.SetAsLastSibling();
                 characterSelectPanel.SetActive(true);
                 Time.timeScale = 0f;
                 if (CharacterSelectUI.Instance != null)
                 {
                     CharacterSelectUI.Instance.RefreshP1UI();
                     CharacterSelectUI.Instance.RefreshP2UI();
+                    CharacterSelectUI.Instance.RefreshStageUI();
                 }
             }
         }
@@ -424,7 +647,13 @@ namespace FightFace
         {
             if (TournamentManager.Instance != null)
             {
-                TournamentManager.Instance.StartNewTournament(1);
+                int p1Id = 1;
+                if (BattleManager.Instance != null && BattleManager.Instance.player1 != null)
+                {
+                    p1Id = (int)BattleManager.Instance.p1BodyType + 1;
+                }
+                if (characterSelectPanel != null) characterSelectPanel.SetActive(false);
+                TournamentManager.Instance.StartNewTournament(p1Id);
             }
         }
 
@@ -433,25 +662,92 @@ namespace FightFace
             UpdateFacePortraits();
         }
 
-        public void ToggleFaceCustomizer()
+        public void UpdateRoundWins(int p1Wins, int p2Wins)
+        {
+            if (p1RoundMarkers != null)
+            {
+                for (int i = 0; i < p1RoundMarkers.Length; i++)
+                {
+                    if (p1RoundMarkers[i] != null)
+                    {
+                        bool won = i < p1Wins;
+                        p1RoundMarkers[i].color = won ? new Color(1f, 0.88f, 0.1f, 1f) : new Color(0.2f, 0.22f, 0.3f, 0.6f);
+                    }
+                }
+            }
+
+            if (p2RoundMarkers != null)
+            {
+                for (int i = 0; i < p2RoundMarkers.Length; i++)
+                {
+                    if (p2RoundMarkers[i] != null)
+                    {
+                        bool won = i < p2Wins;
+                        p2RoundMarkers[i].color = won ? new Color(1f, 0.88f, 0.1f, 1f) : new Color(0.2f, 0.22f, 0.3f, 0.6f);
+                    }
+                }
+            }
+        }
+
+        public void OpenFaceCustomizer(int targetFighterId = -1, FaceType targetEmotion = FaceType.Base)
         {
             if (faceCustomizerPanel == null) return;
 
-            bool isActive = !faceCustomizerPanel.activeSelf;
-            faceCustomizerPanel.SetActive(isActive);
-
-            if (isActive)
+            wasSelectMenuOpenBeforeWebcam = (characterSelectPanel != null && characterSelectPanel.activeSelf);
+            if (wasSelectMenuOpenBeforeWebcam)
             {
-                Time.timeScale = 0f; // Pausa el combate para tomar fotos con calma
-                if (WebcamCaptureManager.Instance != null)
-                    WebcamCaptureManager.Instance.StartWebcam();
+                characterSelectPanel.SetActive(false);
+            }
+
+            faceCustomizerPanel.transform.SetAsLastSibling();
+            faceCustomizerPanel.SetActive(true);
+            Time.timeScale = 0f; // Pausa para tomar fotos con calma
+
+            if (WebcamCaptureManager.Instance != null)
+            {
+                if (targetFighterId > 0)
+                {
+                    WebcamCaptureManager.Instance.SetTargetFighter(targetFighterId);
+                }
+                WebcamCaptureManager.Instance.SetGuideForEmotion(targetEmotion);
+                WebcamCaptureManager.Instance.StartWebcam();
+            }
+        }
+
+        public void CloseFaceCustomizer()
+        {
+            if (faceCustomizerPanel == null) return;
+
+            faceCustomizerPanel.SetActive(false);
+
+            if (WebcamCaptureManager.Instance != null)
+            {
+                WebcamCaptureManager.Instance.StopWebcam();
+            }
+
+            RefreshFacePortraits();
+
+            if (wasSelectMenuOpenBeforeWebcam)
+            {
+                wasSelectMenuOpenBeforeWebcam = false;
+                ShowCharacterSelectMenu();
             }
             else
             {
-                Time.timeScale = 1f; // Reanuda el combate
-                if (WebcamCaptureManager.Instance != null)
-                    WebcamCaptureManager.Instance.StopWebcam();
-                RefreshFacePortraits();
+                Time.timeScale = 1f;
+            }
+        }
+
+        public void ToggleFaceCustomizer()
+        {
+            if (faceCustomizerPanel == null) return;
+            if (faceCustomizerPanel.activeSelf)
+            {
+                CloseFaceCustomizer();
+            }
+            else
+            {
+                OpenFaceCustomizer();
             }
         }
     }

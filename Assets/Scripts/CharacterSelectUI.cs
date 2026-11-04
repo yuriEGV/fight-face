@@ -24,33 +24,56 @@ namespace FightFace
             FighterBodyType.Musculoso,
             FighterBodyType.Mujer,
             FighterBodyType.Mujer2,
-            FighterBodyType.DosCabezas
+            FighterBodyType.DosCabezas,
+            FighterBodyType.Playero,
+            FighterBodyType.Oficinista,
+            FighterBodyType.Pijamero
         };
+
+        public enum GameMode
+        {
+            VsAI = 0,
+            VsHuman = 1,
+            Training = 2
+        }
 
         [Header("Selecciones Activas")]
         public FighterBodyType p1BodyType = FighterBodyType.Musculoso;
         public FighterBodyType p2BodyType = FighterBodyType.Gordo;
         public bool p2IsAI = true;
+        public GameMode currentGameMode = GameMode.VsAI;
 
         [Header("P1 UI")]
         public Image p1FighterCardImage;
         public Image p1HeadPreviewImage;
         public Text p1NameText;
+        public InputField p1NameInputField;
         public Text p1DescText;
         public Text p1StatsText;
         public Button p1WebcamButton;
+        public Button p1UploadFileButton;
         public Button[] p1BodyButtons;
+        public Image[] p1FaceThumbs;        // [0]=Normal, [1]=Dolor, [2]=Rabia, [3]=Ganador, [4]=KO
+        public Button[] p1FaceSlotButtons;
 
         [Header("P2 UI")]
         public Image p2FighterCardImage;
         public Image p2HeadPreviewImage;
         public Text p2NameText;
+        public InputField p2NameInputField;
         public Text p2DescText;
         public Text p2StatsText;
         public Text p2AILabelText;
         public Button p2AIToggleButton;
         public Button p2WebcamButton;
+        public Button p2UploadFileButton;
         public Button[] p2BodyButtons;
+        public Image[] p2FaceThumbs;        // [0]=Normal, [1]=Dolor, [2]=Rabia, [3]=Ganador, [4]=KO
+        public Button[] p2FaceSlotButtons;
+
+        [Header("Modal de Confirmación Pre-Pelea")]
+        public GameObject preFightModal;
+        public bool hasDismissedPreFightPrompt = false;
 
         [Header("Roster Arcade Grid (Estilo Street Fighter II)")]
         public Button[] rosterSlotButtons;
@@ -61,11 +84,99 @@ namespace FightFace
 
         [Header("Botones Principales")]
         public Button fightButton;
+        public Button trainingButton;
         public Button tournamentButton;
+
+        [Header("Control de Música Opcional")]
+        public Button musicToggleButton;
+        public Text musicToggleText;
+        public Image musicToggleImage;
+
+        [Header("Control de Volumen de Voces")]
+        public Button voiceVolumeButton;
+        public Text voiceVolumeText;
+        public Image voiceVolumeImage;
+
+        [Header("Selector de Escenarios")]
+        public StageType selectedStage = StageType.Auto;
+        public Image stagePreviewImage;
+        public Text stageNameText;
+        public Text stageDescText;
+        public Button stagePrevButton;
+        public Button stageNextButton;
 
         private void Awake()
         {
             Instance = this;
+        }
+
+        private float lastMusicToggleTime = 0f;
+        private float lastVoiceVolumeTime = 0f;
+
+        public void OnToggleMusicClicked()
+        {
+            if (Time.unscaledTime - lastMusicToggleTime < 0.25f) return;
+            lastMusicToggleTime = Time.unscaledTime;
+
+            if (FightAudioManager.Instance != null)
+            {
+                FightAudioManager.Instance.ToggleMusic();
+                UpdateMusicToggleVisuals();
+            }
+        }
+
+        public void OnCycleVoiceVolumeClicked()
+        {
+            if (Time.unscaledTime - lastVoiceVolumeTime < 0.20f) return;
+            lastVoiceVolumeTime = Time.unscaledTime;
+
+            if (FightAudioManager.Instance != null)
+            {
+                FightAudioManager.Instance.CycleVoiceVolume();
+                UpdateVoiceVolumeVisuals();
+            }
+        }
+
+        public void UpdateMusicToggleVisuals()
+        {
+            bool isEnabled = FightAudioManager.Instance != null && FightAudioManager.Instance.isMusicEnabled;
+            if (musicToggleText != null)
+            {
+                musicToggleText.text = isEnabled ? "🎵 MÚSICA [M]: SÍ" : "🔇 MÚSICA [M]: NO";
+                musicToggleText.color = isEnabled ? Color.white : new Color(1f, 0.85f, 0.85f);
+            }
+            if (musicToggleImage != null)
+            {
+                musicToggleImage.color = isEnabled ? new Color(0.15f, 0.58f, 0.90f) : new Color(0.50f, 0.18f, 0.18f);
+            }
+        }
+
+        public void UpdateVoiceVolumeVisuals()
+        {
+            if (FightAudioManager.Instance != null && voiceVolumeText != null)
+            {
+                voiceVolumeText.text = FightAudioManager.Instance.GetVoiceVolumeText();
+                float mult = FightAudioManager.Instance.voiceVolumeMultiplier;
+                if (voiceVolumeImage != null)
+                {
+                    if (mult >= 2.0f)
+                    {
+                        voiceVolumeImage.color = new Color(0.85f, 0.45f, 0.10f); // Naranja fuerte
+                    }
+                    else if (mult >= 1.5f)
+                    {
+                        voiceVolumeImage.color = new Color(0.20f, 0.65f, 0.35f); // Verde óptimo
+                    }
+                    else if (mult >= 1.0f)
+                    {
+                        voiceVolumeImage.color = new Color(0.18f, 0.52f, 0.75f); // Azul estándar
+                    }
+                    else
+                    {
+                        voiceVolumeImage.color = new Color(0.40f, 0.40f, 0.45f); // Tenue
+                    }
+                }
+            }
         }
 
         private void Start()
@@ -73,11 +184,35 @@ namespace FightFace
             RefreshP1UI();
             RefreshP2UI();
             RefreshRosterHighlights();
+            RefreshStageUI();
+
+            if (stagePrevButton != null)
+            {
+                stagePrevButton.onClick.AddListener(OnStagePrevClicked);
+            }
+
+            if (stageNextButton != null)
+            {
+                stageNextButton.onClick.AddListener(OnStageNextClicked);
+            }
 
             if (fightButton != null)
             {
                 fightButton.onClick.AddListener(OnStartFight);
             }
+
+            if (tournamentButton != null)
+            {
+                tournamentButton.onClick.AddListener(OnStartTournament);
+            }
+
+            if (trainingButton != null)
+            {
+                trainingButton.onClick.AddListener(OnStartTrainingMode);
+            }
+
+            UpdateMusicToggleVisuals();
+            UpdateVoiceVolumeVisuals();
 
             if (p2AIToggleButton != null)
             {
@@ -86,12 +221,56 @@ namespace FightFace
 
             if (p1WebcamButton != null)
             {
-                p1WebcamButton.onClick.AddListener(OpenP1Webcam);
+                p1WebcamButton.onClick.AddListener(() => OpenP1Webcam(FaceType.Base));
             }
 
             if (p2WebcamButton != null)
             {
-                p2WebcamButton.onClick.AddListener(OpenP2Webcam);
+                p2WebcamButton.onClick.AddListener(() => OpenP2Webcam(FaceType.Base));
+            }
+
+            if (p1UploadFileButton != null)
+            {
+                p1UploadFileButton.onClick.AddListener(OnP1UploadPhoto);
+            }
+
+            if (p2UploadFileButton != null)
+            {
+                p2UploadFileButton.onClick.AddListener(OnP2UploadPhoto);
+            }
+
+            if (p1NameInputField != null)
+            {
+                p1NameInputField.onValueChanged.AddListener(OnP1NameChanged);
+            }
+
+            if (p2NameInputField != null)
+            {
+                p2NameInputField.onValueChanged.AddListener(OnP2NameChanged);
+            }
+
+            // Enlazar botones de las 5 caras P1
+            if (p1FaceSlotButtons != null)
+            {
+                FaceType[] types = { FaceType.Base, FaceType.Dolor, FaceType.Enojo, FaceType.Ganador, FaceType.KO };
+                for (int i = 0; i < p1FaceSlotButtons.Length; i++)
+                {
+                    FaceType em = (i < types.Length) ? types[i] : FaceType.Base;
+                    FaceType capturedEm = em;
+                    p1FaceSlotButtons[i].onClick.AddListener(() => OpenP1Webcam(capturedEm));
+                }
+            }
+
+            // Enlazar botones de las 5 caras P2
+            if (p2FaceSlotButtons != null)
+            {
+                FaceType[] types = { FaceType.Base, FaceType.Dolor, FaceType.Enojo, FaceType.Ganador, FaceType.KO };
+                for (int i = 0; i < p2FaceSlotButtons.Length; i++)
+                {
+                    FaceType em = (i < types.Length) ? types[i] : FaceType.Base;
+                    FaceType capturedEm = em;
+                    p2FaceSlotButtons[i].onClick.AddListener(() => OpenP2Webcam(capturedEm));
+                }
             }
 
             // Enlazar clics de slots del roster
@@ -114,6 +293,23 @@ namespace FightFace
             {
                 OnStartFight();
                 return;
+            }
+
+            // Atajo rápido: Tecla [F2] o [E] inicia Modo Entrenamiento
+            if (FightInput.GetTrainingStart())
+            {
+                OnStartTrainingMode();
+                return;
+            }
+
+            // Selector de Escenarios con [Arriba / Abajo] o [RePág / AvPág]
+            if (FightInput.GetStagePrev())
+            {
+                OnStagePrevClicked();
+            }
+            else if (FightInput.GetStageNext())
+            {
+                OnStageNextClicked();
             }
 
             // Navegación P1 con A / D
@@ -139,11 +335,17 @@ namespace FightFace
             // Atajos rápidos
             if (FightInput.GetTournamentStart())
             {
-                if (TournamentManager.Instance != null)
-                {
-                    TournamentManager.Instance.StartNewTournament(1);
-                    gameObject.SetActive(false);
-                }
+                OnStartTournament();
+            }
+
+            if (FightInput.GetToggleMusic())
+            {
+                OnToggleMusicClicked();
+            }
+
+            if (FightInput.GetToggleVoiceVolume())
+            {
+                OnCycleVoiceVolumeClicked();
             }
 
             if (FightInput.GetToggleCustomizer())
@@ -187,7 +389,8 @@ namespace FightFace
         public void SelectP1Body(FighterBodyType body)
         {
             p1BodyType = body;
-            FaceProfile profile = FaceLoader.LoadProfileForFighter(1, FaceLoader.GetFighterDisplayName(body));
+            int fId = (int)body + 1;
+            FaceProfile profile = FaceLoader.LoadProfileForFighter(fId, FaceLoader.GetFighterDisplayName(body));
             if (BattleManager.Instance != null && BattleManager.Instance.player1 != null)
             {
                 BattleManager.Instance.p1BodyType = body;
@@ -208,11 +411,12 @@ namespace FightFace
         public void SelectP2Body(FighterBodyType body)
         {
             p2BodyType = body;
-            FaceProfile profile = FaceLoader.LoadProfileForFighter(2, FaceLoader.GetFighterDisplayName(body));
+            int fId = (int)body + 1;
+            FaceProfile profile = FaceLoader.LoadProfileForFighter(fId, FaceLoader.GetFighterDisplayName(body));
             if (BattleManager.Instance != null && BattleManager.Instance.player2 != null)
             {
                 BattleManager.Instance.p2BodyType = body;
-                BattleManager.Instance.player2.fighterName = FaceLoader.GetFighterDisplayName(body);
+                BattleManager.Instance.player2.fighterName = (currentGameMode == GameMode.Training ? "DUMMY: " : "") + FaceLoader.GetFighterDisplayName(body);
                 if (BattleManager.Instance.player2.faceController != null)
                 {
                     BattleManager.Instance.player2.faceController.SetProfile(profile);
@@ -228,40 +432,122 @@ namespace FightFace
 
         public void ToggleP2AI()
         {
-            p2IsAI = !p2IsAI;
+            if (currentGameMode == GameMode.VsAI)
+            {
+                currentGameMode = GameMode.VsHuman;
+                p2IsAI = false;
+            }
+            else if (currentGameMode == GameMode.VsHuman)
+            {
+                currentGameMode = GameMode.Training;
+                p2IsAI = false;
+            }
+            else
+            {
+                currentGameMode = GameMode.VsAI;
+                p2IsAI = true;
+            }
+
             RefreshP2UI();
             RefreshRosterHighlights();
         }
 
         public void OpenP1Webcam()
         {
-            if (WebcamCaptureManager.Instance != null)
-            {
-                WebcamCaptureManager.Instance.SetTargetFighter(1);
-            }
+            OpenP1Webcam(FaceType.Base);
+        }
+
+        public void OpenP1Webcam(FaceType emotion)
+        {
+            int fId = (int)p1BodyType + 1;
             if (BattleUI.Instance != null)
             {
-                BattleUI.Instance.ToggleFaceCustomizer();
+                BattleUI.Instance.OpenFaceCustomizer(fId, emotion);
+            }
+            else if (WebcamCaptureManager.Instance != null)
+            {
+                WebcamCaptureManager.Instance.SetTargetFighter(fId);
+                WebcamCaptureManager.Instance.SetGuideForEmotion(emotion);
+                WebcamCaptureManager.Instance.StartWebcam();
             }
         }
 
         public void OpenP2Webcam()
         {
-            if (WebcamCaptureManager.Instance != null)
-            {
-                WebcamCaptureManager.Instance.SetTargetFighter(2);
-            }
+            OpenP2Webcam(FaceType.Base);
+        }
+
+        public void OpenP2Webcam(FaceType emotion)
+        {
+            int fId = (int)p2BodyType + 1;
             if (BattleUI.Instance != null)
             {
-                BattleUI.Instance.ToggleFaceCustomizer();
+                BattleUI.Instance.OpenFaceCustomizer(fId, emotion);
+            }
+            else if (WebcamCaptureManager.Instance != null)
+            {
+                WebcamCaptureManager.Instance.SetTargetFighter(fId);
+                WebcamCaptureManager.Instance.SetGuideForEmotion(emotion);
+                WebcamCaptureManager.Instance.StartWebcam();
+            }
+        }
+
+        public void OnStagePrevClicked()
+        {
+            var values = (StageType[])System.Enum.GetValues(typeof(StageType));
+            int idx = System.Array.IndexOf(values, selectedStage);
+            idx = (idx - 1 + values.Length) % values.Length;
+            selectedStage = values[idx];
+            RefreshStageUI();
+        }
+
+        public void OnStageNextClicked()
+        {
+            var values = (StageType[])System.Enum.GetValues(typeof(StageType));
+            int idx = System.Array.IndexOf(values, selectedStage);
+            idx = (idx + 1) % values.Length;
+            selectedStage = values[idx];
+            RefreshStageUI();
+        }
+
+        public void RefreshStageUI()
+        {
+            if (stageNameText != null)
+            {
+                stageNameText.text = FaceLoader.GetStageDisplayName(selectedStage);
+            }
+            if (stageDescText != null)
+            {
+                stageDescText.text = FaceLoader.GetStageDescription(selectedStage);
+            }
+            if (stagePreviewImage != null)
+            {
+                Sprite sp = FaceLoader.LoadStageSprite(selectedStage, p2BodyType);
+                if (sp != null)
+                {
+                    stagePreviewImage.sprite = sp;
+                    stagePreviewImage.color = Color.white;
+                }
             }
         }
 
         public void OnStartFight()
         {
+            if (preFightModal != null && !hasDismissedPreFightPrompt)
+            {
+                preFightModal.SetActive(true);
+                return;
+            }
+            ExecuteStartFight();
+        }
+
+        public void ExecuteStartFight()
+        {
+            if (preFightModal != null) preFightModal.SetActive(false);
+            currentGameMode = p2IsAI ? GameMode.VsAI : GameMode.VsHuman;
             if (BattleManager.Instance != null)
             {
-                BattleManager.Instance.StartFightWithCharacters(p1BodyType, p2BodyType, p2IsAI);
+                BattleManager.Instance.StartFightWithCharacters(p1BodyType, p2BodyType, p2IsAI, false, selectedStage);
             }
             if (BattleUI.Instance != null)
             {
@@ -270,13 +556,102 @@ namespace FightFace
             gameObject.SetActive(false);
         }
 
+        public void OnP1NameChanged(string newName)
+        {
+            if (string.IsNullOrEmpty(newName)) return;
+            int fId = (int)p1BodyType + 1;
+            FaceLoader.SaveFighterName(fId, newName);
+            if (BattleManager.Instance != null && BattleManager.Instance.player1 != null)
+            {
+                BattleManager.Instance.player1.fighterName = newName;
+            }
+            if (TournamentManager.Instance != null)
+            {
+                var td = TournamentManager.Instance.GetFighterData(fId);
+                if (td != null) td.name = newName;
+            }
+        }
+
+        public void OnP2NameChanged(string newName)
+        {
+            if (string.IsNullOrEmpty(newName)) return;
+            int fId = (int)p2BodyType + 1;
+            FaceLoader.SaveFighterName(fId, newName);
+            if (BattleManager.Instance != null && BattleManager.Instance.player2 != null)
+            {
+                BattleManager.Instance.player2.fighterName = newName;
+            }
+            if (TournamentManager.Instance != null)
+            {
+                var td = TournamentManager.Instance.GetFighterData(fId);
+                if (td != null) td.name = newName;
+            }
+        }
+
+        public void OnP1UploadPhoto()
+        {
+            int fId = (int)p1BodyType + 1;
+            string chosen = PhotoFileImporter.PromptSelectImageFile($"Subir foto de rostro para {FaceLoader.GetFighterDisplayName(p1BodyType)}");
+            if (!string.IsNullOrEmpty(chosen))
+            {
+                PhotoFileImporter.ImportAndApplyPhoto(chosen, fId, FaceType.Base);
+                RefreshP1UI();
+            }
+        }
+
+        public void OnP2UploadPhoto()
+        {
+            int fId = (int)p2BodyType + 1;
+            string chosen = PhotoFileImporter.PromptSelectImageFile($"Subir foto de rostro para {FaceLoader.GetFighterDisplayName(p2BodyType)}");
+            if (!string.IsNullOrEmpty(chosen))
+            {
+                PhotoFileImporter.ImportAndApplyPhoto(chosen, fId, FaceType.Base);
+                RefreshP2UI();
+            }
+        }
+
+        public void OnStartTrainingMode()
+        {
+            currentGameMode = GameMode.Training;
+            if (BattleManager.Instance != null)
+            {
+                BattleManager.Instance.StartFightWithCharacters(p1BodyType, p2BodyType, false, training: true, stage: selectedStage);
+            }
+            if (BattleUI.Instance != null)
+            {
+                BattleUI.Instance.HideCharacterSelectMenu();
+            }
+            gameObject.SetActive(false);
+        }
+
+        public void OnStartTournament()
+        {
+            if (TournamentManager.Instance != null)
+            {
+                if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.HideCharacterSelectMenu();
+                }
+                gameObject.SetActive(false);
+                TournamentManager.Instance.StartNewTournament((int)p1BodyType + 1);
+            }
+        }
+
         public void RefreshP1UI()
         {
+            int fId = (int)p1BodyType + 1;
             if (p1FighterCardImage != null)
             {
-                p1FighterCardImage.sprite = FaceLoader.LoadFighterCardSprite(p1BodyType);
+                Sprite bodySpr = FaceLoader.LoadFighterCardSprite(p1BodyType);
+                p1FighterCardImage.sprite = bodySpr;
+                p1FighterCardImage.enabled = (bodySpr != null);
+                p1FighterCardImage.color = (bodySpr != null) ? Color.white : new Color(0, 0, 0, 0);
             }
-            if (p1NameText != null)
+            if (p1NameInputField != null)
+            {
+                p1NameInputField.text = FaceLoader.GetFighterDisplayName(p1BodyType);
+            }
+            else if (p1NameText != null)
             {
                 p1NameText.text = FaceLoader.GetFighterDisplayName(p1BodyType).ToUpper();
             }
@@ -288,30 +663,60 @@ namespace FightFace
             {
                 p1StatsText.text = GetStatsFormatted(p1BodyType);
             }
-            if (p1HeadPreviewImage != null)
+
+            FaceProfile prof = FaceLoader.LoadProfileForFighter(fId, FaceLoader.GetFighterDisplayName(p1BodyType));
+            if (prof != null)
             {
-                p1HeadPreviewImage.transform.localScale = Vector3.one;
-                FaceProfile prof = FaceLoader.LoadProfileForFighter(1, FaceLoader.GetFighterDisplayName(p1BodyType));
-                if (prof != null)
+                if (p1HeadPreviewImage != null)
                 {
-                    p1HeadPreviewImage.sprite = prof.GetSprite(FaceType.Base);
+                    p1HeadPreviewImage.transform.localScale = Vector3.one;
+                    Sprite baseSp = prof.GetSprite(FaceType.Base);
+                    p1HeadPreviewImage.sprite = baseSp;
+                    p1HeadPreviewImage.enabled = (baseSp != null);
+                    p1HeadPreviewImage.color = (baseSp != null) ? Color.white : new Color(1, 1, 1, 0);
+                    p1HeadPreviewImage.rectTransform.anchoredPosition = Vector2.zero;
+                    p1HeadPreviewImage.rectTransform.sizeDelta = new Vector2(75f, 85f);
+                }
+
+                if (p1FaceThumbs != null)
+                {
+                    FaceType[] types = { FaceType.Base, FaceType.Dolor, FaceType.Enojo, FaceType.Ganador, FaceType.KO };
+                    for (int t = 0; t < Mathf.Min(p1FaceThumbs.Length, types.Length); t++)
+                    {
+                        if (p1FaceThumbs[t] != null)
+                        {
+                            p1FaceThumbs[t].sprite = prof.GetSprite(types[t]);
+                            p1FaceThumbs[t].color = (p1FaceThumbs[t].sprite != null) ? Color.white : new Color(0.1f, 0.1f, 0.2f, 0.4f);
+                        }
+                    }
                 }
             }
         }
 
         public void RefreshP2UI()
         {
+            int fId = (int)p2BodyType + 1;
             if (p2FighterCardImage != null)
             {
-                p2FighterCardImage.sprite = FaceLoader.LoadFighterCardSprite(p2BodyType);
+                Sprite bodySpr = FaceLoader.LoadFighterCardSprite(p2BodyType);
+                p2FighterCardImage.sprite = bodySpr;
+                p2FighterCardImage.enabled = (bodySpr != null);
+                p2FighterCardImage.color = (bodySpr != null) ? Color.white : new Color(0, 0, 0, 0);
             }
-            if (p2NameText != null)
+            if (p2NameInputField != null)
             {
-                p2NameText.text = FaceLoader.GetFighterDisplayName(p2BodyType).ToUpper();
+                p2NameInputField.text = FaceLoader.GetFighterDisplayName(p2BodyType);
+            }
+            else if (p2NameText != null)
+            {
+                string prefix = (currentGameMode == GameMode.Training) ? "DUMMY: " : "";
+                p2NameText.text = prefix + FaceLoader.GetFighterDisplayName(p2BodyType).ToUpper();
             }
             if (p2DescText != null)
             {
-                p2DescText.text = FaceLoader.GetFighterDescription(p2BodyType);
+                p2DescText.text = (currentGameMode == GameMode.Training) 
+                    ? "Dummy de prueba: Recibe golpes, muestra daño y combos, y regenera su salud automáticamente."
+                    : FaceLoader.GetFighterDescription(p2BodyType);
             }
             if (p2StatsText != null)
             {
@@ -319,21 +724,69 @@ namespace FightFace
             }
             if (p2AILabelText != null)
             {
-                p2AILabelText.text = p2IsAI ? "🤖 MODO: CPU (IA)" : "🎮 MODO: 2P HUMANO";
-            }
-            if (p2HeadPreviewImage != null)
-            {
-                p2HeadPreviewImage.transform.localScale = Vector3.one;
-                FaceProfile prof = FaceLoader.LoadProfileForFighter(2, FaceLoader.GetFighterDisplayName(p2BodyType));
-                if (prof != null)
+                if (currentGameMode == GameMode.Training)
                 {
-                    p2HeadPreviewImage.sprite = prof.GetSprite(FaceType.Base);
+                    p2AILabelText.text = "🥋 MODO: ENTRENAMIENTO";
+                }
+                else
+                {
+                    p2AILabelText.text = p2IsAI ? "🤖 MODO: CPU (IA)" : "🎮 MODO: 2P HUMANO";
+                }
+            }
+
+            FaceProfile prof = FaceLoader.LoadProfileForFighter(fId, FaceLoader.GetFighterDisplayName(p2BodyType));
+            if (prof != null)
+            {
+                if (p2HeadPreviewImage != null)
+                {
+                    p2HeadPreviewImage.transform.localScale = Vector3.one;
+                    Sprite baseSp = prof.GetSprite(FaceType.Base);
+                    p2HeadPreviewImage.sprite = baseSp;
+                    p2HeadPreviewImage.enabled = (baseSp != null);
+                    p2HeadPreviewImage.color = (baseSp != null) ? Color.white : new Color(1, 1, 1, 0);
+                    p2HeadPreviewImage.rectTransform.anchoredPosition = Vector2.zero;
+                    p2HeadPreviewImage.rectTransform.sizeDelta = new Vector2(75f, 85f);
+                }
+
+                if (p2FaceThumbs != null)
+                {
+                    FaceType[] types = { FaceType.Base, FaceType.Dolor, FaceType.Enojo, FaceType.Ganador, FaceType.KO };
+                    for (int t = 0; t < Mathf.Min(p2FaceThumbs.Length, types.Length); t++)
+                    {
+                        if (p2FaceThumbs[t] != null)
+                        {
+                            p2FaceThumbs[t].sprite = prof.GetSprite(types[t]);
+                            p2FaceThumbs[t].color = (p2FaceThumbs[t].sprite != null) ? Color.white : new Color(0.1f, 0.1f, 0.2f, 0.4f);
+                        }
+                    }
+                }
+            }
+            RefreshStageUI();
+        }
+
+        public void RefreshRosterThumbnails()
+        {
+            if (rosterThumbImages == null) return;
+            for (int i = 0; i < rosterThumbImages.Length && i < Roster.Length; i++)
+            {
+                if (rosterThumbImages[i] == null) continue;
+                FighterBodyType b = Roster[i];
+                int fId = (int)b + 1;
+                FaceProfile prof = FaceLoader.LoadProfileForFighter(fId, FaceLoader.GetFighterDisplayName(b));
+                if (prof != null && prof.faceBase != null)
+                {
+                    rosterThumbImages[i].sprite = prof.faceBase;
+                }
+                else
+                {
+                    rosterThumbImages[i].sprite = FaceLoader.LoadFighterThumbSprite(b);
                 }
             }
         }
 
         public void RefreshRosterHighlights()
         {
+            RefreshRosterThumbnails();
             for (int i = 0; i < Roster.Length; i++)
             {
                 bool isP1 = (Roster[i] == p1BodyType);
@@ -350,7 +803,7 @@ namespace FightFace
                     var txt = rosterP2Badges[i].GetComponentInChildren<Text>();
                     if (txt != null)
                     {
-                        txt.text = p2IsAI ? "CPU" : "2P";
+                        txt.text = (currentGameMode == GameMode.Training) ? "DUMMY" : (p2IsAI ? "CPU" : "2P");
                     }
                 }
 
@@ -418,6 +871,21 @@ namespace FightFace
                            "VELOCIDAD: ■■■■■■□□□□  6\n" +
                            "DEFENSA:   ■■■■■■■□□□  7\n" +
                            "TÉCNICA:   ■■■■■■□□□□  6";
+                case FighterBodyType.Playero:
+                    return "FUERZA:    ■■■■■■■□□□  7\n" +
+                           "VELOCIDAD: ■■■■■■■■□□  8\n" +
+                           "DEFENSA:   ■■■■■■■□□□  7\n" +
+                           "TÉCNICA:   ■■■■■■■■□□  8";
+                case FighterBodyType.Oficinista:
+                    return "FUERZA:    ■■■■■■■■■□  9\n" +
+                           "VELOCIDAD: ■■■■■■■■□□  8\n" +
+                           "DEFENSA:   ■■■■■■□□□□  6\n" +
+                           "TÉCNICA:   ■■■■■■■□□□  7";
+                case FighterBodyType.Pijamero:
+                    return "FUERZA:    ■■■■■■□□□□  6\n" +
+                           "VELOCIDAD: ■■■■■■■■■□  9\n" +
+                           "DEFENSA:   ■■■■■■■■□□  8\n" +
+                           "TÉCNICA:   ■■■■■■■■■□  9";
                 default:
                     return "";
             }
@@ -428,6 +896,8 @@ namespace FightFace
             RefreshP1UI();
             RefreshP2UI();
             RefreshRosterHighlights();
+            UpdateMusicToggleVisuals();
+            UpdateVoiceVolumeVisuals();
         }
     }
 }

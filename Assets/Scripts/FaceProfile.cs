@@ -83,6 +83,7 @@ namespace FightFace
 
             string winnerPath = Path.Combine(directoryPath, "Foto_Ganador.png");
             string koPath = Path.Combine(directoryPath, "Foto_KO.png");
+            if (!File.Exists(koPath)) koPath = Path.Combine(directoryPath, "Foto_Perdedor.png");
 
             bool anyLoaded = false;
 
@@ -131,6 +132,7 @@ namespace FightFace
             SaveSpriteToFile(faceAngry, Path.Combine(directoryPath, "Foto_Enojo.png"));
             SaveSpriteToFile(faceWinner, Path.Combine(directoryPath, "Foto_Ganador.png"));
             SaveSpriteToFile(faceKO, Path.Combine(directoryPath, "Foto_KO.png"));
+            SaveSpriteToFile(faceKO, Path.Combine(directoryPath, "Foto_Perdedor.png"));
 
             Debug.Log($"[FaceProfile] Caras guardadas exitosamente en: {directoryPath}");
         }

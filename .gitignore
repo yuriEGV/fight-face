@@ -32,3 +32,14 @@ Recordings/
 Thumbs.db
 desktop.ini
 *.log
+
+# Standalone Builds & temporary exports
+[Bb]uild_*/
+build_log.txt
+
+# Local temporary images / generator scripts
+*.py
+collar_*.png
+preview_*.png
+test_*.png
+head_slot_crop.png

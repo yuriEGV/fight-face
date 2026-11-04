@@ -35,6 +35,7 @@ namespace FightFace
         public void SetupGame()
         {
             EnsureEventSystem();
+            SetupAudio();
             SetupArena();
             SetupCombatEffects();
             SetupFighters(out FighterController p1, out FighterController p2);
@@ -45,18 +46,39 @@ namespace FightFace
             Debug.Log("<color=green><b>[FightFace] ¡Juego de Pelea 2D Inicializado con Éxito!</b></color>");
         }
 
+        private void SetupAudio()
+        {
+            if (FindFirstObjectByType<FightAudioManager>() == null)
+            {
+                GameObject audioObj = new GameObject("FightAudioManager");
+                audioObj.AddComponent<FightAudioManager>();
+            }
+        }
+
         private void EnsureEventSystem()
         {
-            if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+            var es = FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>();
+            if (es == null)
             {
                 GameObject esObj = new GameObject("EventSystem");
-                esObj.AddComponent<UnityEngine.EventSystems.EventSystem>();
-#if ENABLE_INPUT_SYSTEM
-                esObj.AddComponent<InputSystemUIInputModule>();
-#else
-                esObj.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
-#endif
+                es = esObj.AddComponent<UnityEngine.EventSystems.EventSystem>();
             }
+
+#if ENABLE_INPUT_SYSTEM
+            var inputModule = es.GetComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+            if (inputModule == null)
+            {
+                var oldModule = es.GetComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+                if (oldModule != null) Destroy(oldModule);
+                inputModule = es.gameObject.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+            }
+            inputModule.AssignDefaultActions();
+#else
+            if (es.GetComponent<UnityEngine.EventSystems.StandaloneInputModule>() == null)
+            {
+                es.gameObject.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+            }
+#endif
         }
 
         private void SetupArena()
@@ -69,7 +91,7 @@ namespace FightFace
             // Suelo del ring (colisionador invisible para que los luchadores pisen la lona de la foto real)
             GameObject floor = new GameObject("Floor");
             floor.transform.SetParent(arena.transform);
-            floor.transform.position = new Vector3(0, -2.45f, 0);
+            floor.transform.position = new Vector3(0, -3.40f, 0);
             var floorCol = floor.AddComponent<BoxCollider2D>();
             floorCol.size = new Vector2(24f, 1f);
 
@@ -86,16 +108,16 @@ namespace FightFace
             var rightCol = rightWall.AddComponent<BoxCollider2D>();
             rightCol.size = new Vector2(1f, 10f);
 
-            // Fondo: Cuadrilátero Profesional MGM Grand Las Vegas (Foto Real / Ultra-realista)
+            // Fondo: Cuadrilátero Profesional / Escenario Oficial
             GameObject backdrop = new GameObject("Backdrop");
             backdrop.transform.SetParent(arena.transform);
             backdrop.transform.position = new Vector3(0, 0.65f, 5f);
             var bgSr = backdrop.AddComponent<SpriteRenderer>();
-            Sprite mgmSprite = FaceLoader.LoadStageMGMSprite();
-            if (mgmSprite != null)
+            Sprite defaultStageSprite = FaceLoader.LoadStageSprite(StageType.Auto, FighterBodyType.Gordo);
+            if (defaultStageSprite != null)
             {
-                bgSr.sprite = mgmSprite;
-                float worldW = mgmSprite.rect.width / mgmSprite.pixelsPerUnit;
+                bgSr.sprite = defaultStageSprite;
+                float worldW = defaultStageSprite.rect.width / defaultStageSprite.pixelsPerUnit;
                 float scale = 22.0f / worldW;
                 backdrop.transform.localScale = new Vector3(scale, scale, 1f);
             }
@@ -104,6 +126,11 @@ namespace FightFace
                 bgSr.sprite = CreateGradientBackdrop(1920, 1080);
             }
             bgSr.sortingOrder = -20;
+
+            if (BattleManager.Instance != null)
+            {
+                BattleManager.Instance.stageBackdropRenderer = bgSr;
+            }
         }
 
         private void SetupCombatEffects()
@@ -120,6 +147,18 @@ namespace FightFace
                 impactObj.AddComponent<FightImpactManager>();
             }
 
+            if (ComicFinisherManager.Instance == null)
+            {
+                GameObject comicObj = new GameObject("ComicFinisherManager");
+                comicObj.AddComponent<ComicFinisherManager>();
+            }
+
+            if (CrowdCheerManager.Instance == null)
+            {
+                GameObject crowdObj = new GameObject("CrowdCheerManager");
+                crowdObj.AddComponent<CrowdCheerManager>();
+            }
+
             // Configurar Cámara Dinámica con zoom automático cuerpo a cuerpo y K.O.
             if (Camera.main != null && Camera.main.GetComponent<DynamicFightCamera>() == null)
             {
@@ -134,7 +173,7 @@ namespace FightFace
             if (p1Obj == null)
             {
                 p1Obj = new GameObject("Player1");
-                p1Obj.transform.position = new Vector3(-3.2f, -1.95f, 0);
+                p1Obj.transform.position = new Vector3(-3.2f, -2.90f, 0);
             }
             p1 = p1Obj.GetComponent<FighterController>();
             if (p1 == null) p1 = p1Obj.AddComponent<FighterController>();
@@ -180,13 +219,14 @@ namespace FightFace
             // Cargar perfil de P1 (revisando Jugador_1 o Luchador_1)
             FaceProfile p1Profile = LoadProfileForFighter(1, "El Gordo");
             p1Face.SetProfile(p1Profile);
+            p1.voiceProfile = VoiceLoader.LoadProfileForFighter(1, "El Gordo", 0);
 
             // --- JUGADOR 2 ---
             GameObject p2Obj = GameObject.Find("Player2");
             if (p2Obj == null)
             {
                 p2Obj = new GameObject("Player2");
-                p2Obj.transform.position = new Vector3(3.2f, -1.95f, 0);
+                p2Obj.transform.position = new Vector3(3.2f, -2.90f, 0);
             }
             p2 = p2Obj.GetComponent<FighterController>();
             if (p2 == null) p2 = p2Obj.AddComponent<FighterController>();
@@ -232,6 +272,7 @@ namespace FightFace
             // Cargar perfil de P2
             FaceProfile p2Profile = LoadProfileForFighter(2, "El Flaco");
             p2Face.SetProfile(p2Profile);
+            p2.voiceProfile = VoiceLoader.LoadProfileForFighter(2, "El Flaco", 0);
 
             // Enlazar oponentes
             p1.opponent = p2.transform;
@@ -273,6 +314,10 @@ namespace FightFace
                 scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
                 scaler.referenceResolution = new Vector2(1920, 1080);
                 scaler.matchWidthOrHeight = 0.5f;
+            }
+
+            if (canvasObj.GetComponent<GraphicRaycaster>() == null)
+            {
                 canvasObj.AddComponent<GraphicRaycaster>();
             }
 
@@ -286,6 +331,15 @@ namespace FightFace
             BuildControlsBottomBar(canvasObj.transform, battleUI);
             BuildWebcamModal(canvasObj.transform, battleUI, out webcamMgr);
             BuildCharacterSelectMenu(canvasObj.transform, battleUI, p1, p2, webcamMgr);
+
+            var celebrationUI = canvasObj.AddComponent<TournamentCelebrationUI>();
+            celebrationUI.BuildCelebrationUI(canvasObj.transform);
+
+            // Controles Táctiles en Pantalla para Celulares / Android (y testeable en PC con tecla T)
+            BuildVirtualTouchControlsUI(canvasObj.transform);
+
+            // Aplicar estilo Street Fighter II Arcade a todos los paneles y botones
+            ArcadeSkin.Apply(canvasObj.transform);
         }
 
         private void BuildHealthBarUI(Transform canvas, BattleUI ui, FighterController p1, FighterController p2)
@@ -312,6 +366,7 @@ namespace FightFace
             p1PRect.anchoredPosition = new Vector2(30, -20);
             ui.p1FacePortrait = p1PortraitObj.AddComponent<Image>();
             ui.p1FacePortrait.sprite = p1.faceController.Profile.GetSprite(FaceType.Base);
+            ui.p1FacePortrait.preserveAspect = true;
 
             var p1POutline = p1PortraitObj.AddComponent<Outline>();
             p1POutline.effectColor = new Color(1f, 0.85f, 0.2f);
@@ -467,6 +522,7 @@ namespace FightFace
             p2PRect.anchoredPosition = new Vector2(-30, -20);
             ui.p2FacePortrait = p2PortraitObj.AddComponent<Image>();
             ui.p2FacePortrait.sprite = p2.faceController.Profile.GetSprite(FaceType.Base);
+            ui.p2FacePortrait.preserveAspect = true;
 
             var p2POutline = p2PortraitObj.AddComponent<Outline>();
             p2POutline.effectColor = new Color(0.2f, 0.65f, 1f);
@@ -649,6 +705,78 @@ namespace FightFace
             ui.timerText.fontStyle = FontStyle.Bold;
             ui.timerText.alignment = TextAnchor.MiddleCenter;
             ui.timerText.color = new Color(1f, 0.92f, 0.25f);
+
+            // Marcadores de Rondas Street Fighter II (V-Markers P1)
+            ui.p1RoundMarkers = new Image[2];
+            for (int i = 0; i < 2; i++)
+            {
+                GameObject mObj = new GameObject($"P1_RoundMarker_{i+1}");
+                mObj.transform.SetParent(topBar.transform, false);
+                var mRect = mObj.AddComponent<RectTransform>();
+                mRect.anchorMin = new Vector2(0.5f, 1);
+                mRect.anchorMax = new Vector2(0.5f, 1);
+                mRect.pivot = new Vector2(0.5f, 1);
+                mRect.sizeDelta = new Vector2(26, 26);
+                mRect.anchoredPosition = new Vector2(-75 - (i * 32), -88);
+
+                var mImg = mObj.AddComponent<Image>();
+                mImg.color = new Color(0.2f, 0.22f, 0.3f, 0.6f);
+                var mOutline = mObj.AddComponent<Outline>();
+                mOutline.effectColor = new Color(1f, 0.85f, 0.2f, 0.8f);
+                mOutline.effectDistance = new Vector2(1, -1);
+
+                GameObject vObj = new GameObject("Text");
+                vObj.transform.SetParent(mObj.transform, false);
+                var vRect = vObj.AddComponent<RectTransform>();
+                vRect.anchorMin = Vector2.zero;
+                vRect.anchorMax = Vector2.one;
+                vRect.sizeDelta = Vector2.zero;
+                var vTxt = vObj.AddComponent<Text>();
+                vTxt.text = "V";
+                vTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                vTxt.fontSize = 16;
+                vTxt.fontStyle = FontStyle.Bold;
+                vTxt.alignment = TextAnchor.MiddleCenter;
+                vTxt.color = Color.white;
+
+                ui.p1RoundMarkers[i] = mImg;
+            }
+
+            // Marcadores de Rondas Street Fighter II (V-Markers P2)
+            ui.p2RoundMarkers = new Image[2];
+            for (int i = 0; i < 2; i++)
+            {
+                GameObject mObj = new GameObject($"P2_RoundMarker_{i+1}");
+                mObj.transform.SetParent(topBar.transform, false);
+                var mRect = mObj.AddComponent<RectTransform>();
+                mRect.anchorMin = new Vector2(0.5f, 1);
+                mRect.anchorMax = new Vector2(0.5f, 1);
+                mRect.pivot = new Vector2(0.5f, 1);
+                mRect.sizeDelta = new Vector2(26, 26);
+                mRect.anchoredPosition = new Vector2(75 + (i * 32), -88);
+
+                var mImg = mObj.AddComponent<Image>();
+                mImg.color = new Color(0.2f, 0.22f, 0.3f, 0.6f);
+                var mOutline = mObj.AddComponent<Outline>();
+                mOutline.effectColor = new Color(1f, 0.85f, 0.2f, 0.8f);
+                mOutline.effectDistance = new Vector2(1, -1);
+
+                GameObject vObj = new GameObject("Text");
+                vObj.transform.SetParent(mObj.transform, false);
+                var vRect = vObj.AddComponent<RectTransform>();
+                vRect.anchorMin = Vector2.zero;
+                vRect.anchorMax = Vector2.one;
+                vRect.sizeDelta = Vector2.zero;
+                var vTxt = vObj.AddComponent<Text>();
+                vTxt.text = "V";
+                vTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                vTxt.fontSize = 16;
+                vTxt.fontStyle = FontStyle.Bold;
+                vTxt.alignment = TextAnchor.MiddleCenter;
+                vTxt.color = Color.white;
+
+                ui.p2RoundMarkers[i] = mImg;
+            }
         }
 
         private void BuildComboUI(Transform canvas, BattleUI ui)
@@ -722,7 +850,7 @@ namespace FightFace
             cRect.anchorMin = new Vector2(0.5f, 0.5f);
             cRect.anchorMax = new Vector2(0.5f, 0.5f);
             cRect.pivot = new Vector2(0.5f, 0.5f);
-            cRect.sizeDelta = new Vector2(620, 680);
+            cRect.sizeDelta = new Vector2(820, 680);
             cRect.anchoredPosition = Vector2.zero;
 
             var cardBg = cardObj.AddComponent<Image>();
@@ -731,7 +859,7 @@ namespace FightFace
             cardOutline.effectColor = new Color(1f, 0.85f, 0.2f);
             cardOutline.effectDistance = new Vector2(4, 4);
 
-            // Título WINNER
+            // Título
             GameObject titleObj = new GameObject("Title_Winner");
             titleObj.transform.SetParent(cardObj.transform, false);
             var tRect = titleObj.AddComponent<RectTransform>();
@@ -741,22 +869,22 @@ namespace FightFace
             tRect.offsetMax = Vector2.zero;
 
             ui.winnerTitleText = titleObj.AddComponent<Text>();
-            ui.winnerTitleText.text = "🏆 WINNER 🏆";
+            ui.winnerTitleText.text = "🏆 ¡RESULTADO DEL COMBATE! 🏆";
             ui.winnerTitleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            ui.winnerTitleText.fontSize = 42;
+            ui.winnerTitleText.fontSize = 36;
             ui.winnerTitleText.fontStyle = FontStyle.Bold;
             ui.winnerTitleText.alignment = TextAnchor.MiddleCenter;
             ui.winnerTitleText.color = new Color(1f, 0.88f, 0.15f);
 
-            // Foto Ganador
-            GameObject photoFrameObj = new GameObject("PhotoFrame");
+            // Foto Ganador (Izquierda)
+            GameObject photoFrameObj = new GameObject("Winner_PhotoFrame");
             photoFrameObj.transform.SetParent(cardObj.transform, false);
             var pfRect = photoFrameObj.AddComponent<RectTransform>();
             pfRect.anchorMin = new Vector2(0.5f, 0.5f);
             pfRect.anchorMax = new Vector2(0.5f, 0.5f);
             pfRect.pivot = new Vector2(0.5f, 0.5f);
-            pfRect.sizeDelta = new Vector2(240, 240);
-            pfRect.anchoredPosition = new Vector2(0, 75);
+            pfRect.sizeDelta = new Vector2(230, 230);
+            pfRect.anchoredPosition = new Vector2(-180, 75);
 
             var photoImg = photoFrameObj.AddComponent<Image>();
             photoImg.color = Color.white;
@@ -764,24 +892,91 @@ namespace FightFace
 
             var photoOutline = photoFrameObj.AddComponent<Outline>();
             photoOutline.effectColor = new Color(1f, 0.9f, 0.3f);
-            photoOutline.effectDistance = new Vector2(3, 3);
+            photoOutline.effectDistance = new Vector2(4, 4);
 
-            // Nombre
+            GameObject winTagObj = new GameObject("Winner_Tag");
+            winTagObj.transform.SetParent(photoFrameObj.transform, false);
+            var wtRect = winTagObj.AddComponent<RectTransform>();
+            wtRect.anchorMin = new Vector2(0, 1);
+            wtRect.anchorMax = new Vector2(1, 1);
+            wtRect.pivot = new Vector2(0.5f, 0);
+            wtRect.sizeDelta = new Vector2(0, 28);
+            wtRect.anchoredPosition = new Vector2(0, 6);
+            var wtText = winTagObj.AddComponent<Text>();
+            wtText.text = "👑 GANADOR";
+            wtText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            wtText.fontSize = 18;
+            wtText.fontStyle = FontStyle.Bold;
+            wtText.alignment = TextAnchor.MiddleCenter;
+            wtText.color = new Color(1f, 0.85f, 0.2f);
+
+            // Foto Perdedor / KO (Derecha)
+            GameObject loserFrameObj = new GameObject("Loser_PhotoFrame");
+            loserFrameObj.transform.SetParent(cardObj.transform, false);
+            var lfRect = loserFrameObj.AddComponent<RectTransform>();
+            lfRect.anchorMin = new Vector2(0.5f, 0.5f);
+            lfRect.anchorMax = new Vector2(0.5f, 0.5f);
+            lfRect.pivot = new Vector2(0.5f, 0.5f);
+            lfRect.sizeDelta = new Vector2(230, 230);
+            lfRect.anchoredPosition = new Vector2(180, 75);
+
+            var loserImg = loserFrameObj.AddComponent<Image>();
+            loserImg.color = new Color(0.95f, 0.85f, 0.85f);
+            ui.loserPortraitImage = loserImg;
+
+            var loserOutline = loserFrameObj.AddComponent<Outline>();
+            loserOutline.effectColor = new Color(0.95f, 0.25f, 0.25f);
+            loserOutline.effectDistance = new Vector2(4, 4);
+
+            GameObject loseTagObj = new GameObject("Loser_Tag");
+            loseTagObj.transform.SetParent(loserFrameObj.transform, false);
+            var ltRect = loseTagObj.AddComponent<RectTransform>();
+            ltRect.anchorMin = new Vector2(0, 1);
+            ltRect.anchorMax = new Vector2(1, 1);
+            ltRect.pivot = new Vector2(0.5f, 0);
+            ltRect.sizeDelta = new Vector2(0, 28);
+            ltRect.anchoredPosition = new Vector2(0, 6);
+            var ltText = loseTagObj.AddComponent<Text>();
+            ltText.text = "💀 DERROTADO (K.O.)";
+            ltText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            ltText.fontSize = 18;
+            ltText.fontStyle = FontStyle.Bold;
+            ltText.alignment = TextAnchor.MiddleCenter;
+            ltText.color = new Color(0.95f, 0.35f, 0.35f);
+
+            // Nombre Ganador
             GameObject nameObj = new GameObject("Winner_Name");
             nameObj.transform.SetParent(cardObj.transform, false);
             var nRect = nameObj.AddComponent<RectTransform>();
-            nRect.anchorMin = new Vector2(0, 0.28f);
-            nRect.anchorMax = new Vector2(1, 0.38f);
+            nRect.anchorMin = new Vector2(0.04f, 0.27f);
+            nRect.anchorMax = new Vector2(0.50f, 0.36f);
             nRect.offsetMin = Vector2.zero;
             nRect.offsetMax = Vector2.zero;
 
             ui.winnerNameText = nameObj.AddComponent<Text>();
             ui.winnerNameText.text = "YURI";
             ui.winnerNameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            ui.winnerNameText.fontSize = 32;
+            ui.winnerNameText.fontSize = 24;
             ui.winnerNameText.fontStyle = FontStyle.Bold;
             ui.winnerNameText.alignment = TextAnchor.MiddleCenter;
-            ui.winnerNameText.color = Color.white;
+            ui.winnerNameText.color = new Color(1f, 0.95f, 0.7f);
+
+            // Nombre Perdedor
+            GameObject loserNameObj = new GameObject("Loser_Name");
+            loserNameObj.transform.SetParent(cardObj.transform, false);
+            var lnRect = loserNameObj.AddComponent<RectTransform>();
+            lnRect.anchorMin = new Vector2(0.50f, 0.27f);
+            lnRect.anchorMax = new Vector2(0.96f, 0.36f);
+            lnRect.offsetMin = Vector2.zero;
+            lnRect.offsetMax = Vector2.zero;
+
+            ui.loserNameText = loserNameObj.AddComponent<Text>();
+            ui.loserNameText.text = "RIVAL";
+            ui.loserNameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            ui.loserNameText.fontSize = 22;
+            ui.loserNameText.fontStyle = FontStyle.Bold;
+            ui.loserNameText.alignment = TextAnchor.MiddleCenter;
+            ui.loserNameText.color = new Color(0.85f, 0.7f, 0.7f);
 
             // Stats
             GameObject statsObj = new GameObject("Winner_Stats");
@@ -811,6 +1006,11 @@ namespace FightFace
             var remImg = remObj.AddComponent<Image>();
             remImg.color = new Color(0.2f, 0.75f, 0.3f);
             ui.winnerRematchButton = remObj.AddComponent<Button>();
+            ui.winnerRematchButton.onClick.AddListener(() =>
+            {
+                if (modalObj != null) modalObj.SetActive(false);
+                if (BattleManager.Instance != null) BattleManager.Instance.RestartMatch();
+            });
 
             GameObject remTxt = new GameObject("Text");
             remTxt.transform.SetParent(remObj.transform, false);
@@ -819,25 +1019,30 @@ namespace FightFace
             rTRect.anchorMax = Vector2.one;
             rTRect.sizeDelta = Vector2.zero;
             var rText = remTxt.AddComponent<Text>();
-            rText.text = "🔄 REVENCHA [R]";
+            rText.text = "🔄 Revancha [F5 / R]";
             rText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            rText.fontSize = 17;
+            rText.fontSize = 16;
             rText.fontStyle = FontStyle.Bold;
             rText.alignment = TextAnchor.MiddleCenter;
             rText.color = Color.white;
 
-            // Botón Selección
+            // Botón Selección (Principal)
             GameObject selObj = new GameObject("Btn_SelectMenu");
             selObj.transform.SetParent(cardObj.transform, false);
             var selRect = selObj.AddComponent<RectTransform>();
-            selRect.anchorMin = new Vector2(0.52f, 0.04f);
-            selRect.anchorMax = new Vector2(0.92f, 0.14f);
+            selRect.anchorMin = new Vector2(0.50f, 0.04f);
+            selRect.anchorMax = new Vector2(0.94f, 0.14f);
             selRect.offsetMin = Vector2.zero;
             selRect.offsetMax = Vector2.zero;
 
             var selImg = selObj.AddComponent<Image>();
-            selImg.color = new Color(0.25f, 0.45f, 0.85f);
+            selImg.color = new Color(0.18f, 0.52f, 0.95f);
             ui.winnerSelectButton = selObj.AddComponent<Button>();
+            ui.winnerSelectButton.onClick.AddListener(() =>
+            {
+                if (modalObj != null) modalObj.SetActive(false);
+                if (BattleUI.Instance != null) BattleUI.Instance.ShowCharacterSelectMenu();
+            });
 
             GameObject selTxt = new GameObject("Text");
             selTxt.transform.SetParent(selObj.transform, false);
@@ -846,9 +1051,9 @@ namespace FightFace
             sTRect.anchorMax = Vector2.one;
             sTRect.sizeDelta = Vector2.zero;
             var sText = selTxt.AddComponent<Text>();
-            sText.text = "👥 ELEGIR [M]";
+            sText.text = "👥 ELEGIR LUCHADOR [ENTER]";
             sText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            sText.fontSize = 17;
+            sText.fontSize = 15;
             sText.fontStyle = FontStyle.Bold;
             sText.alignment = TextAnchor.MiddleCenter;
             sText.color = Color.white;
@@ -934,7 +1139,16 @@ namespace FightFace
             ui.openSelectMenuButton.onClick.AddListener(() =>
             {
                 if (BattleUI.Instance != null)
-                    BattleUI.Instance.ToggleCharacterSelectMenu();
+                {
+                    if (BattleManager.Instance != null && BattleManager.Instance.isTrainingMode)
+                    {
+                        BattleUI.Instance.ExitTrainingToSelectMenu();
+                    }
+                    else
+                    {
+                        BattleUI.Instance.ToggleCharacterSelectMenu();
+                    }
+                }
             });
 
             GameObject mTxtObj = new GameObject("Text");
@@ -944,14 +1158,14 @@ namespace FightFace
             mTRect.anchorMax = Vector2.one;
             mTRect.sizeDelta = Vector2.zero;
             var mTxt = mTxtObj.AddComponent<Text>();
-            mTxt.text = "🥊 Menú [M]";
+            mTxt.text = "🥊 Menú [ESC]";
             mTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             mTxt.fontSize = 15;
             mTxt.fontStyle = FontStyle.Bold;
             mTxt.alignment = TextAnchor.MiddleCenter;
             mTxt.color = Color.white;
 
-            // Botón 1: 🏆 Torneo Street Fighter [T]
+            // Botón 1: 🏆 Torneo Street Fighter [F3]
             GameObject btnTourneyObj = new GameObject("Btn_Tournament");
             btnTourneyObj.transform.SetParent(bottomBar.transform, false);
             var tRect = btnTourneyObj.AddComponent<RectTransform>();
@@ -962,6 +1176,18 @@ namespace FightFace
             var tImg = btnTourneyObj.AddComponent<Image>();
             tImg.color = new Color(1f, 0.65f, 0.1f);
             ui.tournamentButton = btnTourneyObj.AddComponent<Button>();
+            ui.tournamentButton.onClick.AddListener(() =>
+            {
+                if (TournamentManager.Instance != null)
+                {
+                    int p1Id = 1;
+                    if (BattleManager.Instance != null && BattleManager.Instance.player1 != null)
+                    {
+                        p1Id = (int)BattleManager.Instance.p1BodyType + 1;
+                    }
+                    TournamentManager.Instance.StartNewTournament(p1Id);
+                }
+            });
 
             GameObject tTxtObj = new GameObject("Text");
             tTxtObj.transform.SetParent(btnTourneyObj.transform, false);
@@ -970,7 +1196,7 @@ namespace FightFace
             tTRect.anchorMax = Vector2.one;
             tTRect.sizeDelta = Vector2.zero;
             var tTxt = tTxtObj.AddComponent<Text>();
-            tTxt.text = "🏆 Torneo [T]";
+            tTxt.text = "🏆 Torneo [F3]";
             tTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             tTxt.fontSize = 15;
             tTxt.fontStyle = FontStyle.Bold;
@@ -988,6 +1214,13 @@ namespace FightFace
             var btnImg = btnCustomObj.AddComponent<Image>();
             btnImg.color = new Color(0.2f, 0.6f, 1f);
             ui.openCustomizerButton = btnCustomObj.AddComponent<Button>();
+            ui.openCustomizerButton.onClick.AddListener(() =>
+            {
+                if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.ToggleFaceCustomizer();
+                }
+            });
 
             GameObject btnTextObj = new GameObject("Text");
             btnTextObj.transform.SetParent(btnCustomObj.transform, false);
@@ -1003,7 +1236,7 @@ namespace FightFace
             btnTxt.alignment = TextAnchor.MiddleCenter;
             btnTxt.color = Color.white;
 
-            // Botón 3: 🔄 Reiniciar [R]
+            // Botón 3: 🔄 Reiniciar [F5]
             GameObject btnRestartObj = new GameObject("Btn_Restart");
             btnRestartObj.transform.SetParent(bottomBar.transform, false);
             var rRect = btnRestartObj.AddComponent<RectTransform>();
@@ -1014,6 +1247,17 @@ namespace FightFace
             var rImg = btnRestartObj.AddComponent<Image>();
             rImg.color = new Color(0.9f, 0.3f, 0.2f);
             ui.rematchButton = btnRestartObj.AddComponent<Button>();
+            ui.rematchButton.onClick.AddListener(() =>
+            {
+                if (BattleUI.Instance != null && BattleUI.Instance.winnerModalPanel != null)
+                {
+                    BattleUI.Instance.winnerModalPanel.SetActive(false);
+                }
+                if (BattleManager.Instance != null)
+                {
+                    BattleManager.Instance.RestartMatch();
+                }
+            });
 
             GameObject rTextObj = new GameObject("Text");
             rTextObj.transform.SetParent(btnRestartObj.transform, false);
@@ -1022,7 +1266,7 @@ namespace FightFace
             rTRect.anchorMax = Vector2.one;
             rTRect.sizeDelta = Vector2.zero;
             var rTxt = rTextObj.AddComponent<Text>();
-            rTxt.text = "🔄 Reiniciar [R]";
+            rTxt.text = "🔄 Reiniciar [F5]";
             rTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             rTxt.fontSize = 15;
             rTxt.fontStyle = FontStyle.Bold;
@@ -1038,13 +1282,15 @@ namespace FightFace
             mRect.anchorMin = new Vector2(0.5f, 0.5f);
             mRect.anchorMax = new Vector2(0.5f, 0.5f);
             mRect.pivot = new Vector2(0.5f, 0.5f);
-            mRect.sizeDelta = new Vector2(1060, 720);
+            mRect.sizeDelta = new Vector2(1080, 750);
             mRect.anchoredPosition = Vector2.zero;
 
             var modalBg = modalObj.AddComponent<Image>();
             modalBg.color = new Color(0.08f, 0.09f, 0.14f, 0.98f);
 
-            webcamMgr = modalObj.AddComponent<WebcamCaptureManager>();
+            WebcamCaptureManager localWebcamMgr = modalObj.AddComponent<WebcamCaptureManager>();
+            webcamMgr = localWebcamMgr;
+            VoiceCaptureManager voiceMgr = modalObj.AddComponent<VoiceCaptureManager>();
 
             // Título
             GameObject titleObj = new GameObject("Title");
@@ -1053,31 +1299,99 @@ namespace FightFace
             tRect.anchorMin = new Vector2(0, 1);
             tRect.anchorMax = new Vector2(1, 1);
             tRect.pivot = new Vector2(0.5f, 1);
-            tRect.sizeDelta = new Vector2(0, 50);
-            tRect.anchoredPosition = new Vector2(0, -12);
+            tRect.sizeDelta = new Vector2(0, 46);
+            tRect.anchoredPosition = new Vector2(0, -10);
             var titleTxt = titleObj.AddComponent<Text>();
-            titleTxt.text = "📸 CREADOR DE LUCHADORES - CAPTURA DE ROSTROS";
+            titleTxt.text = "🎮 PERSONALIZADOR ARCADE: ROSTROS Y VOCES";
             titleTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             titleTxt.fontSize = 24;
             titleTxt.fontStyle = FontStyle.Bold;
             titleTxt.alignment = TextAnchor.MiddleCenter;
             titleTxt.color = new Color(1f, 0.85f, 0.2f);
 
-            // Selector de los 8 Luchadores del Torneo
-            CreateTournamentRosterButtons(modalObj.transform, webcamMgr);
+            // Selector de los 6 Luchadores del Torneo
+            CreateTournamentRosterButtons(modalObj.transform, localWebcamMgr);
+
+            // Barra de Pestañas (Tabs)
+            GameObject tabsBar = new GameObject("TabsBar");
+            tabsBar.transform.SetParent(modalObj.transform, false);
+            var tbRect = tabsBar.AddComponent<RectTransform>();
+            tbRect.anchorMin = new Vector2(0.5f, 0.695f);
+            tbRect.anchorMax = new Vector2(0.5f, 0.695f);
+            tbRect.pivot = new Vector2(0.5f, 0.5f);
+            tbRect.sizeDelta = new Vector2(620, 38);
+            tbRect.anchoredPosition = Vector2.zero;
+
+            // Tab 1: Caras
+            GameObject tabFacesObj = new GameObject("Tab_Faces");
+            tabFacesObj.transform.SetParent(tabsBar.transform, false);
+            var tfRect = tabFacesObj.AddComponent<RectTransform>();
+            tfRect.anchorMin = new Vector2(0f, 0f);
+            tfRect.anchorMax = new Vector2(0.485f, 1f);
+            tfRect.offsetMin = Vector2.zero; tfRect.offsetMax = Vector2.zero;
+            var tabFacesImg = tabFacesObj.AddComponent<Image>();
+            tabFacesImg.color = new Color(0.2f, 0.55f, 0.95f);
+            var tabFacesBtn = tabFacesObj.AddComponent<Button>();
+
+            GameObject tfTxtObj = new GameObject("Text");
+            tfTxtObj.transform.SetParent(tabFacesObj.transform, false);
+            var tftRect = tfTxtObj.AddComponent<RectTransform>();
+            tftRect.anchorMin = Vector2.zero; tftRect.anchorMax = Vector2.one; tftRect.sizeDelta = Vector2.zero;
+            var tfTxt = tfTxtObj.AddComponent<Text>();
+            tfTxt.text = "📷 1. CARAS (5 FOTOS)";
+            tfTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            tfTxt.fontSize = 14;
+            tfTxt.fontStyle = FontStyle.Bold;
+            tfTxt.alignment = TextAnchor.MiddleCenter;
+            tfTxt.color = Color.white;
+
+            // Tab 2: Voces
+            GameObject tabVoicesObj = new GameObject("Tab_Voices");
+            tabVoicesObj.transform.SetParent(tabsBar.transform, false);
+            var tvRect = tabVoicesObj.AddComponent<RectTransform>();
+            tvRect.anchorMin = new Vector2(0.515f, 0f);
+            tvRect.anchorMax = new Vector2(1f, 1f);
+            tvRect.offsetMin = Vector2.zero; tvRect.offsetMax = Vector2.zero;
+            var tabVoicesImg = tabVoicesObj.AddComponent<Image>();
+            tabVoicesImg.color = new Color(0.20f, 0.22f, 0.30f);
+            var tabVoicesBtn = tabVoicesObj.AddComponent<Button>();
+
+            GameObject tvTxtObj = new GameObject("Text");
+            tvTxtObj.transform.SetParent(tabVoicesObj.transform, false);
+            var tvtRect = tvTxtObj.AddComponent<RectTransform>();
+            tvtRect.anchorMin = Vector2.zero; tvtRect.anchorMax = Vector2.one; tvtRect.sizeDelta = Vector2.zero;
+            var tvTxt = tvTxtObj.AddComponent<Text>();
+            tvTxt.text = "🎙️ 2. VOCES DE BATALLA (5 GRITOS)";
+            tvTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            tvTxt.fontSize = 14;
+            tvTxt.fontStyle = FontStyle.Bold;
+            tvTxt.alignment = TextAnchor.MiddleCenter;
+            tvTxt.color = new Color(0.85f, 0.9f, 1f);
+
+            // ==================== SECCIÓN 1: FOTOS ====================
+            GameObject photoSectionObj = new GameObject("PhotoSection");
+            photoSectionObj.transform.SetParent(modalObj.transform, false);
+            var psRect = photoSectionObj.AddComponent<RectTransform>();
+            psRect.anchorMin = new Vector2(0f, 0.09f);
+            psRect.anchorMax = new Vector2(1f, 0.67f);
+            psRect.offsetMin = Vector2.zero; psRect.offsetMax = Vector2.zero;
 
             // Visor de Cámara en Vivo
             GameObject camViewObj = new GameObject("CamView");
-            camViewObj.transform.SetParent(modalObj.transform, false);
+            camViewObj.transform.SetParent(photoSectionObj.transform, false);
             var cRect = camViewObj.AddComponent<RectTransform>();
-            cRect.anchorMin = new Vector2(0.04f, 0.26f);
-            cRect.anchorMax = new Vector2(0.50f, 0.74f);
+            cRect.anchorMin = new Vector2(0.04f, 0.20f);
+            cRect.anchorMax = new Vector2(0.50f, 0.98f);
             cRect.offsetMin = Vector2.zero;
             cRect.offsetMax = Vector2.zero;
 
             var camRaw = camViewObj.AddComponent<RawImage>();
             camRaw.color = Color.white;
-            webcamMgr.cameraPreviewUI = camRaw;
+            camRaw.raycastTarget = true;
+            localWebcamMgr.cameraPreviewUI = camRaw;
+
+            var dragHandler = camViewObj.AddComponent<PhotoDragHandler>();
+            dragHandler.manager = localWebcamMgr;
 
             var outline = camViewObj.AddComponent<Outline>();
             outline.effectColor = new Color(0.2f, 0.6f, 1f);
@@ -1097,14 +1411,74 @@ namespace FightFace
             gImg.raycastTarget = false;
 
             // Botones de orientación (Girar y Espejo)
-            CreateCameraOrientationControls(modalObj.transform, webcamMgr);
+            CreateCameraOrientationControls(photoSectionObj.transform, localWebcamMgr);
 
-            // Panel de Guía de Expresión Facial (Instrucciones para las 4 fotos)
+            // Selector de Doble Cabeza (Hombre-Máquina)
+            GameObject headRow = new GameObject("HeadSelectorRow");
+            headRow.transform.SetParent(photoSectionObj.transform, false);
+            var hrRect = headRow.AddComponent<RectTransform>();
+            hrRect.anchorMin = new Vector2(0.53f, 0.91f);
+            hrRect.anchorMax = new Vector2(0.97f, 0.99f);
+            hrRect.offsetMin = Vector2.zero;
+            hrRect.offsetMax = Vector2.zero;
+
+            GameObject h1BtnObj = new GameObject("Btn_Head1");
+            h1BtnObj.transform.SetParent(headRow.transform, false);
+            var h1Rect = h1BtnObj.AddComponent<RectTransform>();
+            h1Rect.anchorMin = new Vector2(0f, 0f);
+            h1Rect.anchorMax = new Vector2(0.485f, 1f);
+            h1Rect.offsetMin = Vector2.zero;
+            h1Rect.offsetMax = Vector2.zero;
+            var h1Img = h1BtnObj.AddComponent<Image>();
+            h1Img.color = new Color(0.2f, 0.85f, 0.4f);
+            localWebcamMgr.head1ToggleButton = h1BtnObj.AddComponent<Button>();
+
+            GameObject h1TxtObj = new GameObject("Text");
+            h1TxtObj.transform.SetParent(h1BtnObj.transform, false);
+            var h1TRect = h1TxtObj.AddComponent<RectTransform>();
+            h1TRect.anchorMin = Vector2.zero; h1TRect.anchorMax = Vector2.one; h1TRect.sizeDelta = Vector2.zero;
+            var h1Txt = h1TxtObj.AddComponent<Text>();
+            h1Txt.text = "👤 CABEZA 1 (Izq)";
+            h1Txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            h1Txt.fontSize = 13;
+            h1Txt.fontStyle = FontStyle.Bold;
+            h1Txt.alignment = TextAnchor.MiddleCenter;
+            h1Txt.color = Color.white;
+            localWebcamMgr.head1ButtonText = h1Txt;
+
+            GameObject h2BtnObj = new GameObject("Btn_Head2");
+            h2BtnObj.transform.SetParent(headRow.transform, false);
+            var h2Rect = h2BtnObj.AddComponent<RectTransform>();
+            h2Rect.anchorMin = new Vector2(0.515f, 0f);
+            h2Rect.anchorMax = new Vector2(1f, 1f);
+            h2Rect.offsetMin = Vector2.zero;
+            h2Rect.offsetMax = Vector2.zero;
+            var h2Img = h2BtnObj.AddComponent<Image>();
+            h2Img.color = new Color(0.25f, 0.28f, 0.35f);
+            localWebcamMgr.head2ToggleButton = h2BtnObj.AddComponent<Button>();
+
+            GameObject h2TxtObj = new GameObject("Text");
+            h2TxtObj.transform.SetParent(h2BtnObj.transform, false);
+            var h2TRect = h2TxtObj.AddComponent<RectTransform>();
+            h2TRect.anchorMin = Vector2.zero; h2TRect.anchorMax = Vector2.one; h2TRect.sizeDelta = Vector2.zero;
+            var h2Txt = h2TxtObj.AddComponent<Text>();
+            h2Txt.text = "👤 CABEZA 2 (Der)";
+            h2Txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            h2Txt.fontSize = 13;
+            h2Txt.fontStyle = FontStyle.Bold;
+            h2Txt.alignment = TextAnchor.MiddleCenter;
+            h2Txt.color = Color.white;
+            localWebcamMgr.head2ButtonText = h2Txt;
+
+            localWebcamMgr.headSelectorRow = headRow;
+            headRow.SetActive(false);
+
+            // Panel de Guía de Expresión Facial (Instrucciones para las 5 fotos)
             GameObject guideBox = new GameObject("ExpressionGuideBox");
-            guideBox.transform.SetParent(modalObj.transform, false);
+            guideBox.transform.SetParent(photoSectionObj.transform, false);
             var gbRect = guideBox.AddComponent<RectTransform>();
-            gbRect.anchorMin = new Vector2(0.53f, 0.65f);
-            gbRect.anchorMax = new Vector2(0.97f, 0.74f);
+            gbRect.anchorMin = new Vector2(0.53f, 0.80f);
+            gbRect.anchorMax = new Vector2(0.97f, 0.89f);
             gbRect.offsetMin = Vector2.zero;
             gbRect.offsetMax = Vector2.zero;
 
@@ -1121,13 +1495,13 @@ namespace FightFace
             gtRect.anchorMax = new Vector2(1, 1f);
             gtRect.offsetMin = new Vector2(10, 0);
             gtRect.offsetMax = new Vector2(-10, 0);
-            webcamMgr.guideTitleText = gTitleObj.AddComponent<Text>();
-            webcamMgr.guideTitleText.text = "1. 📷 FOTO NORMAL";
-            webcamMgr.guideTitleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            webcamMgr.guideTitleText.fontSize = 16;
-            webcamMgr.guideTitleText.fontStyle = FontStyle.Bold;
-            webcamMgr.guideTitleText.alignment = TextAnchor.MiddleLeft;
-            webcamMgr.guideTitleText.color = new Color(1f, 0.9f, 0.2f);
+            localWebcamMgr.guideTitleText = gTitleObj.AddComponent<Text>();
+            localWebcamMgr.guideTitleText.text = "1. 📷 FOTO NORMAL";
+            localWebcamMgr.guideTitleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            localWebcamMgr.guideTitleText.fontSize = 15;
+            localWebcamMgr.guideTitleText.fontStyle = FontStyle.Bold;
+            localWebcamMgr.guideTitleText.alignment = TextAnchor.MiddleLeft;
+            localWebcamMgr.guideTitleText.color = new Color(1f, 0.9f, 0.2f);
 
             GameObject gDescObj = new GameObject("GuideDesc");
             gDescObj.transform.SetParent(guideBox.transform, false);
@@ -1136,31 +1510,32 @@ namespace FightFace
             gdRect.anchorMax = new Vector2(1, 0.52f);
             gdRect.offsetMin = new Vector2(10, 2);
             gdRect.offsetMax = new Vector2(-10, -2);
-            webcamMgr.guideDescriptionText = gDescObj.AddComponent<Text>();
-            webcamMgr.guideDescriptionText.text = "Mirando directamente a la cámara • Boca relajada • Rostro centrado";
-            webcamMgr.guideDescriptionText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            webcamMgr.guideDescriptionText.fontSize = 12;
-            webcamMgr.guideDescriptionText.alignment = TextAnchor.MiddleLeft;
-            webcamMgr.guideDescriptionText.color = new Color(0.85f, 0.9f, 1f);
+            localWebcamMgr.guideDescriptionText = gDescObj.AddComponent<Text>();
+            localWebcamMgr.guideDescriptionText.text = "Mirando a cámara • Boca relajada • Rostro centrado";
+            localWebcamMgr.guideDescriptionText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            localWebcamMgr.guideDescriptionText.fontSize = 12;
+            localWebcamMgr.guideDescriptionText.alignment = TextAnchor.MiddleLeft;
+            localWebcamMgr.guideDescriptionText.color = new Color(0.85f, 0.9f, 1f);
 
-            // Botones para capturar las 4 fotos
-            CreateCaptureButton(modalObj.transform, webcamMgr, "📷 1. Foto NORMAL (Pose Neutral)", FaceType.Base, new Vector2(560, -260), out Image thumbBase);
-            CreateCaptureButton(modalObj.transform, webcamMgr, "📷 2. Foto DOLOR (Mueca de Golpe)", FaceType.Dolor, new Vector2(560, -335), out Image thumbHurt);
-            CreateCaptureButton(modalObj.transform, webcamMgr, "📷 3. Foto RABIA (Furia para Rage)", FaceType.Enojo, new Vector2(560, -410), out Image thumbAngry);
-            CreateCaptureButton(modalObj.transform, webcamMgr, "📷 4. Foto GANADOR (Celebración)", FaceType.Ganador, new Vector2(560, -485), out Image thumbWinner);
+            // Botones para capturar las 5 fotos
+            CreateCaptureButton(photoSectionObj.transform, localWebcamMgr, "📷 1. Foto NORMAL (Pose Neutral)", FaceType.Base, new Vector2(560, -100), out Image thumbBase);
+            CreateCaptureButton(photoSectionObj.transform, localWebcamMgr, "📷 2. Foto DOLOR (Mueca de Golpe)", FaceType.Dolor, new Vector2(560, -158), out Image thumbHurt);
+            CreateCaptureButton(photoSectionObj.transform, localWebcamMgr, "📷 3. Foto RABIA (Furia para Rage)", FaceType.Enojo, new Vector2(560, -216), out Image thumbAngry);
+            CreateCaptureButton(photoSectionObj.transform, localWebcamMgr, "📷 4. Foto GANADOR (Celebración)", FaceType.Ganador, new Vector2(560, -274), out Image thumbWinner);
+            CreateCaptureButton(photoSectionObj.transform, localWebcamMgr, "📷 5. Foto PERDEDOR (K.O. / Derrota)", FaceType.KO, new Vector2(560, -332), out Image thumbKO);
 
-            webcamMgr.previewThumbBase = thumbBase;
-            webcamMgr.previewThumbHurt = thumbHurt;
-            webcamMgr.previewThumbAngry = thumbAngry;
-            webcamMgr.previewThumbWinner = thumbWinner;
-            webcamMgr.previewThumbKO = thumbWinner;
+            localWebcamMgr.previewThumbBase = thumbBase;
+            localWebcamMgr.previewThumbHurt = thumbHurt;
+            localWebcamMgr.previewThumbAngry = thumbAngry;
+            localWebcamMgr.previewThumbWinner = thumbWinner;
+            localWebcamMgr.previewThumbKO = thumbKO;
 
             // Campo de texto: NOMBRE: __________
             GameObject nameRow = new GameObject("NameInputRow");
-            nameRow.transform.SetParent(modalObj.transform, false);
+            nameRow.transform.SetParent(photoSectionObj.transform, false);
             var nrRect = nameRow.AddComponent<RectTransform>();
-            nrRect.anchorMin = new Vector2(0.53f, 0.17f);
-            nrRect.anchorMax = new Vector2(0.97f, 0.24f);
+            nrRect.anchorMin = new Vector2(0.53f, 0.01f);
+            nrRect.anchorMax = new Vector2(0.97f, 0.11f);
             nrRect.offsetMin = Vector2.zero;
             nrRect.offsetMax = Vector2.zero;
 
@@ -1207,21 +1582,64 @@ namespace FightFace
             var inputField = inputObj.AddComponent<InputField>();
             inputField.textComponent = inTxt;
             inputField.text = "El Gordo";
-            webcamMgr.fighterNameInput = inputField;
+            localWebcamMgr.fighterNameInput = inputField;
 
-            // Botón Cerrar / Pelear
+            // ==================== SECCIÓN 2: VOCES ====================
+            GameObject voiceSectionObj = new GameObject("VoiceSection");
+            voiceSectionObj.transform.SetParent(modalObj.transform, false);
+            var vsRect = voiceSectionObj.AddComponent<RectTransform>();
+            vsRect.anchorMin = new Vector2(0.04f, 0.09f);
+            vsRect.anchorMax = new Vector2(0.96f, 0.67f);
+            vsRect.offsetMin = Vector2.zero; vsRect.offsetMax = Vector2.zero;
+
+            BuildVoiceStudioUI(voiceSectionObj.transform, voiceMgr);
+            voiceSectionObj.SetActive(false);
+
+            // Control de Pestañas
+            tabFacesBtn.onClick.AddListener(() =>
+            {
+                photoSectionObj.SetActive(true);
+                voiceSectionObj.SetActive(false);
+                tabFacesImg.color = new Color(0.2f, 0.55f, 0.95f);
+                tabVoicesImg.color = new Color(0.20f, 0.22f, 0.30f);
+            });
+
+            tabVoicesBtn.onClick.AddListener(() =>
+            {
+                photoSectionObj.SetActive(false);
+                voiceSectionObj.SetActive(true);
+                tabFacesImg.color = new Color(0.20f, 0.22f, 0.30f);
+                tabVoicesImg.color = new Color(0.95f, 0.35f, 0.25f);
+
+                voiceMgr.SetTargetFighter(localWebcamMgr.targetFighterId, localWebcamMgr.currentHeadIndex);
+                voiceMgr.CheckMicrophoneDevices();
+                voiceMgr.UpdateAllSlotVisuals();
+            });
+
+            // Botón Cerrar / Volver
             GameObject closeBtnObj = new GameObject("Btn_CloseModal");
             closeBtnObj.transform.SetParent(modalObj.transform, false);
             var clRect = closeBtnObj.AddComponent<RectTransform>();
-            clRect.anchorMin = new Vector2(0.5f, 0.05f);
-            clRect.anchorMax = new Vector2(0.5f, 0.05f);
+            clRect.anchorMin = new Vector2(0.5f, 0.045f);
+            clRect.anchorMax = new Vector2(0.5f, 0.045f);
             clRect.pivot = new Vector2(0.5f, 0.5f);
-            clRect.sizeDelta = new Vector2(280, 50);
+            clRect.sizeDelta = new Vector2(280, 46);
             clRect.anchoredPosition = Vector2.zero;
 
             var clImg = closeBtnObj.AddComponent<Image>();
             clImg.color = new Color(0.2f, 0.8f, 0.35f);
             ui.closeCustomizerButton = closeBtnObj.AddComponent<Button>();
+            ui.closeCustomizerButton.onClick.AddListener(() =>
+            {
+                if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.CloseFaceCustomizer();
+                }
+                else
+                {
+                    modalObj.SetActive(false);
+                }
+            });
 
             GameObject clTxtObj = new GameObject("Text");
             clTxtObj.transform.SetParent(closeBtnObj.transform, false);
@@ -1232,13 +1650,186 @@ namespace FightFace
             var clTxt = clTxtObj.AddComponent<Text>();
             clTxt.text = "✅ ¡LISTO! VOLVER";
             clTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            clTxt.fontSize = 20;
+            clTxt.fontSize = 18;
             clTxt.fontStyle = FontStyle.Bold;
             clTxt.alignment = TextAnchor.MiddleCenter;
             clTxt.color = Color.white;
 
             ui.faceCustomizerPanel = modalObj;
             modalObj.SetActive(false);
+        }
+
+        private void BuildVoiceStudioUI(Transform parent, VoiceCaptureManager voiceMgr)
+        {
+            // Barra de estado superior: Micrófono y Badge de grabación
+            GameObject headerObj = new GameObject("VoiceHeaderBar");
+            headerObj.transform.SetParent(parent, false);
+            var hRect = headerObj.AddComponent<RectTransform>();
+            hRect.anchorMin = new Vector2(0, 0.89f);
+            hRect.anchorMax = new Vector2(1, 1f);
+            hRect.offsetMin = Vector2.zero; hRect.offsetMax = Vector2.zero;
+
+            var hBg = headerObj.AddComponent<Image>();
+            hBg.color = new Color(0.11f, 0.14f, 0.20f, 0.95f);
+            var hOutline = headerObj.AddComponent<Outline>();
+            hOutline.effectColor = new Color(0.2f, 0.7f, 1f, 0.5f);
+            hOutline.effectDistance = new Vector2(1, 1);
+
+            GameObject micTxtObj = new GameObject("MicStatus");
+            micTxtObj.transform.SetParent(headerObj.transform, false);
+            var mtRect = micTxtObj.AddComponent<RectTransform>();
+            mtRect.anchorMin = new Vector2(0.02f, 0);
+            mtRect.anchorMax = new Vector2(0.48f, 1);
+            mtRect.offsetMin = Vector2.zero; mtRect.offsetMax = Vector2.zero;
+            voiceMgr.micStatusText = micTxtObj.AddComponent<Text>();
+            voiceMgr.micStatusText.text = "🎤 Micrófono: Buscando...";
+            voiceMgr.micStatusText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            voiceMgr.micStatusText.fontSize = 13;
+            voiceMgr.micStatusText.alignment = TextAnchor.MiddleLeft;
+            voiceMgr.micStatusText.color = Color.white;
+
+            GameObject badgeObj = new GameObject("RecordingBadge");
+            badgeObj.transform.SetParent(headerObj.transform, false);
+            var bRect = badgeObj.AddComponent<RectTransform>();
+            bRect.anchorMin = new Vector2(0.50f, 0);
+            bRect.anchorMax = new Vector2(0.98f, 1);
+            bRect.offsetMin = Vector2.zero; bRect.offsetMax = Vector2.zero;
+            voiceMgr.recordingStatusBadge = badgeObj.AddComponent<Text>();
+            voiceMgr.recordingStatusBadge.text = "🎙️ Presiona '🔴 GRABAR' para guardar tu propio grito de batalla.";
+            voiceMgr.recordingStatusBadge.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            voiceMgr.recordingStatusBadge.fontSize = 13;
+            voiceMgr.recordingStatusBadge.fontStyle = FontStyle.Bold;
+            voiceMgr.recordingStatusBadge.alignment = TextAnchor.MiddleRight;
+            voiceMgr.recordingStatusBadge.color = new Color(1f, 0.9f, 0.3f);
+
+            // 5 Slots de Voz
+            voiceMgr.slotAttack = CreateVoiceSlotRow(parent, voiceMgr, VoiceType.Attack, "1. 💥 GOLPE FUERTE / ATAQUE", "¡Toma! / ¡Muere!", 0.70f, 0.86f, 1.8f);
+            voiceMgr.slotSpecial = CreateVoiceSlotRow(parent, voiceMgr, VoiceType.Special, "2. 🌀 HADOUKEN / ESPECIAL", "¡Hadouken! / ¡Fuego!", 0.53f, 0.69f, 2.2f);
+            voiceMgr.slotHurt = CreateVoiceSlotRow(parent, voiceMgr, VoiceType.Hurt, "3. 😣 DOLOR / DAÑO", "¡Ayyy! / ¡Ouch!", 0.36f, 0.52f, 1.8f);
+            voiceMgr.slotVictory = CreateVoiceSlotRow(parent, voiceMgr, VoiceType.Victory, "4. 👑 VICTORIA / CELEBRACIÓN", "¡Soy el mejor! / ¡Gané!", 0.19f, 0.35f, 2.5f);
+            voiceMgr.slotKO = CreateVoiceSlotRow(parent, voiceMgr, VoiceType.KO, "5. 💀 DERROTA / K.O.", "¡Nooooo! / ¡Maldición!", 0.02f, 0.18f, 2.5f);
+
+            voiceMgr.UpdateAllSlotVisuals();
+        }
+
+        private VoiceCaptureManager.VoiceSlotUI CreateVoiceSlotRow(Transform parent, VoiceCaptureManager voiceMgr, VoiceType type, string title, string hint, float yMin, float yMax, float maxDuration)
+        {
+            GameObject rowObj = new GameObject($"VoiceSlot_{type}");
+            rowObj.transform.SetParent(parent, false);
+            var rRect = rowObj.AddComponent<RectTransform>();
+            rRect.anchorMin = new Vector2(0, yMin);
+            rRect.anchorMax = new Vector2(1, yMax);
+            rRect.offsetMin = Vector2.zero;
+            rRect.offsetMax = Vector2.zero;
+
+            var rBg = rowObj.AddComponent<Image>();
+            rBg.color = new Color(0.12f, 0.15f, 0.22f, 0.95f);
+            var rOutline = rowObj.AddComponent<Outline>();
+            rOutline.effectColor = new Color(0.25f, 0.55f, 0.85f, 0.6f);
+            rOutline.effectDistance = new Vector2(1, 1);
+
+            var slotUI = new VoiceCaptureManager.VoiceSlotUI { type = type };
+
+            // Label
+            GameObject lblObj = new GameObject("Label");
+            lblObj.transform.SetParent(rowObj.transform, false);
+            var lRect = lblObj.AddComponent<RectTransform>();
+            lRect.anchorMin = new Vector2(0.02f, 0);
+            lRect.anchorMax = new Vector2(0.42f, 1);
+            lRect.offsetMin = Vector2.zero; lRect.offsetMax = Vector2.zero;
+            slotUI.labelText = lblObj.AddComponent<Text>();
+            slotUI.labelText.text = $"<b>{title}</b>\n<size=11><color=#99BBEE>Ejemplo: {hint}</color></size>";
+            slotUI.labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            slotUI.labelText.fontSize = 13;
+            slotUI.labelText.alignment = TextAnchor.MiddleLeft;
+            slotUI.labelText.color = Color.white;
+
+            // Status Badge
+            GameObject statObj = new GameObject("Status");
+            statObj.transform.SetParent(rowObj.transform, false);
+            var stRect = statObj.AddComponent<RectTransform>();
+            stRect.anchorMin = new Vector2(0.43f, 0);
+            stRect.anchorMax = new Vector2(0.61f, 1);
+            stRect.offsetMin = Vector2.zero; stRect.offsetMax = Vector2.zero;
+            slotUI.statusText = statObj.AddComponent<Text>();
+            slotUI.statusText.text = "<color=#AAAAAA>○ Arcade Default</color>";
+            slotUI.statusText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            slotUI.statusText.fontSize = 13;
+            slotUI.statusText.alignment = TextAnchor.MiddleCenter;
+
+            // Botón Grabar
+            GameObject recBtn = new GameObject("Btn_Record");
+            recBtn.transform.SetParent(rowObj.transform, false);
+            var rbRect = recBtn.AddComponent<RectTransform>();
+            rbRect.anchorMin = new Vector2(0.62f, 0.14f);
+            rbRect.anchorMax = new Vector2(0.75f, 0.86f);
+            rbRect.offsetMin = Vector2.zero; rbRect.offsetMax = Vector2.zero;
+            slotUI.recordButtonBg = recBtn.AddComponent<Image>();
+            slotUI.recordButtonBg.color = new Color(0.85f, 0.22f, 0.2f);
+            slotUI.recordButton = recBtn.AddComponent<Button>();
+            slotUI.recordButton.onClick.AddListener(() => voiceMgr.ToggleRecording(type, maxDuration));
+
+            GameObject rbTxtObj = new GameObject("Text");
+            rbTxtObj.transform.SetParent(recBtn.transform, false);
+            var rbtRect = rbTxtObj.AddComponent<RectTransform>();
+            rbtRect.anchorMin = Vector2.zero; rbtRect.anchorMax = Vector2.one; rbtRect.sizeDelta = Vector2.zero;
+            slotUI.recordButtonText = rbTxtObj.AddComponent<Text>();
+            slotUI.recordButtonText.text = "🔴 GRABAR";
+            slotUI.recordButtonText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            slotUI.recordButtonText.fontSize = 13;
+            slotUI.recordButtonText.fontStyle = FontStyle.Bold;
+            slotUI.recordButtonText.alignment = TextAnchor.MiddleCenter;
+            slotUI.recordButtonText.color = Color.white;
+
+            // Botón Escuchar
+            GameObject playBtn = new GameObject("Btn_Play");
+            playBtn.transform.SetParent(rowObj.transform, false);
+            var pbRect = playBtn.AddComponent<RectTransform>();
+            pbRect.anchorMin = new Vector2(0.76f, 0.14f);
+            pbRect.anchorMax = new Vector2(0.88f, 0.86f);
+            pbRect.offsetMin = Vector2.zero; pbRect.offsetMax = Vector2.zero;
+            var pbImg = playBtn.AddComponent<Image>();
+            pbImg.color = new Color(0.18f, 0.52f, 0.95f);
+            slotUI.playButton = playBtn.AddComponent<Button>();
+            slotUI.playButton.onClick.AddListener(() => voiceMgr.PlayPreview(type));
+
+            GameObject pbTxtObj = new GameObject("Text");
+            pbTxtObj.transform.SetParent(playBtn.transform, false);
+            var pbtRect = pbTxtObj.AddComponent<RectTransform>();
+            pbtRect.anchorMin = Vector2.zero; pbtRect.anchorMax = Vector2.one; pbtRect.sizeDelta = Vector2.zero;
+            var pbTxt = pbTxtObj.AddComponent<Text>();
+            pbTxt.text = "▶️ ESCUCHAR";
+            pbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            pbTxt.fontSize = 12;
+            pbTxt.fontStyle = FontStyle.Bold;
+            pbTxt.alignment = TextAnchor.MiddleCenter;
+            pbTxt.color = Color.white;
+
+            // Botón Reset
+            GameObject delBtn = new GameObject("Btn_Delete");
+            delBtn.transform.SetParent(rowObj.transform, false);
+            var dbRect = delBtn.AddComponent<RectTransform>();
+            dbRect.anchorMin = new Vector2(0.89f, 0.14f);
+            dbRect.anchorMax = new Vector2(0.98f, 0.86f);
+            dbRect.offsetMin = Vector2.zero; dbRect.offsetMax = Vector2.zero;
+            var dbImg = delBtn.AddComponent<Image>();
+            dbImg.color = new Color(0.35f, 0.38f, 0.45f);
+            slotUI.deleteButton = delBtn.AddComponent<Button>();
+            slotUI.deleteButton.onClick.AddListener(() => voiceMgr.DeleteVoice(type));
+
+            GameObject dbTxtObj = new GameObject("Text");
+            dbTxtObj.transform.SetParent(delBtn.transform, false);
+            var dbtRect = dbTxtObj.AddComponent<RectTransform>();
+            dbtRect.anchorMin = Vector2.zero; dbtRect.anchorMax = Vector2.one; dbtRect.sizeDelta = Vector2.zero;
+            var dbTxt = dbTxtObj.AddComponent<Text>();
+            dbTxt.text = "🗑️ RESET";
+            dbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            dbTxt.fontSize = 12;
+            dbTxt.fontStyle = FontStyle.Bold;
+            dbTxt.alignment = TextAnchor.MiddleCenter;
+            dbTxt.color = new Color(0.9f, 0.9f, 0.9f);
+
+            return slotUI;
         }
 
         private void CreateTournamentRosterButtons(Transform parent, WebcamCaptureManager mgr)
@@ -1313,11 +1904,12 @@ namespace FightFace
 
         private void CreateCameraOrientationControls(Transform parent, WebcamCaptureManager mgr)
         {
-            GameObject container = new GameObject("CameraControls");
+            // Fila 1: Girar, Espejo, Zoom +, Zoom -
+            GameObject container = new GameObject("CameraControls_Row1");
             container.transform.SetParent(parent, false);
             var rect = container.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.04f, 0.17f);
-            rect.anchorMax = new Vector2(0.50f, 0.24f);
+            rect.anchorMin = new Vector2(0.04f, 0.135f);
+            rect.anchorMax = new Vector2(0.50f, 0.195f);
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
@@ -1343,7 +1935,7 @@ namespace FightFace
             var vTxt = vTextObj.AddComponent<Text>();
             vTxt.text = "🔄 Girar";
             vTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            vTxt.fontSize = 13;
+            vTxt.fontSize = 12;
             vTxt.fontStyle = FontStyle.Bold;
             vTxt.alignment = TextAnchor.MiddleCenter;
             vTxt.color = Color.white;
@@ -1370,7 +1962,7 @@ namespace FightFace
             var hTxt = hTextObj.AddComponent<Text>();
             hTxt.text = "↔️ Espejo";
             hTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            hTxt.fontSize = 13;
+            hTxt.fontSize = 12;
             hTxt.fontStyle = FontStyle.Bold;
             hTxt.alignment = TextAnchor.MiddleCenter;
             hTxt.color = Color.white;
@@ -1379,7 +1971,7 @@ namespace FightFace
             GameObject btnZoomIn = new GameObject("Btn_ZoomIn");
             btnZoomIn.transform.SetParent(container.transform, false);
             var zInRect = btnZoomIn.AddComponent<RectTransform>();
-            zInRect.anchorMin = new Vector2(0.52f, 0);
+            zInRect.anchorMin = new Vector2(0.51f, 0);
             zInRect.anchorMax = new Vector2(0.74f, 1);
             zInRect.offsetMin = Vector2.zero;
             zInRect.offsetMax = Vector2.zero;
@@ -1397,7 +1989,7 @@ namespace FightFace
             var zInTxt = zInTxtObj.AddComponent<Text>();
             zInTxt.text = "🔍 Zoom +";
             zInTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            zInTxt.fontSize = 13;
+            zInTxt.fontSize = 12;
             zInTxt.fontStyle = FontStyle.Bold;
             zInTxt.alignment = TextAnchor.MiddleCenter;
             zInTxt.color = Color.white;
@@ -1424,26 +2016,72 @@ namespace FightFace
             var zOutTxt = zOutTxtObj.AddComponent<Text>();
             zOutTxt.text = "🔍 Zoom -";
             zOutTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            zOutTxt.fontSize = 13;
+            zOutTxt.fontSize = 12;
             zOutTxt.fontStyle = FontStyle.Bold;
             zOutTxt.alignment = TextAnchor.MiddleCenter;
             zOutTxt.color = Color.white;
 
-            // Estado de Giro y Zoom
+            // Fila 2: Flechas de Desplazamiento y Recentrado (Mover Foto Izq, Arriba, Abajo, Der, Centrar)
+            GameObject panContainer = new GameObject("CameraControls_Row2_Pan");
+            panContainer.transform.SetParent(parent, false);
+            var pRect = panContainer.AddComponent<RectTransform>();
+            pRect.anchorMin = new Vector2(0.04f, 0.070f);
+            pRect.anchorMax = new Vector2(0.50f, 0.130f);
+            pRect.offsetMin = Vector2.zero;
+            pRect.offsetMax = Vector2.zero;
+
+            CreatePanButton(panContainer.transform, "◀ Izq", new Vector2(0f, 0f), new Vector2(0.18f, 1f), new Color(0.20f, 0.45f, 0.75f), () => mgr.PanLeft(0.04f));
+            CreatePanButton(panContainer.transform, "▲ Arriba", new Vector2(0.20f, 0f), new Vector2(0.38f, 1f), new Color(0.20f, 0.45f, 0.75f), () => mgr.PanUp(0.04f));
+            CreatePanButton(panContainer.transform, "▼ Abajo", new Vector2(0.40f, 0f), new Vector2(0.58f, 1f), new Color(0.20f, 0.45f, 0.75f), () => mgr.PanDown(0.04f));
+            CreatePanButton(panContainer.transform, "▶ Der", new Vector2(0.60f, 0f), new Vector2(0.78f, 1f), new Color(0.20f, 0.45f, 0.75f), () => mgr.PanRight(0.04f));
+            CreatePanButton(panContainer.transform, "⟲ Reset", new Vector2(0.80f, 0f), new Vector2(1.00f, 1f), new Color(0.75f, 0.35f, 0.20f), () => mgr.ResetPanAndZoom());
+
+            // Estado y Consejo de arrastre
             GameObject statusObj = new GameObject("Status_OrientationZoom");
             statusObj.transform.SetParent(parent, false);
             var sRect = statusObj.AddComponent<RectTransform>();
-            sRect.anchorMin = new Vector2(0.04f, 0.11f);
-            sRect.anchorMax = new Vector2(0.50f, 0.16f);
+            sRect.anchorMin = new Vector2(0.04f, 0.005f);
+            sRect.anchorMax = new Vector2(0.50f, 0.065f);
             sRect.offsetMin = Vector2.zero;
             sRect.offsetMax = Vector2.zero;
             var sTxt = statusObj.AddComponent<Text>();
-            sTxt.text = $"Giro: ON | Espejo: OFF | Zoom: {mgr.faceZoom:F1}x";
+            sTxt.text = $"Giro: 0° | Espejo: OFF | Zoom: {mgr.faceZoom:F1}x • Arrastra con ratón";
             sTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            sTxt.fontSize = 14;
+            sTxt.fontSize = 11;
             sTxt.alignment = TextAnchor.MiddleCenter;
-            sTxt.color = new Color(0.9f, 0.9f, 0.95f);
+            sTxt.color = new Color(0.85f, 0.92f, 1f);
             mgr.flipStatusText = sTxt;
+        }
+
+        private void CreatePanButton(Transform parent, string label, Vector2 aMin, Vector2 aMax, Color bgColor, UnityEngine.Events.UnityAction onClick)
+        {
+            GameObject btnObj = new GameObject("Btn_Pan_" + label);
+            btnObj.transform.SetParent(parent, false);
+            var bRect = btnObj.AddComponent<RectTransform>();
+            bRect.anchorMin = aMin;
+            bRect.anchorMax = aMax;
+            bRect.offsetMin = Vector2.zero;
+            bRect.offsetMax = Vector2.zero;
+
+            var bImg = btnObj.AddComponent<Image>();
+            bImg.color = bgColor;
+            var btn = btnObj.AddComponent<Button>();
+            btn.onClick.AddListener(onClick);
+
+            GameObject txtObj = new GameObject("Text");
+            txtObj.transform.SetParent(btnObj.transform, false);
+            var tRect = txtObj.AddComponent<RectTransform>();
+            tRect.anchorMin = Vector2.zero;
+            tRect.anchorMax = Vector2.one;
+            tRect.sizeDelta = Vector2.zero;
+            var txt = txtObj.AddComponent<Text>();
+            txt.text = label;
+            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            txt.fontSize = 11;
+            txt.fontStyle = FontStyle.Bold;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = Color.white;
+            txt.raycastTarget = false;
         }
 
         private void CreateCaptureButton(Transform parent, WebcamCaptureManager mgr, string label, FaceType emotion, Vector2 pos, out Image thumb)
@@ -1469,15 +2107,15 @@ namespace FightFace
             thumb = thumbObj.AddComponent<Image>();
             thumb.color = Color.white;
 
-            // Botón
-            GameObject btnObj = new GameObject("Button");
+            // Botón Capturar con Cámara
+            GameObject btnObj = new GameObject("Button_Capture");
             btnObj.transform.SetParent(container.transform, false);
             var bRect = btnObj.AddComponent<RectTransform>();
             bRect.anchorMin = new Vector2(0, 0.5f);
             bRect.anchorMax = new Vector2(0, 0.5f);
             bRect.pivot = new Vector2(0, 0.5f);
-            bRect.sizeDelta = new Vector2(370, 58);
-            bRect.anchoredPosition = new Vector2(80, 0);
+            bRect.sizeDelta = new Vector2(285, 58);
+            bRect.anchoredPosition = new Vector2(75, 0);
 
             var bImg = btnObj.AddComponent<Image>();
             bImg.color = emotion == FaceType.Enojo 
@@ -1501,10 +2139,44 @@ namespace FightFace
             var txt = textObj.AddComponent<Text>();
             txt.text = label;
             txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            txt.fontSize = 15;
+            txt.fontSize = 14;
             txt.fontStyle = FontStyle.Bold;
             txt.alignment = TextAnchor.MiddleCenter;
             txt.color = Color.white;
+
+            // Botón 📁 Subir Foto desde Archivo (PC)
+            GameObject uploadBtnObj = new GameObject("Button_Upload");
+            uploadBtnObj.transform.SetParent(container.transform, false);
+            var uRect = uploadBtnObj.AddComponent<RectTransform>();
+            uRect.anchorMin = new Vector2(0, 0.5f);
+            uRect.anchorMax = new Vector2(0, 0.5f);
+            uRect.pivot = new Vector2(0, 0.5f);
+            uRect.sizeDelta = new Vector2(90, 58);
+            uRect.anchoredPosition = new Vector2(368, 0);
+
+            var uImg = uploadBtnObj.AddComponent<Image>();
+            uImg.color = new Color(0.12f, 0.55f, 0.45f);
+
+            var uBtn = uploadBtnObj.AddComponent<Button>();
+            uBtn.onClick.AddListener(() =>
+            {
+                mgr.UploadPhotoFromFile(emotion);
+            });
+
+            GameObject uTxtObj = new GameObject("Text");
+            uTxtObj.transform.SetParent(uploadBtnObj.transform, false);
+            var utRect = uTxtObj.AddComponent<RectTransform>();
+            utRect.anchorMin = Vector2.zero;
+            utRect.anchorMax = Vector2.one;
+            utRect.sizeDelta = Vector2.zero;
+
+            var utTxt = uTxtObj.AddComponent<Text>();
+            utTxt.text = "📁 Subir";
+            utTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            utTxt.fontSize = 13;
+            utTxt.fontStyle = FontStyle.Bold;
+            utTxt.alignment = TextAnchor.MiddleCenter;
+            utTxt.color = Color.white;
         }
 
         private void SetupBattleManager(FighterController p1, FighterController p2)
@@ -1595,15 +2267,15 @@ namespace FightFace
             tRect.offsetMax = Vector2.zero;
 
             var titleTxt = titleObj.AddComponent<Text>();
-            titleTxt.text = "★ STREET FIGHTER II : FIGHT FACE EDITION ★";
+            titleTxt.text = "💥 FIGHT FACE 💥";
             titleTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            titleTxt.fontSize = 26;
+            titleTxt.fontSize = 28;
             titleTxt.fontStyle = FontStyle.Bold;
             titleTxt.alignment = TextAnchor.MiddleCenter;
-            titleTxt.color = new Color(1f, 0.85f, 0.15f);
+            titleTxt.color = new Color(1f, 0.90f, 0.20f);
             var tOutline = titleObj.AddComponent<Outline>();
-            tOutline.effectColor = new Color(0.8f, 0.1f, 0f, 0.9f);
-            tOutline.effectDistance = new Vector2(2, -2);
+            tOutline.effectColor = new Color(0.85f, 0.15f, 0.05f, 0.95f);
+            tOutline.effectDistance = new Vector2(3, -3);
 
             GameObject subObj = new GameObject("SubTitle");
             subObj.transform.SetParent(headerObj.transform, false);
@@ -1614,12 +2286,12 @@ namespace FightFace
             sRect.offsetMax = Vector2.zero;
 
             var subTxt = subObj.AddComponent<Text>();
-            subTxt.text = "⚔️ SELECT YOUR FIGHTER • SELECCIONA TU PELEADOR ⚔️";
+            subTxt.text = "✨ SELECCIONA TU PELEADOR • PERSONALIZA CARAS, VOCES Y NOMBRES ✨";
             subTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            subTxt.fontSize = 15;
+            subTxt.fontSize = 14;
             subTxt.fontStyle = FontStyle.Bold;
             subTxt.alignment = TextAnchor.MiddleCenter;
-            subTxt.color = new Color(1f, 0.65f, 0.1f);
+            subTxt.color = new Color(1f, 0.80f, 0.25f);
 
             // ----------------- CUADRÍCULA ROSTER CENTRAL (5 LUCHADORES) -----------------
             GameObject rosterGridObj = new GameObject("RosterGrid");
@@ -1754,18 +2426,136 @@ namespace FightFace
             }
 
             // ----------------- PANEL IZQUIERDO: JUGADOR 1 -----------------
-            BuildPlayerProfileCard(menuObj.transform, selectUI, 1, new Vector2(0.02f, 0.11f), new Vector2(0.485f, 0.62f));
+            BuildPlayerProfileCard(menuObj.transform, selectUI, 1, new Vector2(0.02f, 0.16f), new Vector2(0.485f, 0.63f));
 
             // ----------------- PANEL DERECHO: JUGADOR 2 / CPU -----------------
-            BuildPlayerProfileCard(menuObj.transform, selectUI, 2, new Vector2(0.515f, 0.11f), new Vector2(0.98f, 0.62f));
+            BuildPlayerProfileCard(menuObj.transform, selectUI, 2, new Vector2(0.515f, 0.16f), new Vector2(0.98f, 0.63f));
+
+            // ----------------- SELECTOR DE ESCENARIOS (CASA DE CADA LUCHADOR) -----------------
+            GameObject stagePanelObj = new GameObject("Panel_StageSelector");
+            stagePanelObj.transform.SetParent(menuObj.transform, false);
+            var stgRect = stagePanelObj.AddComponent<RectTransform>();
+            stgRect.anchorMin = new Vector2(0.18f, 0.086f);
+            stgRect.anchorMax = new Vector2(0.82f, 0.150f);
+            stgRect.offsetMin = Vector2.zero;
+            stgRect.offsetMax = Vector2.zero;
+
+            var stgBg = stagePanelObj.AddComponent<Image>();
+            stgBg.color = new Color(0.07f, 0.10f, 0.18f, 0.95f);
+            var stgOutline = stagePanelObj.AddComponent<Outline>();
+            stgOutline.effectColor = new Color(0.35f, 0.55f, 0.85f, 0.8f);
+            stgOutline.effectDistance = new Vector2(2, 2);
+
+            // Botón Escenario Anterior
+            GameObject btnPrevObj = new GameObject("Btn_StagePrev");
+            btnPrevObj.transform.SetParent(stagePanelObj.transform, false);
+            var bpRect = btnPrevObj.AddComponent<RectTransform>();
+            bpRect.anchorMin = new Vector2(0.01f, 0.08f);
+            bpRect.anchorMax = new Vector2(0.15f, 0.92f);
+            bpRect.offsetMin = Vector2.zero;
+            bpRect.offsetMax = Vector2.zero;
+            var bpImg = btnPrevObj.AddComponent<Image>();
+            bpImg.color = new Color(0.20f, 0.28f, 0.45f);
+            var bpOutline = btnPrevObj.AddComponent<Outline>();
+            bpOutline.effectColor = new Color(0.4f, 0.6f, 1f);
+            bpOutline.effectDistance = new Vector2(1, 1);
+            selectUI.stagePrevButton = btnPrevObj.AddComponent<Button>();
+
+            GameObject bpTxtObj = new GameObject("Text");
+            bpTxtObj.transform.SetParent(btnPrevObj.transform, false);
+            var bpTRect = bpTxtObj.AddComponent<RectTransform>();
+            bpTRect.anchorMin = Vector2.zero;
+            bpTRect.anchorMax = Vector2.one;
+            bpTRect.sizeDelta = Vector2.zero;
+            var bpTxt = bpTxtObj.AddComponent<Text>();
+            bpTxt.text = "◀ ANTERIOR";
+            bpTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            bpTxt.fontSize = 11;
+            bpTxt.fontStyle = FontStyle.Bold;
+            bpTxt.alignment = TextAnchor.MiddleCenter;
+            bpTxt.color = Color.white;
+
+            // Miniatura del escenario
+            GameObject prevImgObj = new GameObject("StagePreviewImage");
+            prevImgObj.transform.SetParent(stagePanelObj.transform, false);
+            var pviRect = prevImgObj.AddComponent<RectTransform>();
+            pviRect.anchorMin = new Vector2(0.16f, 0.08f);
+            pviRect.anchorMax = new Vector2(0.28f, 0.92f);
+            pviRect.offsetMin = Vector2.zero;
+            pviRect.offsetMax = Vector2.zero;
+            selectUI.stagePreviewImage = prevImgObj.AddComponent<Image>();
+            selectUI.stagePreviewImage.preserveAspect = true;
+            var pviOutline = prevImgObj.AddComponent<Outline>();
+            pviOutline.effectColor = new Color(0.9f, 0.8f, 0.2f, 0.8f);
+            pviOutline.effectDistance = new Vector2(1, 1);
+
+            // Textos del escenario (Nombre + Descripción)
+            GameObject stgNameObj = new GameObject("StageName");
+            stgNameObj.transform.SetParent(stagePanelObj.transform, false);
+            var snRect = stgNameObj.AddComponent<RectTransform>();
+            snRect.anchorMin = new Vector2(0.295f, 0.48f);
+            snRect.anchorMax = new Vector2(0.84f, 0.96f);
+            snRect.offsetMin = Vector2.zero;
+            snRect.offsetMax = Vector2.zero;
+            selectUI.stageNameText = stgNameObj.AddComponent<Text>();
+            selectUI.stageNameText.text = "ESCENARIO: AUTO (CASA DEL OPONENTE)";
+            selectUI.stageNameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            selectUI.stageNameText.fontSize = 14;
+            selectUI.stageNameText.fontStyle = FontStyle.Bold;
+            selectUI.stageNameText.alignment = TextAnchor.MiddleLeft;
+            selectUI.stageNameText.color = new Color(1f, 0.90f, 0.2f);
+
+            GameObject stgDescObj = new GameObject("StageDesc");
+            stgDescObj.transform.SetParent(stagePanelObj.transform, false);
+            var sdRect = stgDescObj.AddComponent<RectTransform>();
+            sdRect.anchorMin = new Vector2(0.295f, 0.04f);
+            sdRect.anchorMax = new Vector2(0.84f, 0.48f);
+            sdRect.offsetMin = Vector2.zero;
+            sdRect.offsetMax = Vector2.zero;
+            selectUI.stageDescText = stgDescObj.AddComponent<Text>();
+            selectUI.stageDescText.text = "Selecciona dinámicamente el ring local del rival.";
+            selectUI.stageDescText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            selectUI.stageDescText.fontSize = 11;
+            selectUI.stageDescText.fontStyle = FontStyle.Normal;
+            selectUI.stageDescText.alignment = TextAnchor.MiddleLeft;
+            selectUI.stageDescText.color = new Color(0.75f, 0.85f, 1f);
+
+            // Botón Escenario Siguiente
+            GameObject btnNextObj = new GameObject("Btn_StageNext");
+            btnNextObj.transform.SetParent(stagePanelObj.transform, false);
+            var bnRect = btnNextObj.AddComponent<RectTransform>();
+            bnRect.anchorMin = new Vector2(0.85f, 0.08f);
+            bnRect.anchorMax = new Vector2(0.99f, 0.92f);
+            bnRect.offsetMin = Vector2.zero;
+            bnRect.offsetMax = Vector2.zero;
+            var bnImg = btnNextObj.AddComponent<Image>();
+            bnImg.color = new Color(0.20f, 0.28f, 0.45f);
+            var bnOutline = btnNextObj.AddComponent<Outline>();
+            bnOutline.effectColor = new Color(0.4f, 0.6f, 1f);
+            bnOutline.effectDistance = new Vector2(1, 1);
+            selectUI.stageNextButton = btnNextObj.AddComponent<Button>();
+
+            GameObject bnTxtObj = new GameObject("Text");
+            bnTxtObj.transform.SetParent(btnNextObj.transform, false);
+            var bnTRect = bnTxtObj.AddComponent<RectTransform>();
+            bnTRect.anchorMin = Vector2.zero;
+            bnTRect.anchorMax = Vector2.one;
+            bnTRect.sizeDelta = Vector2.zero;
+            var bnTxt = bnTxtObj.AddComponent<Text>();
+            bnTxt.text = "SIGUIENTE ▶";
+            bnTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            bnTxt.fontSize = 11;
+            bnTxt.fontStyle = FontStyle.Bold;
+            bnTxt.alignment = TextAnchor.MiddleCenter;
+            bnTxt.color = Color.white;
 
             // ----------------- BARRA INFERIOR DE ACCIÓN -----------------
-            // Botón Central Gigante: ¡A PELEAR!
+            // Botón 1: ¡A PELEAR! (Arcade Fight)
             GameObject fightBtnObj = new GameObject("Btn_StartFight");
             fightBtnObj.transform.SetParent(menuObj.transform, false);
             var fbRect = fightBtnObj.AddComponent<RectTransform>();
-            fbRect.anchorMin = new Vector2(0.33f, 0.02f);
-            fbRect.anchorMax = new Vector2(0.67f, 0.09f);
+            fbRect.anchorMin = new Vector2(0.18f, 0.015f);
+            fbRect.anchorMax = new Vector2(0.43f, 0.078f);
             fbRect.offsetMin = Vector2.zero;
             fbRect.offsetMax = Vector2.zero;
 
@@ -1776,6 +2566,7 @@ namespace FightFace
             fbOutline.effectDistance = new Vector2(3, 3);
 
             selectUI.fightButton = fightBtnObj.AddComponent<Button>();
+            selectUI.fightButton.onClick.AddListener(selectUI.OnStartFight);
 
             GameObject fbTxtObj = new GameObject("Text");
             fbTxtObj.transform.SetParent(fightBtnObj.transform, false);
@@ -1784,44 +2575,167 @@ namespace FightFace
             fbTRect.anchorMax = Vector2.one;
             fbTRect.sizeDelta = Vector2.zero;
             var fbTxt = fbTxtObj.AddComponent<Text>();
-            fbTxt.text = "🔥 ¡A PELEAR! [FIGHT / ENTER] 🔥";
+            fbTxt.text = "🔥 ¡A PELEAR! [ENTER]";
             fbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            fbTxt.fontSize = 22;
+            fbTxt.fontSize = 17;
             fbTxt.fontStyle = FontStyle.Bold;
             fbTxt.alignment = TextAnchor.MiddleCenter;
             fbTxt.color = Color.white;
+
+            // Botón 2: MODO TORNEO (Arcade Ladder)
+            GameObject tourneyBtnObj = new GameObject("Btn_TournamentMode");
+            tourneyBtnObj.transform.SetParent(menuObj.transform, false);
+            var tbTourneyRect = tourneyBtnObj.AddComponent<RectTransform>();
+            tbTourneyRect.anchorMin = new Vector2(0.44f, 0.015f);
+            tbTourneyRect.anchorMax = new Vector2(0.69f, 0.078f);
+            tbTourneyRect.offsetMin = Vector2.zero;
+            tbTourneyRect.offsetMax = Vector2.zero;
+
+            var tbTourneyImg = tourneyBtnObj.AddComponent<Image>();
+            tbTourneyImg.color = new Color(1f, 0.65f, 0.10f);
+            var tbTourneyOutline = tourneyBtnObj.AddComponent<Outline>();
+            tbTourneyOutline.effectColor = new Color(1f, 0.95f, 0.3f);
+            tbTourneyOutline.effectDistance = new Vector2(3, 3);
+
+            selectUI.tournamentButton = tourneyBtnObj.AddComponent<Button>();
+            selectUI.tournamentButton.onClick.AddListener(selectUI.OnStartTournament);
+
+            GameObject tbTourneyTxtObj = new GameObject("Text");
+            tbTourneyTxtObj.transform.SetParent(tourneyBtnObj.transform, false);
+            var tbTourneyTRect = tbTourneyTxtObj.AddComponent<RectTransform>();
+            tbTourneyTRect.anchorMin = Vector2.zero;
+            tbTourneyTRect.anchorMax = Vector2.one;
+            tbTourneyTRect.sizeDelta = Vector2.zero;
+            var tbTourneyTxt = tbTourneyTxtObj.AddComponent<Text>();
+            tbTourneyTxt.text = "🏆 MODO TORNEO [F3]";
+            tbTourneyTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            tbTourneyTxt.fontSize = 17;
+            tbTourneyTxt.fontStyle = FontStyle.Bold;
+            tbTourneyTxt.alignment = TextAnchor.MiddleCenter;
+            tbTourneyTxt.color = Color.black;
+
+            // Botón 3: MODO ENTRENAMIENTO (Práctica)
+            GameObject trainBtnObj = new GameObject("Btn_TrainingMode");
+            trainBtnObj.transform.SetParent(menuObj.transform, false);
+            var tbRect = trainBtnObj.AddComponent<RectTransform>();
+            tbRect.anchorMin = new Vector2(0.70f, 0.015f);
+            tbRect.anchorMax = new Vector2(0.88f, 0.078f);
+            tbRect.offsetMin = Vector2.zero;
+            tbRect.offsetMax = Vector2.zero;
+
+            var tbImg = trainBtnObj.AddComponent<Image>();
+            tbImg.color = new Color(0.10f, 0.70f, 0.40f);
+            var tbOutline = trainBtnObj.AddComponent<Outline>();
+            tbOutline.effectColor = new Color(0.4f, 1f, 0.6f);
+            tbOutline.effectDistance = new Vector2(3, 3);
+
+            selectUI.trainingButton = trainBtnObj.AddComponent<Button>();
+            selectUI.trainingButton.onClick.AddListener(selectUI.OnStartTrainingMode);
+
+            GameObject tbTxtObj = new GameObject("Text");
+            tbTxtObj.transform.SetParent(trainBtnObj.transform, false);
+            var tbTRect = tbTxtObj.AddComponent<RectTransform>();
+            tbTRect.anchorMin = Vector2.zero;
+            tbTRect.anchorMax = Vector2.one;
+            tbTRect.sizeDelta = Vector2.zero;
+            var tbTxt = tbTxtObj.AddComponent<Text>();
+            tbTxt.text = "🥋 ENTRENAR [F2]";
+            tbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            tbTxt.fontSize = 16;
+            tbTxt.fontStyle = FontStyle.Bold;
+            tbTxt.alignment = TextAnchor.MiddleCenter;
+            tbTxt.color = Color.white;
 
             // Pistas de controles (Inferior Izquierda)
             GameObject hintObj = new GameObject("ControlsHint");
             hintObj.transform.SetParent(menuObj.transform, false);
             var hiRect = hintObj.AddComponent<RectTransform>();
-            hiRect.anchorMin = new Vector2(0.02f, 0.02f);
-            hiRect.anchorMax = new Vector2(0.31f, 0.09f);
+            hiRect.anchorMin = new Vector2(0.010f, 0.015f);
+            hiRect.anchorMax = new Vector2(0.17f, 0.078f);
             hiRect.offsetMin = Vector2.zero;
             hiRect.offsetMax = Vector2.zero;
 
             var hiTxt = hintObj.AddComponent<Text>();
-            hiTxt.text = "1P: [A/D] Elegir  |  [F/Espacio] Golpear\n2P: [←/→] Elegir  |  [ENTER] Pelear";
+            hiTxt.text = "🎮 1P: Teclado o Joystick [D-Pad] • 📱 [T] Touch Móvil\n[M] Música • [V] Volumen Voces • [C] Caras";
             hiTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            hiTxt.fontSize = 12;
+            hiTxt.fontSize = 11;
             hiTxt.alignment = TextAnchor.MiddleLeft;
             hiTxt.color = new Color(0.7f, 0.8f, 0.95f);
 
-            // Atajos adicionales (Inferior Derecha)
-            GameObject shortcutsObj = new GameObject("ShortcutsHint");
-            shortcutsObj.transform.SetParent(menuObj.transform, false);
-            var scRect = shortcutsObj.AddComponent<RectTransform>();
-            scRect.anchorMin = new Vector2(0.69f, 0.02f);
-            scRect.anchorMax = new Vector2(0.98f, 0.09f);
-            scRect.offsetMin = Vector2.zero;
-            scRect.offsetMax = Vector2.zero;
+            // Botón 4: Control de Música Opcional (ON / OFF)
+            GameObject musicBtnObj = new GameObject("Btn_MusicToggle");
+            musicBtnObj.transform.SetParent(menuObj.transform, false);
+            var mbRect = musicBtnObj.AddComponent<RectTransform>();
+            mbRect.anchorMin = new Vector2(0.885f, 0.048f);
+            mbRect.anchorMax = new Vector2(0.992f, 0.082f);
+            mbRect.offsetMin = Vector2.zero;
+            mbRect.offsetMax = Vector2.zero;
 
-            var scTxt = shortcutsObj.AddComponent<Text>();
-            scTxt.text = "[T] Torneo  |  [C] Webcam  |  [R] Reset\nStreet Fighter II Arcade Engine";
-            scTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            scTxt.fontSize = 12;
-            scTxt.alignment = TextAnchor.MiddleRight;
-            scTxt.color = new Color(1f, 0.8f, 0.2f);
+            var mbImg = musicBtnObj.AddComponent<Image>();
+            mbImg.color = new Color(0.15f, 0.58f, 0.90f);
+            var mbOutline = musicBtnObj.AddComponent<Outline>();
+            mbOutline.effectColor = new Color(0.4f, 0.85f, 1f);
+            mbOutline.effectDistance = new Vector2(2, 2);
+
+            var mbBtn = musicBtnObj.AddComponent<Button>();
+            mbBtn.onClick.AddListener(selectUI.OnToggleMusicClicked);
+
+            GameObject mbTxtObj = new GameObject("Text");
+            mbTxtObj.transform.SetParent(musicBtnObj.transform, false);
+            var mbTRect = mbTxtObj.AddComponent<RectTransform>();
+            mbTRect.anchorMin = Vector2.zero;
+            mbTRect.anchorMax = Vector2.one;
+            mbTRect.sizeDelta = Vector2.zero;
+            var mbTxt = mbTxtObj.AddComponent<Text>();
+            mbTxt.text = "🎵 MÚSICA [M]: SÍ";
+            mbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            mbTxt.fontSize = 11;
+            mbTxt.fontStyle = FontStyle.Bold;
+            mbTxt.alignment = TextAnchor.MiddleCenter;
+            mbTxt.color = Color.white;
+
+            selectUI.musicToggleButton = mbBtn;
+            selectUI.musicToggleText = mbTxt;
+            selectUI.musicToggleImage = mbImg;
+
+            // Botón 5: Control de Volumen de Voces de Batalla (100%, 150%, 200%, 250%, etc.)
+            GameObject voiceBtnObj = new GameObject("Btn_VoiceVolume");
+            voiceBtnObj.transform.SetParent(menuObj.transform, false);
+            var vbRect = voiceBtnObj.AddComponent<RectTransform>();
+            vbRect.anchorMin = new Vector2(0.885f, 0.012f);
+            vbRect.anchorMax = new Vector2(0.992f, 0.046f);
+            vbRect.offsetMin = Vector2.zero;
+            vbRect.offsetMax = Vector2.zero;
+
+            var vbImg = voiceBtnObj.AddComponent<Image>();
+            vbImg.color = new Color(0.20f, 0.65f, 0.35f);
+            var vbOutline = voiceBtnObj.AddComponent<Outline>();
+            vbOutline.effectColor = new Color(0.5f, 1f, 0.6f);
+            vbOutline.effectDistance = new Vector2(2, 2);
+
+            var vbBtn = voiceBtnObj.AddComponent<Button>();
+            vbBtn.onClick.AddListener(selectUI.OnCycleVoiceVolumeClicked);
+
+            GameObject vbTxtObj = new GameObject("Text");
+            vbTxtObj.transform.SetParent(voiceBtnObj.transform, false);
+            var vbTRect = vbTxtObj.AddComponent<RectTransform>();
+            vbTRect.anchorMin = Vector2.zero;
+            vbTRect.anchorMax = Vector2.one;
+            vbTRect.sizeDelta = Vector2.zero;
+            var vbTxt = vbTxtObj.AddComponent<Text>();
+            vbTxt.text = "🗣️ VOCES [V]: 150%";
+            vbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            vbTxt.fontSize = 11;
+            vbTxt.fontStyle = FontStyle.Bold;
+            vbTxt.alignment = TextAnchor.MiddleCenter;
+            vbTxt.color = Color.white;
+
+            selectUI.voiceVolumeButton = vbBtn;
+            selectUI.voiceVolumeText = vbTxt;
+            selectUI.voiceVolumeImage = vbImg;
+
+            // Modal de confirmación y personalización previa al combate
+            BuildPreFightPromptModal(menuObj.transform, selectUI);
         }
 
         private void BuildPlayerProfileCard(Transform parent, CharacterSelectUI selectUI, int playerNum, Vector2 anchorMin, Vector2 anchorMax)
@@ -1901,77 +2815,216 @@ namespace FightFace
             if (playerNum == 1) selectUI.p1FighterCardImage = bodyImg;
             else selectUI.p2FighterCardImage = bodyImg;
 
-            // Panel Derecho: Rostro de Webcam + Estadísticas
+            // Superponer cara real del luchador en la cabeza del cuerpo en la tarjeta
+            GameObject headOverlayObj = new GameObject("CardHeadOverlay");
+            headOverlayObj.transform.SetParent(bodyImgObj.transform, false);
+            var hoRect = headOverlayObj.AddComponent<RectTransform>();
+            hoRect.anchorMin = new Vector2(0.5f, 0.77f);
+            hoRect.anchorMax = new Vector2(0.5f, 0.77f);
+            hoRect.pivot = new Vector2(0.5f, 0.5f);
+            hoRect.sizeDelta = new Vector2(66, 76);
+
+            var hoImg = headOverlayObj.AddComponent<Image>();
+            hoImg.preserveAspect = true;
+            hoImg.raycastTarget = false;
+
+            // Panel Derecho: Estadísticas + Galería de 4 Rostros (Normal, Dolor, Rabia, Ganador)
             GameObject rightSide = new GameObject("RightSideInfo");
             rightSide.transform.SetParent(cardObj.transform, false);
             var rsRect = rightSide.AddComponent<RectTransform>();
-            rsRect.anchorMin = new Vector2(0.52f, 0.22f);
-            rsRect.anchorMax = new Vector2(0.96f, 0.86f);
+            rsRect.anchorMin = new Vector2(0.48f, 0.22f);
+            rsRect.anchorMax = new Vector2(0.97f, 0.86f);
             rsRect.offsetMin = Vector2.zero;
             rsRect.offsetMax = Vector2.zero;
 
-            // Rostro Personalizado (Sticker Ovalado Erguido)
-            GameObject headPreviewObj = new GameObject("HeadStickerPreview");
-            headPreviewObj.transform.SetParent(rightSide.transform, false);
-            var hpRect = headPreviewObj.AddComponent<RectTransform>();
-            hpRect.anchorMin = new Vector2(0.15f, 0.50f);
-            hpRect.anchorMax = new Vector2(0.85f, 0.98f);
-            hpRect.offsetMin = Vector2.zero;
-            hpRect.offsetMax = Vector2.zero;
-
-            var headImg = headPreviewObj.AddComponent<Image>();
-            headImg.preserveAspect = true;
-            headPreviewObj.transform.localScale = Vector3.one;
-
-            var hpOutline = headPreviewObj.AddComponent<Outline>();
-            hpOutline.effectColor = Color.white;
-            hpOutline.effectDistance = new Vector2(2, 2);
-
-            if (playerNum == 1) selectUI.p1HeadPreviewImage = headImg;
-            else selectUI.p2HeadPreviewImage = headImg;
-
-            // Estadísticas Street Fighter II (Fuerza, Velocidad, Defensa, Técnica)
+            // 1. Estadísticas Street Fighter II (Fuerza, Velocidad, Defensa, Técnica)
             GameObject statsObj = new GameObject("StatsBars");
             statsObj.transform.SetParent(rightSide.transform, false);
             var stRect = statsObj.AddComponent<RectTransform>();
-            stRect.anchorMin = new Vector2(0, 0);
-            stRect.anchorMax = new Vector2(1, 0.48f);
+            stRect.anchorMin = new Vector2(0, 0.56f);
+            stRect.anchorMax = new Vector2(1, 1.0f);
             stRect.offsetMin = Vector2.zero;
             stRect.offsetMax = Vector2.zero;
 
             var stTxt = statsObj.AddComponent<Text>();
             stTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            stTxt.fontSize = 11;
+            stTxt.fontSize = 12;
             stTxt.fontStyle = FontStyle.Bold;
             stTxt.alignment = TextAnchor.MiddleLeft;
             stTxt.color = new Color(0.9f, 0.95f, 1f);
             if (playerNum == 1) selectUI.p1StatsText = stTxt;
             else selectUI.p2StatsText = stTxt;
 
-            // Nombre y Estilo
-            GameObject nameObj = new GameObject("FighterName");
-            nameObj.transform.SetParent(cardObj.transform, false);
-            var nRect = nameObj.AddComponent<RectTransform>();
-            nRect.anchorMin = new Vector2(0.04f, 0.13f);
-            nRect.anchorMax = new Vector2(0.96f, 0.21f);
-            nRect.offsetMin = Vector2.zero;
-            nRect.offsetMax = Vector2.zero;
+            // 2. Galería de 4 Rostros Personalizados
+            GameObject rackObj = new GameObject("Panel_4Faces");
+            rackObj.transform.SetParent(rightSide.transform, false);
+            var rkRect = rackObj.AddComponent<RectTransform>();
+            rkRect.anchorMin = new Vector2(0, 0);
+            rkRect.anchorMax = new Vector2(1, 0.54f);
+            rkRect.offsetMin = Vector2.zero;
+            rkRect.offsetMax = Vector2.zero;
 
-            var nTxt = nameObj.AddComponent<Text>();
+            // Título de la galería
+            GameObject rkTitleObj = new GameObject("Title");
+            rkTitleObj.transform.SetParent(rackObj.transform, false);
+            var rtRect = rkTitleObj.AddComponent<RectTransform>();
+            rtRect.anchorMin = new Vector2(0, 0.78f);
+            rtRect.anchorMax = new Vector2(1, 1.0f);
+            rtRect.offsetMin = Vector2.zero;
+            rtRect.offsetMax = Vector2.zero;
+            var rtTxt = rkTitleObj.AddComponent<Text>();
+            rtTxt.text = "★ 5 ROSTROS (Clic para cambiar o subir) ★";
+            rtTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            rtTxt.fontSize = 11;
+            rtTxt.fontStyle = FontStyle.Bold;
+            rtTxt.alignment = TextAnchor.MiddleCenter;
+            rtTxt.color = new Color(1f, 0.88f, 0.2f);
+
+            // Contenedor de 5 ranuras horizontales
+            GameObject slotsContainer = new GameObject("SlotsContainer");
+            slotsContainer.transform.SetParent(rackObj.transform, false);
+            var scRect = slotsContainer.AddComponent<RectTransform>();
+            scRect.anchorMin = new Vector2(0, 0);
+            scRect.anchorMax = new Vector2(1, 0.76f);
+            scRect.offsetMin = Vector2.zero;
+            scRect.offsetMax = Vector2.zero;
+
+            Image[] faceThumbs = new Image[5];
+            Button[] faceButtons = new Button[5];
+            string[] faceTitles = { "1. NORMAL", "2. DOLOR", "3. RABIA", "4. GANADOR", "5. K.O." };
+            float slotW = 1f / 5f;
+
+            for (int f = 0; f < 5; f++)
+            {
+                int faceIdx = f;
+                FaceType emotionType = (f == 0) ? FaceType.Base : (f == 1 ? FaceType.Dolor : (f == 2 ? FaceType.Enojo : (f == 3 ? FaceType.Ganador : FaceType.KO)));
+
+                GameObject slotObj = new GameObject($"Slot_Face_{f + 1}");
+                slotObj.transform.SetParent(slotsContainer.transform, false);
+                var sRect = slotObj.AddComponent<RectTransform>();
+                sRect.anchorMin = new Vector2(f * slotW + 0.01f, 0);
+                sRect.anchorMax = new Vector2((f + 1) * slotW - 0.01f, 1);
+                sRect.offsetMin = Vector2.zero;
+                sRect.offsetMax = Vector2.zero;
+
+                var slotBg = slotObj.AddComponent<Image>();
+                slotBg.color = new Color(0.12f, 0.15f, 0.24f, 0.95f);
+                var slotOutline = slotObj.AddComponent<Outline>();
+                slotOutline.effectColor = new Color(0.4f, 0.55f, 0.8f, 0.8f);
+                slotOutline.effectDistance = new Vector2(1, 1);
+
+                var slotBtn = slotObj.AddComponent<Button>();
+                faceButtons[f] = slotBtn;
+
+                // Miniatura de la cara
+                GameObject thumbObj = new GameObject("Thumbnail");
+                thumbObj.transform.SetParent(slotObj.transform, false);
+                var thRect = thumbObj.AddComponent<RectTransform>();
+                thRect.anchorMin = new Vector2(0.04f, 0.28f);
+                thRect.anchorMax = new Vector2(0.96f, 0.96f);
+                thRect.offsetMin = Vector2.zero;
+                thRect.offsetMax = Vector2.zero;
+
+                var thImg = thumbObj.AddComponent<Image>();
+                thImg.preserveAspect = true;
+                faceThumbs[f] = thImg;
+
+                // Etiqueta del tipo de cara
+                GameObject lblObj = new GameObject("Label");
+                lblObj.transform.SetParent(slotObj.transform, false);
+                var lRect = lblObj.AddComponent<RectTransform>();
+                lRect.anchorMin = new Vector2(0, 0);
+                lRect.anchorMax = new Vector2(1, 0.26f);
+                lRect.offsetMin = Vector2.zero;
+                lRect.offsetMax = Vector2.zero;
+
+                var lTxt = lblObj.AddComponent<Text>();
+                lTxt.text = faceTitles[f];
+                lTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                lTxt.fontSize = 8;
+                lTxt.fontStyle = FontStyle.Bold;
+                lTxt.alignment = TextAnchor.MiddleCenter;
+                lTxt.color = new Color(1f, 0.92f, 0.4f);
+            }
+
+            if (playerNum == 1)
+            {
+                selectUI.p1FaceThumbs = faceThumbs;
+                selectUI.p1FaceSlotButtons = faceButtons;
+                selectUI.p1HeadPreviewImage = hoImg;
+            }
+            else
+            {
+                selectUI.p2FaceThumbs = faceThumbs;
+                selectUI.p2FaceSlotButtons = faceButtons;
+                selectUI.p2HeadPreviewImage = hoImg;
+            }
+
+            // Nombre Editable con InputField
+            GameObject nameRow = new GameObject("FighterNameRow");
+            nameRow.transform.SetParent(cardObj.transform, false);
+            var nrRect = nameRow.AddComponent<RectTransform>();
+            nrRect.anchorMin = new Vector2(0.04f, 0.12f);
+            nrRect.anchorMax = new Vector2(0.96f, 0.20f);
+            nrRect.offsetMin = Vector2.zero;
+            nrRect.offsetMax = Vector2.zero;
+
+            var nrBg = nameRow.AddComponent<Image>();
+            nrBg.color = new Color(0.08f, 0.10f, 0.18f, 0.95f);
+            var nrOut = nameRow.AddComponent<Outline>();
+            nrOut.effectColor = new Color(0.35f, 0.55f, 0.85f, 0.8f);
+            nrOut.effectDistance = new Vector2(1, 1);
+
+            GameObject nameLabelObj = new GameObject("Label");
+            nameLabelObj.transform.SetParent(nameRow.transform, false);
+            var nlRect = nameLabelObj.AddComponent<RectTransform>();
+            nlRect.anchorMin = new Vector2(0.02f, 0);
+            nlRect.anchorMax = new Vector2(0.30f, 1);
+            nlRect.offsetMin = Vector2.zero;
+            nlRect.offsetMax = Vector2.zero;
+            var nlTxt = nameLabelObj.AddComponent<Text>();
+            nlTxt.text = "✏️ NOMBRE:";
+            nlTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            nlTxt.fontSize = 12;
+            nlTxt.fontStyle = FontStyle.Bold;
+            nlTxt.alignment = TextAnchor.MiddleLeft;
+            nlTxt.color = new Color(1f, 0.88f, 0.2f);
+
+            GameObject inObj = new GameObject("Text");
+            inObj.transform.SetParent(nameRow.transform, false);
+            var inRect = inObj.AddComponent<RectTransform>();
+            inRect.anchorMin = new Vector2(0.32f, 0);
+            inRect.anchorMax = new Vector2(0.98f, 1);
+            inRect.offsetMin = Vector2.zero;
+            inRect.offsetMax = Vector2.zero;
+            var nTxt = inObj.AddComponent<Text>();
             nTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            nTxt.fontSize = 18;
+            nTxt.fontSize = 15;
             nTxt.fontStyle = FontStyle.Bold;
             nTxt.alignment = TextAnchor.MiddleLeft;
-            nTxt.color = new Color(1f, 0.88f, 0.2f);
-            if (playerNum == 1) selectUI.p1NameText = nTxt;
-            else selectUI.p2NameText = nTxt;
+            nTxt.color = Color.white;
 
-            // Botón Personalizar Rostro con Webcam
+            var nInput = nameRow.AddComponent<InputField>();
+            nInput.textComponent = nTxt;
+            nInput.text = "Luchador";
+
+            if (playerNum == 1)
+            {
+                selectUI.p1NameText = nTxt;
+                selectUI.p1NameInputField = nInput;
+            }
+            else
+            {
+                selectUI.p2NameText = nTxt;
+                selectUI.p2NameInputField = nInput;
+            }
+
+            // Botón 1: Cámara y Voces
             GameObject camBtnObj = new GameObject($"Btn_Webcam_P{playerNum}");
             camBtnObj.transform.SetParent(cardObj.transform, false);
             var cbRect = camBtnObj.AddComponent<RectTransform>();
             cbRect.anchorMin = new Vector2(0.04f, 0.02f);
-            cbRect.anchorMax = new Vector2(0.96f, 0.11f);
+            cbRect.anchorMax = new Vector2(0.48f, 0.105f);
             cbRect.offsetMin = Vector2.zero;
             cbRect.offsetMax = Vector2.zero;
 
@@ -1989,12 +3042,191 @@ namespace FightFace
             cbTRect.anchorMax = Vector2.one;
             cbTRect.sizeDelta = Vector2.zero;
             var cbTxt = cbTxtObj.AddComponent<Text>();
-            cbTxt.text = $"📷 Personalizar Rostro P{playerNum} (Webcam)";
+            cbTxt.text = $"📷 CÁMARA";
             cbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            cbTxt.fontSize = 15;
+            cbTxt.fontSize = 13;
             cbTxt.fontStyle = FontStyle.Bold;
             cbTxt.alignment = TextAnchor.MiddleCenter;
             cbTxt.color = Color.white;
+
+            // Botón 2: Subir Rostro desde PC
+            GameObject uploadBtnObj = new GameObject($"Btn_Upload_P{playerNum}");
+            uploadBtnObj.transform.SetParent(cardObj.transform, false);
+            var ubRect = uploadBtnObj.AddComponent<RectTransform>();
+            ubRect.anchorMin = new Vector2(0.52f, 0.02f);
+            ubRect.anchorMax = new Vector2(0.96f, 0.105f);
+            ubRect.offsetMin = Vector2.zero;
+            ubRect.offsetMax = Vector2.zero;
+
+            var ubImg = uploadBtnObj.AddComponent<Image>();
+            ubImg.color = new Color(0.12f, 0.65f, 0.40f);
+            var ubBtn = uploadBtnObj.AddComponent<Button>();
+
+            if (playerNum == 1) selectUI.p1UploadFileButton = ubBtn;
+            else selectUI.p2UploadFileButton = ubBtn;
+
+            GameObject ubTxtObj = new GameObject("Text");
+            ubTxtObj.transform.SetParent(uploadBtnObj.transform, false);
+            var ubTRect = ubTxtObj.AddComponent<RectTransform>();
+            ubTRect.anchorMin = Vector2.zero;
+            ubTRect.anchorMax = Vector2.one;
+            ubTRect.sizeDelta = Vector2.zero;
+            var ubTxt = ubTxtObj.AddComponent<Text>();
+            ubTxt.text = $"📁 SUBIR ROSTRO";
+            ubTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            ubTxt.fontSize = 13;
+            ubTxt.fontStyle = FontStyle.Bold;
+            ubTxt.alignment = TextAnchor.MiddleCenter;
+            ubTxt.color = Color.white;
+        }
+
+        private void BuildPreFightPromptModal(Transform parent, CharacterSelectUI selectUI)
+        {
+            GameObject modal = new GameObject("Modal_PreFightPrompt");
+            modal.transform.SetParent(parent, false);
+            var mRect = modal.AddComponent<RectTransform>();
+            mRect.anchorMin = new Vector2(0.5f, 0.5f);
+            mRect.anchorMax = new Vector2(0.5f, 0.5f);
+            mRect.pivot = new Vector2(0.5f, 0.5f);
+            mRect.sizeDelta = new Vector2(720, 420);
+            mRect.anchoredPosition = Vector2.zero;
+
+            var bg = modal.AddComponent<Image>();
+            bg.color = new Color(0.06f, 0.08f, 0.16f, 0.98f);
+            var outl = modal.AddComponent<Outline>();
+            outl.effectColor = new Color(1f, 0.8f, 0.2f);
+            outl.effectDistance = new Vector2(3, 3);
+
+            selectUI.preFightModal = modal;
+
+            // Título
+            GameObject titleObj = new GameObject("Title");
+            titleObj.transform.SetParent(modal.transform, false);
+            var tRect = titleObj.AddComponent<RectTransform>();
+            tRect.anchorMin = new Vector2(0.05f, 0.80f);
+            tRect.anchorMax = new Vector2(0.95f, 0.95f);
+            tRect.offsetMin = Vector2.zero; tRect.offsetMax = Vector2.zero;
+            var tTxt = titleObj.AddComponent<Text>();
+            tTxt.text = "🥊 ¿LISTOS PARA EL COMBATE?";
+            tTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            tTxt.fontSize = 24;
+            tTxt.fontStyle = FontStyle.Bold;
+            tTxt.alignment = TextAnchor.MiddleCenter;
+            tTxt.color = new Color(1f, 0.9f, 0.2f);
+
+            // Mensaje amigable
+            GameObject descObj = new GameObject("Desc");
+            descObj.transform.SetParent(modal.transform, false);
+            var dRect = descObj.AddComponent<RectTransform>();
+            dRect.anchorMin = new Vector2(0.08f, 0.58f);
+            dRect.anchorMax = new Vector2(0.92f, 0.78f);
+            dRect.offsetMin = Vector2.zero; dRect.offsetMax = Vector2.zero;
+            var dTxt = descObj.AddComponent<Text>();
+            dTxt.text = "¿Deseas cambiar las fotos, gestos o voces de tus luchadores antes de entrar a la arena?";
+            dTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            dTxt.fontSize = 16;
+            dTxt.alignment = TextAnchor.MiddleCenter;
+            dTxt.color = new Color(0.9f, 0.95f, 1f);
+
+            // Botones de acción
+            // 1. Cambiar fotos P1
+            GameObject btnP1 = new GameObject("Btn_ChangeP1");
+            btnP1.transform.SetParent(modal.transform, false);
+            var p1Rect = btnP1.AddComponent<RectTransform>();
+            p1Rect.anchorMin = new Vector2(0.08f, 0.38f);
+            p1Rect.anchorMax = new Vector2(0.48f, 0.52f);
+            p1Rect.offsetMin = Vector2.zero; p1Rect.offsetMax = Vector2.zero;
+            var p1Img = btnP1.AddComponent<Image>();
+            p1Img.color = new Color(0.2f, 0.55f, 0.95f);
+            var p1Btn = btnP1.AddComponent<Button>();
+            p1Btn.onClick.AddListener(() =>
+            {
+                modal.SetActive(false);
+                selectUI.OpenP1Webcam();
+            });
+            CreateModalButtonText(btnP1.transform, "📷 CAMBIAR FOTOS P1");
+
+            // 2. Cambiar fotos P2
+            GameObject btnP2 = new GameObject("Btn_ChangeP2");
+            btnP2.transform.SetParent(modal.transform, false);
+            var p2Rect = btnP2.AddComponent<RectTransform>();
+            p2Rect.anchorMin = new Vector2(0.52f, 0.38f);
+            p2Rect.anchorMax = new Vector2(0.92f, 0.52f);
+            p2Rect.offsetMin = Vector2.zero; p2Rect.offsetMax = Vector2.zero;
+            var p2Img = btnP2.AddComponent<Image>();
+            p2Img.color = new Color(0.70f, 0.25f, 0.95f);
+            var p2Btn = btnP2.AddComponent<Button>();
+            p2Btn.onClick.AddListener(() =>
+            {
+                modal.SetActive(false);
+                selectUI.OpenP2Webcam();
+            });
+            CreateModalButtonText(btnP2.transform, "📷 CAMBIAR FOTOS P2");
+
+            // 3. Subir Rostro desde PC
+            GameObject btnUp = new GameObject("Btn_UploadPC");
+            btnUp.transform.SetParent(modal.transform, false);
+            var upRect = btnUp.AddComponent<RectTransform>();
+            upRect.anchorMin = new Vector2(0.08f, 0.23f);
+            upRect.anchorMax = new Vector2(0.48f, 0.35f);
+            upRect.offsetMin = Vector2.zero; upRect.offsetMax = Vector2.zero;
+            var upImg = btnUp.AddComponent<Image>();
+            upImg.color = new Color(0.15f, 0.65f, 0.40f);
+            var upBtn = btnUp.AddComponent<Button>();
+            upBtn.onClick.AddListener(() =>
+            {
+                modal.SetActive(false);
+                selectUI.OnP1UploadPhoto();
+            });
+            CreateModalButtonText(btnUp.transform, "📁 SUBIR ROSTRO (PC)");
+
+            // 4. ¡A PELEAR AHORA!
+            GameObject btnFight = new GameObject("Btn_FightNow");
+            btnFight.transform.SetParent(modal.transform, false);
+            var fRect = btnFight.AddComponent<RectTransform>();
+            fRect.anchorMin = new Vector2(0.52f, 0.23f);
+            fRect.anchorMax = new Vector2(0.92f, 0.35f);
+            fRect.offsetMin = Vector2.zero; fRect.offsetMax = Vector2.zero;
+            var fImg = btnFight.AddComponent<Image>();
+            fImg.color = new Color(1f, 0.4f, 0.1f);
+            var fBtn = btnFight.AddComponent<Button>();
+            fBtn.onClick.AddListener(() =>
+            {
+                selectUI.ExecuteStartFight();
+            });
+            CreateModalButtonText(btnFight.transform, "🔥 ¡A PELEAR!");
+
+            // 5. Botón Cerrar / Cancelar
+            GameObject btnCancel = new GameObject("Btn_Cancel");
+            btnCancel.transform.SetParent(modal.transform, false);
+            var cRect = btnCancel.AddComponent<RectTransform>();
+            cRect.anchorMin = new Vector2(0.30f, 0.05f);
+            cRect.anchorMax = new Vector2(0.70f, 0.16f);
+            cRect.offsetMin = Vector2.zero; cRect.offsetMax = Vector2.zero;
+            var cImg = btnCancel.AddComponent<Image>();
+            cImg.color = new Color(0.25f, 0.28f, 0.35f);
+            var cBtn = btnCancel.AddComponent<Button>();
+            cBtn.onClick.AddListener(() => modal.SetActive(false));
+            CreateModalButtonText(btnCancel.transform, "VOLVER AL MENÚ");
+
+            modal.SetActive(false);
+        }
+
+        private void CreateModalButtonText(Transform parent, string label)
+        {
+            GameObject txtObj = new GameObject("Text");
+            txtObj.transform.SetParent(parent, false);
+            var tRect = txtObj.AddComponent<RectTransform>();
+            tRect.anchorMin = Vector2.zero;
+            tRect.anchorMax = Vector2.one;
+            tRect.sizeDelta = Vector2.zero;
+            var txt = txtObj.AddComponent<Text>();
+            txt.text = label;
+            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            txt.fontSize = 14;
+            txt.fontStyle = FontStyle.Bold;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = Color.white;
         }
 
         private Sprite CreateOvalGuideSprite(int width, int height)
@@ -2006,8 +3238,8 @@ namespace FightFace
 
             float cx = width / 2f;
             float cy = height / 2f;
-            float rx = width * 0.43f;
-            float ry = height * 0.46f;
+            float rx = width * 0.485f;
+            float ry = height * 0.490f;
 
             for (int y = 0; y < height; y++)
             {
@@ -2018,7 +3250,7 @@ namespace FightFace
                     continue;
                 }
 
-                float taper = 1f + (0.08f * ny);
+                float taper = 1f + (0.05f * ny);
                 float currRx = rx * taper;
 
                 for (int x = 0; x < width; x++)
@@ -2042,6 +3274,160 @@ namespace FightFace
             }
             tex.Apply();
             return Sprite.Create(tex, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), 100f);
+        }
+
+        private void BuildVirtualTouchControlsUI(Transform canvas)
+        {
+            GameObject rootObj = new GameObject("VirtualTouchControlsRoot");
+            rootObj.transform.SetParent(canvas, false);
+            var rootRect = rootObj.AddComponent<RectTransform>();
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+
+            var touchManager = rootObj.AddComponent<VirtualTouchControls>();
+            touchManager.touchRootPanel = rootObj;
+
+            Font arcadeFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+            // 1. D-PAD CRUCETA TÁCTIL (Inferior Izquierda)
+            GameObject dpadObj = new GameObject("DPad_Cluster");
+            dpadObj.transform.SetParent(rootObj.transform, false);
+            var dpadRect = dpadObj.AddComponent<RectTransform>();
+            dpadRect.anchorMin = Vector2.zero;
+            dpadRect.anchorMax = Vector2.zero;
+            dpadRect.pivot = new Vector2(0.5f, 0.5f);
+            dpadRect.anchoredPosition = new Vector2(190f, 190f);
+            dpadRect.sizeDelta = new Vector2(260f, 260f);
+
+            var dpadBg = dpadObj.AddComponent<Image>();
+            dpadBg.color = new Color(0.06f, 0.08f, 0.14f, 0.40f);
+            var dpadOutline = dpadObj.AddComponent<Outline>();
+            dpadOutline.effectColor = new Color(0.2f, 0.4f, 0.7f, 0.5f);
+            dpadOutline.effectDistance = new Vector2(2, 2);
+
+            CreateTouchDirectionButton(dpadObj.transform, "Btn_Left", new Vector2(-75f, 0f), new Vector2(75f, 75f), "◀", TouchAction.Left, arcadeFont);
+            CreateTouchDirectionButton(dpadObj.transform, "Btn_Right", new Vector2(75f, 0f), new Vector2(75f, 75f), "▶", TouchAction.Right, arcadeFont);
+            CreateTouchDirectionButton(dpadObj.transform, "Btn_Jump", new Vector2(0f, 75f), new Vector2(75f, 75f), "▲\nSALTO", TouchAction.Jump, arcadeFont);
+            CreateTouchDirectionButton(dpadObj.transform, "Btn_Down", new Vector2(0f, -75f), new Vector2(75f, 75f), "▼\nABAJO", TouchAction.Down, arcadeFont);
+
+            // 2. BOTONERA DE ACCIÓN ARCADE (Inferior Derecha)
+            GameObject actObj = new GameObject("Action_Cluster");
+            actObj.transform.SetParent(rootObj.transform, false);
+            var actRect = actObj.AddComponent<RectTransform>();
+            actRect.anchorMin = new Vector2(1f, 0f);
+            actRect.anchorMax = new Vector2(1f, 0f);
+            actRect.pivot = new Vector2(1f, 0f);
+            actRect.anchoredPosition = Vector2.zero;
+            actRect.sizeDelta = new Vector2(500f, 350f);
+
+            // Puño Ligero (LP)
+            CreateTouchActionButton(actObj.transform, "Btn_Punch", new Vector2(-220f, 120f), new Vector2(85f, 85f), "👊\nPUÑO", new Color(0.85f, 0.25f, 0.15f, 0.75f), new Color(1f, 0.4f, 0.3f), TouchAction.Punch, arcadeFont);
+            // Patada Ligera (LK)
+            CreateTouchActionButton(actObj.transform, "Btn_Kick", new Vector2(-115f, 75f), new Vector2(85f, 85f), "🦶\nPATADA", new Color(0.15f, 0.50f, 0.90f, 0.75f), new Color(0.4f, 0.75f, 1f), TouchAction.Kick, arcadeFont);
+            // Puño Fuerte (HP)
+            CreateTouchActionButton(actObj.transform, "Btn_HeavyPunch", new Vector2(-220f, 225f), new Vector2(85f, 85f), "💥\nP.FUERTE", new Color(0.95f, 0.55f, 0.10f, 0.75f), new Color(1f, 0.8f, 0.3f), TouchAction.HeavyPunch, arcadeFont);
+            // Patada Fuerte (HK)
+            CreateTouchActionButton(actObj.transform, "Btn_HeavyKick", new Vector2(-115f, 180f), new Vector2(85f, 85f), "⚡\nK.FUERTE", new Color(0.70f, 0.20f, 0.80f, 0.75f), new Color(0.9f, 0.45f, 1f), TouchAction.HeavyKick, arcadeFont);
+            // Hadouken Especial
+            CreateTouchActionButton(actObj.transform, "Btn_Special", new Vector2(-335f, 175f), new Vector2(95f, 95f), "🔥\nHADOUKEN", new Color(0.10f, 0.85f, 0.95f, 0.85f), new Color(0.5f, 1f, 1f), TouchAction.Special, arcadeFont);
+
+            // 3. BOTÓN DE PAUSA / MENÚ TÁCTIL (Superior Derecha)
+            GameObject pauseObj = new GameObject("Btn_TouchPause");
+            pauseObj.transform.SetParent(rootObj.transform, false);
+            var pauseRect = pauseObj.AddComponent<RectTransform>();
+            pauseRect.anchorMin = new Vector2(1f, 1f);
+            pauseRect.anchorMax = new Vector2(1f, 1f);
+            pauseRect.pivot = new Vector2(1f, 1f);
+            pauseRect.anchoredPosition = new Vector2(-30f, -30f);
+            pauseRect.sizeDelta = new Vector2(65f, 65f);
+
+            var pauseImg = pauseObj.AddComponent<Image>();
+            pauseImg.color = new Color(0.12f, 0.15f, 0.22f, 0.75f);
+            var pauseOutline = pauseObj.AddComponent<Outline>();
+            pauseOutline.effectColor = new Color(1f, 0.85f, 0.2f);
+            pauseOutline.effectDistance = new Vector2(2, 2);
+
+            var pauseHandler = pauseObj.AddComponent<TouchButtonHandler>();
+            pauseHandler.action = TouchAction.Pause;
+
+            GameObject pTxtObj = new GameObject("Text");
+            pTxtObj.transform.SetParent(pauseObj.transform, false);
+            var pTRect = pTxtObj.AddComponent<RectTransform>();
+            pTRect.anchorMin = Vector2.zero;
+            pTRect.anchorMax = Vector2.one;
+            pTRect.sizeDelta = Vector2.zero;
+            var pTxt = pTxtObj.AddComponent<Text>();
+            pTxt.text = "⏸️";
+            pTxt.font = arcadeFont;
+            pTxt.fontSize = 26;
+            pTxt.alignment = TextAnchor.MiddleCenter;
+            pTxt.color = Color.white;
+        }
+
+        private static void CreateTouchDirectionButton(Transform parent, string name, Vector2 pos, Vector2 size, string label, TouchAction action, Font font)
+        {
+            GameObject btnObj = new GameObject(name);
+            btnObj.transform.SetParent(parent, false);
+            var rect = btnObj.AddComponent<RectTransform>();
+            rect.anchoredPosition = pos;
+            rect.sizeDelta = size;
+
+            var img = btnObj.AddComponent<Image>();
+            img.color = new Color(0.18f, 0.22f, 0.32f, 0.65f);
+            var outline = btnObj.AddComponent<Outline>();
+            outline.effectColor = new Color(0.35f, 0.65f, 1f, 0.7f);
+            outline.effectDistance = new Vector2(2, 2);
+
+            var handler = btnObj.AddComponent<TouchButtonHandler>();
+            handler.action = action;
+
+            GameObject txtObj = new GameObject("Text");
+            txtObj.transform.SetParent(btnObj.transform, false);
+            var tRect = txtObj.AddComponent<RectTransform>();
+            tRect.anchorMin = Vector2.zero;
+            tRect.anchorMax = Vector2.one;
+            tRect.sizeDelta = Vector2.zero;
+            var txt = txtObj.AddComponent<Text>();
+            txt.text = label;
+            txt.font = font;
+            txt.fontSize = 12;
+            txt.fontStyle = FontStyle.Bold;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = Color.white;
+        }
+
+        private static void CreateTouchActionButton(Transform parent, string name, Vector2 pos, Vector2 size, string label, Color color, Color outlineColor, TouchAction action, Font font)
+        {
+            GameObject btnObj = new GameObject(name);
+            btnObj.transform.SetParent(parent, false);
+            var rect = btnObj.AddComponent<RectTransform>();
+            rect.anchoredPosition = pos;
+            rect.sizeDelta = size;
+
+            var img = btnObj.AddComponent<Image>();
+            img.color = color;
+            var outline = btnObj.AddComponent<Outline>();
+            outline.effectColor = outlineColor;
+            outline.effectDistance = new Vector2(2, 2);
+
+            var handler = btnObj.AddComponent<TouchButtonHandler>();
+            handler.action = action;
+
+            GameObject txtObj = new GameObject("Text");
+            txtObj.transform.SetParent(btnObj.transform, false);
+            var tRect = txtObj.AddComponent<RectTransform>();
+            tRect.anchorMin = Vector2.zero;
+            tRect.anchorMax = Vector2.one;
+            tRect.sizeDelta = Vector2.zero;
+            var txt = txtObj.AddComponent<Text>();
+            txt.text = label;
+            txt.font = font;
+            txt.fontSize = 11;
+            txt.fontStyle = FontStyle.Bold;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = Color.white;
         }
 
         private static Sprite CreateWhiteUiSprite()

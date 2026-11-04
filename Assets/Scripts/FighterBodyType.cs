@@ -16,6 +16,9 @@ namespace FightFace
         Musculoso = 2,
         Mujer = 3,
         Mujer2 = 4,
-        DosCabezas = 5
+        DosCabezas = 5,
+        Playero = 6,
+        Oficinista = 7,
+        Pijamero = 8
     }
 }

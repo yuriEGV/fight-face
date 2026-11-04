@@ -49,9 +49,9 @@ namespace FightFace
         }
 
         /// <summary>
-        /// Ejecuta el impacto estilo Street Fighter / Mortal Kombat
+        /// Ejecuta el impacto estilo Street Fighter / Mortal Kombat (con sacudida suave y enfocada)
         /// </summary>
-        public void ImpactoPesado(float duracionHitstop = 0.08f, float intensidadShake = 0.2f)
+        public void ImpactoPesado(float duracionHitstop = 0.065f, float intensidadShake = 0.028f)
         {
             StartCoroutine(RutinaHitstop(duracionHitstop));
             
@@ -59,13 +59,13 @@ namespace FightFace
             {
                 StopCoroutine(activeShakeRoutine);
             }
-            activeShakeRoutine = StartCoroutine(RutinaScreenShake(duracionHitstop + 0.07f, intensidadShake));
+            activeShakeRoutine = StartCoroutine(RutinaScreenShake(duracionHitstop + 0.035f, intensidadShake));
         }
 
         /// <summary>
         /// Impacto ligero para golpes rápidos
         /// </summary>
-        public void ImpactoLigero(float duracionHitstop = 0.04f, float intensidadShake = 0.1f)
+        public void ImpactoLigero(float duracionHitstop = 0.032f, float intensidadShake = 0.014f)
         {
             ImpactoPesado(duracionHitstop, intensidadShake);
         }
@@ -81,24 +81,17 @@ namespace FightFace
 
         private IEnumerator RutinaScreenShake(float duracion, float magnitud)
         {
-            if (mainCamera == null) mainCamera = Camera.main;
-            if (mainCamera == null) yield break;
-
-            Transform cam = mainCamera.transform;
-            Vector3 posOriginal = cam.localPosition;
             float tiempo = 0f;
-
             while (tiempo < duracion)
             {
                 float x = Random.Range(-1f, 1f) * magnitud;
                 float y = Random.Range(-1f, 1f) * magnitud;
-
-                cam.localPosition = new Vector3(posOriginal.x + x, posOriginal.y + y, posOriginal.z);
+                DynamicFightCamera.shakeOffset = new Vector3(x, y, 0f);
                 tiempo += Time.unscaledDeltaTime;
                 yield return null;
             }
 
-            cam.localPosition = posOriginal;
+            DynamicFightCamera.shakeOffset = Vector3.zero;
             activeShakeRoutine = null;
         }
     }

@@ -73,6 +73,8 @@ namespace FightFace
             koFocusTarget = null;
         }
 
+        public static Vector3 shakeOffset = Vector3.zero;
+
         private void LateUpdate()
         {
             if (cam == null) return;
@@ -87,7 +89,7 @@ namespace FightFace
             {
                 Vector3 koTarget = koFocusTarget != null ? koFocusTarget.position : (targetP1.position + targetP2.position) * 0.5f;
                 Vector3 desiredPos = new Vector3(Mathf.Clamp(koTarget.x, minX, maxX), koTarget.y + 0.5f, cam.transform.position.z);
-                cam.transform.position = Vector3.Lerp(cam.transform.position, desiredPos, Time.unscaledDeltaTime * 3.5f);
+                cam.transform.position = Vector3.Lerp(cam.transform.position, desiredPos, Time.unscaledDeltaTime * 3.5f) + shakeOffset;
                 cam.orthographicSize = Mathf.Lerp(cam.orthographicSize, koZoom, Time.unscaledDeltaTime * 3.5f);
                 return;
             }
@@ -98,7 +100,7 @@ namespace FightFace
             float targetY = Mathf.Clamp(midPoint.y * 0.35f + defaultY, -0.5f, 1.5f);
 
             Vector3 targetPosition = new Vector3(targetX, targetY, cam.transform.position.z);
-            cam.transform.position = Vector3.Lerp(cam.transform.position, targetPosition, Time.deltaTime * moveSpeed);
+            cam.transform.position = Vector3.Lerp(cam.transform.position, targetPosition, Time.deltaTime * moveSpeed) + shakeOffset;
 
             // Calcular distancia horizontal entre luchadores
             float distance = Mathf.Abs(targetP1.position.x - targetP2.position.x);

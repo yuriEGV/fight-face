@@ -16,6 +16,7 @@ namespace FightFace
         public int damage = 10;
         public float knockbackPower = 6f;
         public bool isHeavyAttack = false;
+        public bool isKickAttack = false;
 
         private FighterController ownerFighter;
         private Collider2D col;
@@ -46,6 +47,7 @@ namespace FightFace
             if (col != null)
             {
                 col.enabled = true;
+                CheckImmediateOverlap();
             }
         }
 
@@ -58,9 +60,37 @@ namespace FightFace
             hasHit = false;
         }
 
+        private void CheckImmediateOverlap()
+        {
+            if (col == null || hasHit) return;
+
+            Collider2D[] results = new Collider2D[12];
+            ContactFilter2D filter = new ContactFilter2D();
+            filter.useTriggers = true;
+            int count = col.Overlap(filter, results);
+            for (int i = 0; i < count; i++)
+            {
+                if (results[i] != null && results[i] != col)
+                {
+                    ProcessHit(results[i]);
+                    if (hasHit) break;
+                }
+            }
+        }
+
         private void OnTriggerEnter2D(Collider2D other)
         {
-            if (hasHit) return;
+            ProcessHit(other);
+        }
+
+        private void OnTriggerStay2D(Collider2D other)
+        {
+            ProcessHit(other);
+        }
+
+        private void ProcessHit(Collider2D other)
+        {
+            if (hasHit || other == null) return;
 
             // 1. Detectar Hurtbox o FighterController del rival
             FighterController target = null;
@@ -82,25 +112,60 @@ namespace FightFace
 
                 // Origen del atacante para dirección de retroceso
                 float attackerOriginX = ownerFighter != null ? ownerFighter.transform.position.x : transform.position.x;
-                float facingDir = ownerFighter != null ? ownerFighter.FacingDirection : 1f;
-                Vector2 knockbackDir = new Vector2(facingDir * knockbackPower, knockbackPower * 0.35f);
 
                 // 1. Aplicar daño y reacción de impacto / Hitstun
                 target.RecibirImpacto(damage, knockbackPower, attackerOriginX, ownerFighter, isHeavyAttack);
 
-                // 2. Activar el Hitstop profesional y Screen Shake
-                float hitstopDuration = isHeavyAttack ? 0.09f : 0.06f;
-                float shakeIntensity = isHeavyAttack ? 0.22f : 0.12f;
+                // Sonido procedural de impacto / bloqueo
+                if (FightAudioManager.Instance != null)
+                {
+                    if (target.IsGuarding())
+                    {
+                        FightAudioManager.Instance.PlayBlock();
+                    }
+                    else if (isKickAttack)
+                    {
+                        FightAudioManager.Instance.PlayKick(isHeavyAttack);
+                    }
+                    else if (isHeavyAttack)
+                    {
+                        FightAudioManager.Instance.PlayHitHeavy();
+                    }
+                    else
+                    {
+                        FightAudioManager.Instance.PlayHitLight();
+                    }
+                }
+
+                // 2. Activar el Hitstop arcade y sacudida sutil (sin desenfocar la cámara)
+                float hitstopDuration = isHeavyAttack ? 0.065f : 0.035f;
+                float shakeIntensity = isHeavyAttack ? 0.028f : 0.014f;
 
                 if (FightImpactManager.Instance != null)
                 {
                     FightImpactManager.Instance.ImpactoPesado(hitstopDuration, shakeIntensity);
                 }
 
-                // 3. Efectos visuales de texto cómic ("¡POW!", "¡CRACK!", "¡BAM!")
+                // 3. Efectos visuales de texto cómic ("¡POW!", "¡CUACK!", "¡ZAS!")
                 if (CombatEffectsManager.Instance != null)
                 {
-                    CombatEffectsManager.Instance.SpawnHitEffect(hitPoint, isHeavyAttack);
+                    if (ownerFighter != null && ownerFighter.bodyController != null && ownerFighter.bodyController.currentBodyType == FighterBodyType.DosCabezas)
+                    {
+                        if (isKickAttack)
+                        {
+                            CombatEffectsManager.Instance.SpawnCustomHitEffect(hitPoint, "¡CUACK!", new Color(1f, 0.92f, 0.1f), isHeavyAttack);
+                        }
+                        else
+                        {
+                            string[] words = { "¡POW!", "¡ZAS!", "¡KAPOW!", "¡TOMA!", "¡PLAF!", "¡BOING!" };
+                            string rw = words[Random.Range(0, words.Length)];
+                            CombatEffectsManager.Instance.SpawnCustomHitEffect(hitPoint, rw, new Color(1f, 0.35f, 0.15f), isHeavyAttack);
+                        }
+                    }
+                    else
+                    {
+                        CombatEffectsManager.Instance.SpawnHitEffect(hitPoint, isHeavyAttack);
+                    }
                 }
 
                 // 4. Apagar inmediatamente para no golpear más de una vez en el mismo ataque

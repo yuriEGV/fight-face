@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
@@ -42,7 +43,7 @@ namespace FightFace
                     Color corner = texture.GetPixel(0, 0);
                     if (corner.a > 0.5f)
                     {
-                        Texture2D masked = MaskAsOvalHead(texture, false, false, 1.90f);
+                        Texture2D masked = MaskAsOvalHead(texture, false, false, 2.70f);
                         texture = masked;
                     }
 
@@ -86,13 +87,13 @@ namespace FightFace
         /// <summary>
         /// Aplica una máscara redondeada estilizada con zoom cerrado al rostro y borde de cómic sutil:
         /// - Zoom cerrado enfocado en facciones (ojos, nariz, boca, mejillas) para eliminar fondo, paredes y pizarras.
-        /// - Contorno redondeado proporcional a la cara.
-        /// - Borde de calcomanía limpio y fino sin invadir las facciones.
+        /// - Contorno redondeado que ocupa prácticamente el rango completo del círculo (97-98%).
+        /// - Borde antialiased limpio sin cortes dentados.
         /// </summary>
-        public static Texture2D MaskAsOvalHead(Texture2D source, bool flipY = false, bool flipX = false, float zoom = 1.90f)
+        public static Texture2D MaskAsOvalHead(Texture2D source, bool flipY = false, bool flipX = false, float zoom = 2.70f, float panX = 0f, float panY = 0f)
         {
             if (source == null) return null;
-            zoom = Mathf.Max(1.0f, zoom);
+            zoom = Mathf.Max(0.4f, zoom);
 
             int minDim = Mathf.Min(source.width, source.height);
             int size = Mathf.Min(minDim, 512);
@@ -102,17 +103,16 @@ namespace FightFace
             result.wrapMode = TextureWrapMode.Clamp;
 
             Color transparent = new Color(0, 0, 0, 0);
-            Color borderOutline = new Color(0.12f, 0.12f, 0.15f, 1f);
-            Color borderGlow = new Color(1f, 1f, 1f, 1f);
+            Color borderOutline = new Color(0.10f, 0.10f, 0.13f, 1f);
 
             Vector2 center = new Vector2(size / 2f, size / 2f);
-            // Proporción redondeada de rostro cómic
-            float radiusX = size * 0.42f;
-            float radiusY = size * 0.45f;
+            // Proporción redondeada que abarca el rango completo disponible de la imagen
+            float radiusX = size * 0.485f;
+            float radiusY = size * 0.490f;
 
-            // Centro del rostro: centrado exactamente en el rostro (0.50f horizontal, 0.52f vertical)
-            float srcCenterX = source.width * 0.5f;
-            float srcCenterY = source.height * 0.52f;
+            // Centro del rostro calibrado con desplazamiento horizontal (panX) y vertical (panY)
+            float srcCenterX = source.width * (0.5f + panX);
+            float srcCenterY = source.height * (0.535f + panY);
             float sampleRadius = (minDim * 0.5f) / zoom;
 
             for (int y = 0; y < size; y++)
@@ -125,8 +125,8 @@ namespace FightFace
                     continue;
                 }
 
-                // Ahusamiento suave hacia el mentón
-                float taper = 1.0f + (0.08f * ny);
+                // Ahusamiento sutil y natural hacia el mentón
+                float taper = 1.0f + (0.05f * ny);
                 float currRx = radiusX * taper;
 
                 float normYOffset = (y - center.y) / (size * 0.5f);
@@ -139,19 +139,22 @@ namespace FightFace
                     float nx = (x - center.x) / currRx;
                     float distSq = (nx * nx) + (ny * ny);
 
-                    if (distSq > 1.0f)
+                    if (distSq > 1.02f)
                     {
                         result.SetPixel(x, y, transparent);
                     }
-                    else if (distSq > 0.965f)
+                    else if (distSq > 0.985f)
                     {
-                        // Trazo negro fino de cómic (1-2 píxeles)
-                        result.SetPixel(x, y, borderOutline);
+                        // Borde suave antialiased exterior
+                        float alpha = Mathf.Clamp01((1.02f - distSq) / 0.035f);
+                        Color c = borderOutline;
+                        c.a = alpha;
+                        result.SetPixel(x, y, c);
                     }
-                    else if (distSq > 0.920f)
+                    else if (distSq > 0.955f)
                     {
-                        // Borde blanco sutil estilo Sticker
-                        result.SetPixel(x, y, borderGlow);
+                        // Contorno fino estilo cómic
+                        result.SetPixel(x, y, borderOutline);
                     }
                     else
                     {
@@ -161,10 +164,17 @@ namespace FightFace
                             ? srcCenterX - (normXOffset * sampleRadius)
                             : srcCenterX + (normXOffset * sampleRadius);
 
-                        float u = Mathf.Clamp01(sampledSrcX / source.width);
-                        float v = Mathf.Clamp01(sampledSrcY / source.height);
-                        Color pixel = source.GetPixelBilinear(u, v);
-                        result.SetPixel(x, y, pixel);
+                        if (sampledSrcX < 0 || sampledSrcX >= source.width || sampledSrcY < 0 || sampledSrcY >= source.height)
+                        {
+                            result.SetPixel(x, y, transparent);
+                        }
+                        else
+                        {
+                            float u = Mathf.Clamp01(sampledSrcX / source.width);
+                            float v = Mathf.Clamp01(sampledSrcY / source.height);
+                            Color pixel = source.GetPixelBilinear(u, v);
+                            result.SetPixel(x, y, pixel);
+                        }
                     }
                 }
             }
@@ -302,6 +312,7 @@ namespace FightFace
             profile.faceBase = CreateSpriteFromTexture(GenerateCartoonFaceTexture(FaceType.Base, skin, band));
             profile.faceAngry = CreateSpriteFromTexture(GenerateCartoonFaceTexture(FaceType.Enojo, skin, band));
             profile.faceHurt = CreateSpriteFromTexture(GenerateCartoonFaceTexture(FaceType.Dolor, skin, band));
+            profile.faceWinner = CreateSpriteFromTexture(GenerateCartoonFaceTexture(FaceType.Ganador, skin, band));
             profile.faceKO = CreateSpriteFromTexture(GenerateCartoonFaceTexture(FaceType.KO, skin, band));
 
             return profile;
@@ -398,6 +409,15 @@ namespace FightFace
                     DrawCircle(tex, leftEyeX - 14, eyeY + 16, 5, new Color(0.3f, 0.7f, 1f));
                     break;
 
+                case FaceType.Ganador:
+                    DrawCircle(tex, leftEyeX, eyeY, 7, Color.white);
+                    DrawCircle(tex, rightEyeX, eyeY, 7, Color.white);
+                    DrawCircle(tex, leftEyeX + 1, eyeY, 3, outlineColor);
+                    DrawCircle(tex, rightEyeX - 1, eyeY, 3, outlineColor);
+                    DrawOpenMouth(tex, (int)(size * 0.5f), (int)(size * 0.28f), 24, 12, outlineColor, new Color(0.95f, 0.25f, 0.35f));
+                    DrawCircle(tex, leftEyeX + 14, eyeY + 12, 4, new Color(1f, 0.9f, 0.2f));
+                    break;
+
                 case FaceType.KO:
                     DrawX(tex, leftEyeX, eyeY, 10, outlineColor, 4);
                     DrawX(tex, rightEyeX, eyeY, 10, outlineColor, 4);
@@ -492,7 +512,7 @@ namespace FightFace
 
         // ----------------- CARGADORES DE LOS 5 CUERPOS CLÁSICOS -----------------
 
-        public static string GetFighterDisplayName(FighterBodyType bodyType)
+        public static string GetFighterDefaultName(FighterBodyType bodyType)
         {
             switch (bodyType)
             {
@@ -501,9 +521,36 @@ namespace FightFace
                 case FighterBodyType.Musculoso: return "El Musculoso";
                 case FighterBodyType.Mujer: return "La Mujer";
                 case FighterBodyType.Mujer2: return "La Guerrera";
-                case FighterBodyType.DosCabezas: return "El Dos Cabezas";
+                case FighterBodyType.DosCabezas: return "Hombre-Máquina";
+                case FighterBodyType.Playero: return "El Playero";
+                case FighterBodyType.Oficinista: return "Oficinista Furioso";
+                case FighterBodyType.Pijamero: return "El Pijamero";
                 default: return "Luchador";
             }
+        }
+
+        public static string GetFighterDisplayName(FighterBodyType bodyType)
+        {
+            int fId = (int)bodyType + 1;
+            return GetSavedFighterName(fId, GetFighterDefaultName(bodyType));
+        }
+
+        public static string GetSavedFighterName(int fighterId, string defaultName)
+        {
+            string key = $"FighterName_{fighterId}";
+            if (PlayerPrefs.HasKey(key))
+            {
+                string saved = PlayerPrefs.GetString(key);
+                if (!string.IsNullOrEmpty(saved)) return saved;
+            }
+            return defaultName;
+        }
+
+        public static void SaveFighterName(int fighterId, string newName)
+        {
+            if (string.IsNullOrEmpty(newName)) return;
+            PlayerPrefs.SetString($"FighterName_{fighterId}", newName);
+            PlayerPrefs.Save();
         }
 
         public static string GetFighterDescription(FighterBodyType bodyType)
@@ -515,7 +562,10 @@ namespace FightFace
                 case FighterBodyType.Musculoso: return "Campeón invicto de boxeo y Muay Thai. Puños devastadores.";
                 case FighterBodyType.Mujer: return "Experta en kickboxing. Patadas voladoras de gran alcance.";
                 case FighterBodyType.Mujer2: return "Maestra de artes marciales y ninjutsu. Gran velocidad y técnicas letales.";
-                case FighterBodyType.DosCabezas: return "Mutante brawler carroñero de cuatro brazos y doble cabezazo.";
+                case FighterBodyType.DosCabezas: return "Hombre-Máquina Graciosa: Cyborg cómico de combate con cañón de confeti, control NES, tetera humeante y botas de pato.";
+                case FighterBodyType.Playero: return "¡El rey del verano! Pelea con su flotador de patito inflable amarillo y patadas con salpicaduras.";
+                case FighterBodyType.Oficinista: return "¡Harto del trabajo! Ataca con su maletín de cuero ejecutivo y corbata desatada al viento.";
+                case FighterBodyType.Pijamero: return "¡Recién despertado de la siesta! Golpea con pantuflas de conejo de peluche y pijama de estrellas.";
                 default: return "";
             }
         }
@@ -524,23 +574,53 @@ namespace FightFace
         {
             switch (bodyType)
             {
-                case FighterBodyType.Gordo: return new Vector3(-0.12f, 1.87f, 0);
-                case FighterBodyType.Flaco: return new Vector3(0.25f, 1.69f, 0);
-                case FighterBodyType.Musculoso: return new Vector3(0.29f, 2.12f, 0);
-                case FighterBodyType.Mujer: return new Vector3(0.62f, 2.19f, 0);
+                case FighterBodyType.Gordo: return new Vector3(-0.02f, 1.86f, 0);
+                case FighterBodyType.Flaco: return new Vector3(-0.02f, 1.69f, 0);
+                case FighterBodyType.Musculoso: return new Vector3(0.19f, 2.12f, 0);
+                case FighterBodyType.Mujer: return new Vector3(0.60f, 2.19f, 0);
                 case FighterBodyType.Mujer2: return new Vector3(0.00f, 1.71f, 0);
-                case FighterBodyType.DosCabezas: return new Vector3(-0.30f, 1.85f, 0);
+                case FighterBodyType.DosCabezas: return new Vector3(0.00f, 1.90f, 0);
+                case FighterBodyType.Playero: return new Vector3(0.05f, 1.95f, 0);
+                case FighterBodyType.Oficinista: return new Vector3(0.00f, 1.85f, 0);
+                case FighterBodyType.Pijamero: return new Vector3(-0.02f, 1.80f, 0);
                 default: return new Vector3(0, 1.85f, 0);
             }
         }
 
         public static Vector3 GetRightNeckLocalOffset(FighterBodyType bodyType)
         {
-            if (bodyType == FighterBodyType.DosCabezas)
-            {
-                return new Vector3(0.44f, 1.85f, 0);
-            }
             return GetNeckLocalOffset(bodyType);
+        }
+
+        private static readonly Dictionary<string, Sprite> modularCache = new Dictionary<string, Sprite>();
+
+        public static Sprite LoadModularPart(string folder, string partName)
+        {
+            return LoadModularPart(folder, partName, new Vector2(0.5f, 0.5f), 320f);
+        }
+
+        public static Sprite LoadModularPart(string folder, string partName, Vector2 pivot, float pixelsPerUnit = 320f)
+        {
+            string key = $"{folder}/{partName}_{pivot.x:F2}_{pivot.y:F2}_{pixelsPerUnit:F0}";
+            if (modularCache.TryGetValue(key, out Sprite cached) && cached != null)
+                return cached;
+
+            string path = Path.Combine(Application.dataPath, "Sprites", "Modular", folder, partName + ".png");
+            if (File.Exists(path))
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (tex.LoadImage(bytes))
+                {
+                    tex.filterMode = FilterMode.Bilinear;
+                    tex.wrapMode = TextureWrapMode.Clamp;
+                    Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), pivot, pixelsPerUnit);
+                    s.name = partName;
+                    modularCache[key] = s;
+                    return s;
+                }
+            }
+            return null;
         }
 
         public static Sprite LoadFighterBodySprite(FighterBodyType bodyType)
@@ -567,6 +647,14 @@ namespace FightFace
             return null;
         }
 
+        /// <summary>
+        /// Carga la tarjeta ilustrada oficial del arquetipo del luchador.
+        /// </summary>
+        public static Sprite LoadFighterBodySprite(int fighterId, FighterBodyType bodyType)
+        {
+            return LoadFighterCardSprite(bodyType);
+        }
+
         public static Sprite LoadFighterCardSprite(FighterBodyType bodyType)
         {
             string fname = $"Fighter_{bodyType}_card.png";
@@ -588,7 +676,16 @@ namespace FightFace
                     return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
                 }
             }
-            return null;
+
+            // Arquetipos extendidos comparten sprites de los luchadores base
+            switch (bodyType)
+            {
+                case FighterBodyType.Playero: return LoadFighterCardSprite(FighterBodyType.Musculoso);
+                case FighterBodyType.Oficinista: return LoadFighterCardSprite(FighterBodyType.Flaco);
+                case FighterBodyType.Pijamero: return LoadFighterCardSprite(FighterBodyType.Gordo);
+                case FighterBodyType.DosCabezas: return LoadFighterCardSprite(FighterBodyType.Gordo);
+                default: return null;
+            }
         }
 
         public static Sprite LoadFighterThumbSprite(FighterBodyType bodyType)
@@ -612,33 +709,126 @@ namespace FightFace
                     return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
                 }
             }
+
+            // Fallback de miniaturas para arquetipos cómicos
+            switch (bodyType)
+            {
+                case FighterBodyType.Playero: return LoadFighterThumbSprite(FighterBodyType.Musculoso);
+                case FighterBodyType.Oficinista: return LoadFighterThumbSprite(FighterBodyType.Flaco);
+                case FighterBodyType.Pijamero: return LoadFighterThumbSprite(FighterBodyType.Gordo);
+                case FighterBodyType.DosCabezas: return LoadFighterThumbSprite(FighterBodyType.Gordo);
+                default: return null;
+            }
+        }
+
+        public static StageType GetHomeStageForFighter(FighterBodyType body)
+        {
+            switch (body)
+            {
+                case FighterBodyType.Gordo: return StageType.GordoMarket;
+                case FighterBodyType.Flaco: return StageType.FlacoDojo;
+                case FighterBodyType.Musculoso: return StageType.MusculosoBeach;
+                case FighterBodyType.Mujer: return StageType.MujerRooftop;
+                case FighterBodyType.Mujer2: return StageType.GuerreraBamboo;
+                case FighterBodyType.DosCabezas: return StageType.DosCabezasScrapyard;
+                case FighterBodyType.Playero: return StageType.MusculosoBeach;
+                case FighterBodyType.Oficinista: return StageType.MujerRooftop;
+                case FighterBodyType.Pijamero: return StageType.FlacoDojo;
+                default: return StageType.GordoMarket;
+            }
+        }
+
+        public static string GetStageDisplayName(StageType stage)
+        {
+            switch (stage)
+            {
+                case StageType.Auto: return "🏠 AUTO (Casa del Oponente)";
+                case StageType.GordoMarket: return "🐟 MERCADO CALLEJERO (El Gordo)";
+                case StageType.FlacoDojo: return "⛩️ TEMPLO DOJO DRAGÓN (El Flaco)";
+                case StageType.MusculosoBeach: return "🌴 PLAYA MUAY THAI (El Musculoso)";
+                case StageType.MujerRooftop: return "🏙️ AZOTEA CYBERPUNK (La Mujer)";
+                case StageType.GuerreraBamboo: return "🎋 BOSQUE DE BAMBÚ (La Guerrera)";
+                case StageType.DosCabezasScrapyard: return "⚙️ HANGAR ROBÓTICO MECHA (Hombre-Máquina)";
+                case StageType.MGMGrand: return "🏟️ MGM GRAND ARENA (Las Vegas - Gran Final)";
+                default: return "🏟️ MGM GRAND ARENA";
+            }
+        }
+
+        public static string GetStageDescription(StageType stage)
+        {
+            switch (stage)
+            {
+                case StageType.Auto: return "Selecciona dinámicamente el ring local del rival según su origen.";
+                case StageType.GordoMarket: return "Lonja tradicional y mercado nocturno de comida callejera entre faroles rojos.";
+                case StageType.FlacoDojo: return "Antiguo santuario Shaolin con dragones tallados en oro y suelo de madera pulida.";
+                case StageType.MusculosoBeach: return "Campamento de Muay Thai al aire libre en la arena frente al mar en pleno ocaso.";
+                case StageType.MujerRooftop: return "Plataforma en lo alto de un rascacielos iluminada por gigantescos letreros de neón.";
+                case StageType.GuerreraBamboo: return "Claro místico en el bosque de bambú iluminado por una inmensa luna llena.";
+                case StageType.DosCabezasScrapyard: return "Taller mecha de alta tecnología con brazos robóticos, computadoras y luces estroboscópicas.";
+                case StageType.MGMGrand: return "El gran cuadrilátero de campeonato mundial bajo focos y multitud de Las Vegas.";
+                default: return "";
+            }
+        }
+
+        public static Sprite LoadStageSprite(StageType stage, FighterBodyType fallbackOpponent = FighterBodyType.Gordo)
+        {
+            StageType target = stage;
+            if (target == StageType.Auto)
+            {
+                target = GetHomeStageForFighter(fallbackOpponent);
+            }
+
+            string filename;
+            switch (target)
+            {
+                case StageType.GordoMarket: filename = "Stage_Gordo_Market.png"; break;
+                case StageType.FlacoDojo: filename = "Stage_Flaco_Dojo.png"; break;
+                case StageType.MusculosoBeach: filename = "Stage_Musculoso_Beach.png"; break;
+                case StageType.MujerRooftop: filename = "Stage_Mujer_Rooftop.png"; break;
+                case StageType.GuerreraBamboo: filename = "Stage_Guerrera_Bamboo.png"; break;
+                case StageType.DosCabezasScrapyard: filename = "Stage_DosCabezas_Scrapyard.png"; break;
+                case StageType.MGMGrand:
+                default: filename = "Stage_MGM_Grand.png"; break;
+            }
+
+            string[] candidatePaths = {
+                Path.Combine(Application.dataPath, "Sprites", "Stages", filename),
+                Path.Combine(Application.dataPath, "Sprites", filename),
+                Path.Combine(Application.dataPath, "Sprites", "Fighters", filename),
+                Path.Combine(Application.dataPath, "Sprites", "Stages", "Stage_MGM_Grand.png"),
+                Path.Combine(Application.dataPath, "Sprites", "Fighters", "Stage_MGM_Grand.png")
+            };
+
+            foreach (string path in candidatePaths)
+            {
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        byte[] bytes = File.ReadAllBytes(path);
+                        Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                        if (tex.LoadImage(bytes))
+                        {
+                            tex.filterMode = FilterMode.Bilinear;
+                            tex.wrapMode = TextureWrapMode.Clamp;
+                            Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                            s.name = Path.GetFileNameWithoutExtension(filename);
+                            return s;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"[FaceLoader] Error al cargar escenario desde {path}: {ex.Message}");
+                    }
+                }
+            }
+
             return null;
         }
 
         public static Sprite LoadStageMGMSprite()
         {
-            string path = Path.Combine(Application.dataPath, "Sprites", "Stage_MGM_Grand.png");
-            if (!File.Exists(path))
-            {
-                path = Path.Combine(Application.dataPath, "Sprites", "Fighters", "Stage_MGM_Grand.png");
-            }
-            if (!File.Exists(path))
-            {
-                path = Path.Combine(Application.dataPath, "Sprites", "Fighters", "Stage_Street.png");
-            }
-
-            if (File.Exists(path))
-            {
-                byte[] bytes = File.ReadAllBytes(path);
-                Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                if (tex.LoadImage(bytes))
-                {
-                    tex.filterMode = FilterMode.Bilinear;
-                    tex.wrapMode = TextureWrapMode.Clamp;
-                    return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
-                }
-            }
-            return null;
+            return LoadStageSprite(StageType.MGMGrand);
         }
 
         public static Sprite LoadModularPartSprite(string characterName, string partName, Vector2 pivot, float pixelsPerUnit = 220f)
@@ -675,15 +865,26 @@ namespace FightFace
             return LoadStageMGMSprite();
         }
 
-        public static FaceProfile LoadProfileForFighter(int id, string defaultName)
+        public static FaceProfile LoadProfileForFighter(int id, string defaultName, int headIndex = 0)
         {
             FaceProfile profile = new FaceProfile();
             profile.fighterId = id;
             profile.fighterName = defaultName;
 
-            string dir1 = Path.Combine(Application.persistentDataPath, "Luchadores", $"Jugador_{id}");
-            string dir2 = Path.Combine(Application.persistentDataPath, "Luchadores", $"Luchador_{id}");
+            string suffix = headIndex > 0 ? $"_Head{headIndex + 1}" : "";
+            string dirLocal1 = Path.Combine(Application.dataPath, "..", "Luchadores", $"Jugador_{id}{suffix}");
+            string dirLocal2 = Path.Combine(Application.dataPath, "..", "Luchadores", $"Luchador_{id}{suffix}");
+            string dir1 = Path.Combine(Application.persistentDataPath, "Luchadores", $"Jugador_{id}{suffix}");
+            string dir2 = Path.Combine(Application.persistentDataPath, "Luchadores", $"Luchador_{id}{suffix}");
 
+            if (Directory.Exists(dirLocal1) && profile.LoadFromDirectory(dirLocal1))
+            {
+                return profile;
+            }
+            if (Directory.Exists(dirLocal2) && profile.LoadFromDirectory(dirLocal2))
+            {
+                return profile;
+            }
             if (Directory.Exists(dir1) && profile.LoadFromDirectory(dir1))
             {
                 return profile;
@@ -693,7 +894,7 @@ namespace FightFace
                 return profile;
             }
 
-            FaceProfile def = CreateDefaultProceduralProfile(id);
+            FaceProfile def = CreateDefaultProceduralProfile(id + (headIndex * 10));
             def.fighterName = defaultName;
             return def;
         }
