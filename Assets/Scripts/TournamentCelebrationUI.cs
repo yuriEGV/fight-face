@@ -17,6 +17,7 @@ namespace FightFace
     public class TournamentCelebrationUI : MonoBehaviour
     {
         public static TournamentCelebrationUI Instance { get; private set; }
+        public bool IsActive => panelRoot != null && panelRoot.activeSelf;
 
         private GameObject panelRoot;
         private Image winnerFaceImage;

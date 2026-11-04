@@ -335,6 +335,10 @@ namespace FightFace
             var celebrationUI = canvasObj.AddComponent<TournamentCelebrationUI>();
             celebrationUI.BuildCelebrationUI(canvasObj.transform);
 
+            var netMgr = canvasObj.AddComponent<NetworkFightManager>();
+            var netLobby = canvasObj.AddComponent<NetworkLobbyUI>();
+            netLobby.BuildLobbyUI(canvasObj.transform);
+
             // Controles Táctiles en Pantalla para Celulares / Android (y testeable en PC con tecla T)
             BuildVirtualTouchControlsUI(canvasObj.transform);
 
@@ -1114,23 +1118,24 @@ namespace FightFace
             infoObj.transform.SetParent(bottomBar.transform, false);
             var infoRect = infoObj.AddComponent<RectTransform>();
             infoRect.anchorMin = new Vector2(0, 0);
-            infoRect.anchorMax = new Vector2(0.48f, 1);
-            infoRect.offsetMin = new Vector2(20, 5);
+            infoRect.anchorMax = new Vector2(0.40f, 1);
+            infoRect.offsetMin = new Vector2(15, 5);
             infoRect.offsetMax = new Vector2(0, -5);
 
             var text = infoObj.AddComponent<Text>();
-            text.text = "<b>P1:</b> [A/D] Mover | [Atrás] Bloquear | [W] Salto | [F] LP | [R] HP | [G] LK | [T] HK | [Q] Especial | [H] Agarre\n<b>P2:</b> [←/→] Mover | [Atrás] Bloquear | [↑] Salto | [L] LP | [P] HP | [K] LK | [O] HK | [I] Especial | [Pad3] Agarre";
+            text.text = "<b>P1:</b> [A/D] Mover | [W] Salto | [F] LP | [R] HP | [G] LK | [T] HK | [Q] Super | [H] Agarre\n<b>P2:</b> [←/→] Mover | [↑] Salto | [L] LP | [P] HP | [K] LK | [O] HK | [I] Super | [Pad3] Agarre";
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 13;
+            text.fontSize = 12;
             text.color = new Color(0.85f, 0.9f, 1f);
             text.alignment = TextAnchor.MiddleLeft;
+            text.raycastTarget = false;
 
-            // Botón 0: 🥊 Personajes [M / ESC]
+            // Botón 0: 🥊 Personajes [M / ESC] / 🛑 SALIR si está en entrenamiento
             GameObject btnMenuObj = new GameObject("Btn_SelectMenu");
             btnMenuObj.transform.SetParent(bottomBar.transform, false);
             var mRect = btnMenuObj.AddComponent<RectTransform>();
-            mRect.anchorMin = new Vector2(0.49f, 0.15f);
-            mRect.anchorMax = new Vector2(0.61f, 0.85f);
+            mRect.anchorMin = new Vector2(0.41f, 0.15f);
+            mRect.anchorMax = new Vector2(0.52f, 0.85f);
             mRect.offsetMin = Vector2.zero;
             mRect.offsetMax = Vector2.zero;
             var mImg = btnMenuObj.AddComponent<Image>();
@@ -1160,17 +1165,18 @@ namespace FightFace
             var mTxt = mTxtObj.AddComponent<Text>();
             mTxt.text = "🥊 Menú [ESC]";
             mTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            mTxt.fontSize = 15;
+            mTxt.fontSize = 14;
             mTxt.fontStyle = FontStyle.Bold;
             mTxt.alignment = TextAnchor.MiddleCenter;
             mTxt.color = Color.white;
+            mTxt.raycastTarget = false;
 
             // Botón 1: 🏆 Torneo Street Fighter [F3]
             GameObject btnTourneyObj = new GameObject("Btn_Tournament");
             btnTourneyObj.transform.SetParent(bottomBar.transform, false);
             var tRect = btnTourneyObj.AddComponent<RectTransform>();
-            tRect.anchorMin = new Vector2(0.62f, 0.15f);
-            tRect.anchorMax = new Vector2(0.73f, 0.85f);
+            tRect.anchorMin = new Vector2(0.53f, 0.15f);
+            tRect.anchorMax = new Vector2(0.64f, 0.85f);
             tRect.offsetMin = Vector2.zero;
             tRect.offsetMax = Vector2.zero;
             var tImg = btnTourneyObj.AddComponent<Image>();
@@ -1198,17 +1204,52 @@ namespace FightFace
             var tTxt = tTxtObj.AddComponent<Text>();
             tTxt.text = "🏆 Torneo [F3]";
             tTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            tTxt.fontSize = 15;
+            tTxt.fontSize = 14;
             tTxt.fontStyle = FontStyle.Bold;
             tTxt.alignment = TextAnchor.MiddleCenter;
             tTxt.color = Color.black;
+            tTxt.raycastTarget = false;
 
-            // Botón 2: 📸 Caras / Webcam [C]
+            // Botón 2: 📶 Multijugador Wi-Fi [N]
+            GameObject btnWifiObj = new GameObject("Btn_Wifi");
+            btnWifiObj.transform.SetParent(bottomBar.transform, false);
+            var wRect = btnWifiObj.AddComponent<RectTransform>();
+            wRect.anchorMin = new Vector2(0.65f, 0.15f);
+            wRect.anchorMax = new Vector2(0.76f, 0.85f);
+            wRect.offsetMin = Vector2.zero;
+            wRect.offsetMax = Vector2.zero;
+            var wImg = btnWifiObj.AddComponent<Image>();
+            wImg.color = new Color(0.12f, 0.65f, 0.85f);
+            var wBtn = btnWifiObj.AddComponent<Button>();
+            wBtn.onClick.AddListener(() =>
+            {
+                if (NetworkLobbyUI.Instance != null)
+                {
+                    NetworkLobbyUI.Instance.ToggleLobby();
+                }
+            });
+
+            GameObject wTxtObj = new GameObject("Text");
+            wTxtObj.transform.SetParent(btnWifiObj.transform, false);
+            var wtRect = wTxtObj.AddComponent<RectTransform>();
+            wtRect.anchorMin = Vector2.zero;
+            wtRect.anchorMax = Vector2.one;
+            wtRect.sizeDelta = Vector2.zero;
+            var wTxt = wTxtObj.AddComponent<Text>();
+            wTxt.text = "📶 WI-FI [N]";
+            wTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            wTxt.fontSize = 14;
+            wTxt.fontStyle = FontStyle.Bold;
+            wTxt.alignment = TextAnchor.MiddleCenter;
+            wTxt.color = Color.white;
+            wTxt.raycastTarget = false;
+
+            // Botón 3: 📸 Caras / Webcam [C]
             GameObject btnCustomObj = new GameObject("Btn_CustomFaces");
             btnCustomObj.transform.SetParent(bottomBar.transform, false);
             var btnRect = btnCustomObj.AddComponent<RectTransform>();
-            btnRect.anchorMin = new Vector2(0.74f, 0.15f);
-            btnRect.anchorMax = new Vector2(0.87f, 0.85f);
+            btnRect.anchorMin = new Vector2(0.77f, 0.15f);
+            btnRect.anchorMax = new Vector2(0.88f, 0.85f);
             btnRect.offsetMin = Vector2.zero;
             btnRect.offsetMax = Vector2.zero;
             var btnImg = btnCustomObj.AddComponent<Image>();
@@ -1231,17 +1272,18 @@ namespace FightFace
             var btnTxt = btnTextObj.AddComponent<Text>();
             btnTxt.text = "📸 Caras [C]";
             btnTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            btnTxt.fontSize = 15;
+            btnTxt.fontSize = 14;
             btnTxt.fontStyle = FontStyle.Bold;
             btnTxt.alignment = TextAnchor.MiddleCenter;
             btnTxt.color = Color.white;
+            btnTxt.raycastTarget = false;
 
-            // Botón 3: 🔄 Reiniciar [F5]
+            // Botón 4: 🔄 Reiniciar [F5]
             GameObject btnRestartObj = new GameObject("Btn_Restart");
             btnRestartObj.transform.SetParent(bottomBar.transform, false);
             var rRect = btnRestartObj.AddComponent<RectTransform>();
-            rRect.anchorMin = new Vector2(0.88f, 0.15f);
-            rRect.anchorMax = new Vector2(0.98f, 0.85f);
+            rRect.anchorMin = new Vector2(0.89f, 0.15f);
+            rRect.anchorMax = new Vector2(0.99f, 0.85f);
             rRect.offsetMin = Vector2.zero;
             rRect.offsetMax = Vector2.zero;
             var rImg = btnRestartObj.AddComponent<Image>();
@@ -1268,10 +1310,11 @@ namespace FightFace
             var rTxt = rTextObj.AddComponent<Text>();
             rTxt.text = "🔄 Reiniciar [F5]";
             rTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            rTxt.fontSize = 15;
+            rTxt.fontSize = 14;
             rTxt.fontStyle = FontStyle.Bold;
             rTxt.alignment = TextAnchor.MiddleCenter;
             rTxt.color = Color.white;
+            rTxt.raycastTarget = false;
         }
 
         private void BuildWebcamModal(Transform canvas, BattleUI ui, out WebcamCaptureManager webcamMgr)
@@ -2554,8 +2597,8 @@ namespace FightFace
             GameObject fightBtnObj = new GameObject("Btn_StartFight");
             fightBtnObj.transform.SetParent(menuObj.transform, false);
             var fbRect = fightBtnObj.AddComponent<RectTransform>();
-            fbRect.anchorMin = new Vector2(0.18f, 0.015f);
-            fbRect.anchorMax = new Vector2(0.43f, 0.078f);
+            fbRect.anchorMin = new Vector2(0.16f, 0.015f);
+            fbRect.anchorMax = new Vector2(0.36f, 0.078f);
             fbRect.offsetMin = Vector2.zero;
             fbRect.offsetMax = Vector2.zero;
 
@@ -2577,17 +2620,18 @@ namespace FightFace
             var fbTxt = fbTxtObj.AddComponent<Text>();
             fbTxt.text = "🔥 ¡A PELEAR! [ENTER]";
             fbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            fbTxt.fontSize = 17;
+            fbTxt.fontSize = 16;
             fbTxt.fontStyle = FontStyle.Bold;
             fbTxt.alignment = TextAnchor.MiddleCenter;
             fbTxt.color = Color.white;
+            fbTxt.raycastTarget = false;
 
             // Botón 2: MODO TORNEO (Arcade Ladder)
             GameObject tourneyBtnObj = new GameObject("Btn_TournamentMode");
             tourneyBtnObj.transform.SetParent(menuObj.transform, false);
             var tbTourneyRect = tourneyBtnObj.AddComponent<RectTransform>();
-            tbTourneyRect.anchorMin = new Vector2(0.44f, 0.015f);
-            tbTourneyRect.anchorMax = new Vector2(0.69f, 0.078f);
+            tbTourneyRect.anchorMin = new Vector2(0.37f, 0.015f);
+            tbTourneyRect.anchorMax = new Vector2(0.56f, 0.078f);
             tbTourneyRect.offsetMin = Vector2.zero;
             tbTourneyRect.offsetMax = Vector2.zero;
 
@@ -2609,17 +2653,18 @@ namespace FightFace
             var tbTourneyTxt = tbTourneyTxtObj.AddComponent<Text>();
             tbTourneyTxt.text = "🏆 MODO TORNEO [F3]";
             tbTourneyTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            tbTourneyTxt.fontSize = 17;
+            tbTourneyTxt.fontSize = 15;
             tbTourneyTxt.fontStyle = FontStyle.Bold;
             tbTourneyTxt.alignment = TextAnchor.MiddleCenter;
             tbTourneyTxt.color = Color.black;
+            tbTourneyTxt.raycastTarget = false;
 
             // Botón 3: MODO ENTRENAMIENTO (Práctica)
             GameObject trainBtnObj = new GameObject("Btn_TrainingMode");
             trainBtnObj.transform.SetParent(menuObj.transform, false);
             var tbRect = trainBtnObj.AddComponent<RectTransform>();
-            tbRect.anchorMin = new Vector2(0.70f, 0.015f);
-            tbRect.anchorMax = new Vector2(0.88f, 0.078f);
+            tbRect.anchorMin = new Vector2(0.57f, 0.015f);
+            tbRect.anchorMax = new Vector2(0.76f, 0.078f);
             tbRect.offsetMin = Vector2.zero;
             tbRect.offsetMax = Vector2.zero;
 
@@ -2641,17 +2686,57 @@ namespace FightFace
             var tbTxt = tbTxtObj.AddComponent<Text>();
             tbTxt.text = "🥋 ENTRENAR [F2]";
             tbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            tbTxt.fontSize = 16;
+            tbTxt.fontSize = 15;
             tbTxt.fontStyle = FontStyle.Bold;
             tbTxt.alignment = TextAnchor.MiddleCenter;
             tbTxt.color = Color.white;
+            tbTxt.raycastTarget = false;
+
+            // Botón 4: 📶 MULTIJUGADOR EN RED LOCAL WI-FI
+            GameObject wifiBtnObj = new GameObject("Btn_WifiLobby");
+            wifiBtnObj.transform.SetParent(menuObj.transform, false);
+            var wbRect = wifiBtnObj.AddComponent<RectTransform>();
+            wbRect.anchorMin = new Vector2(0.77f, 0.015f);
+            wbRect.anchorMax = new Vector2(0.98f, 0.078f);
+            wbRect.offsetMin = Vector2.zero;
+            wbRect.offsetMax = Vector2.zero;
+
+            var wbImg = wifiBtnObj.AddComponent<Image>();
+            wbImg.color = new Color(0.12f, 0.65f, 0.90f);
+            var wbOutline = wifiBtnObj.AddComponent<Outline>();
+            wbOutline.effectColor = new Color(0.5f, 0.9f, 1f);
+            wbOutline.effectDistance = new Vector2(3, 3);
+
+            var wbBtn = wifiBtnObj.AddComponent<Button>();
+            wbBtn.onClick.AddListener(() =>
+            {
+                if (NetworkLobbyUI.Instance != null)
+                {
+                    NetworkLobbyUI.Instance.OpenLobby();
+                }
+            });
+
+            GameObject wbTxtObj = new GameObject("Text");
+            wbTxtObj.transform.SetParent(wifiBtnObj.transform, false);
+            var wbTRect = wbTxtObj.AddComponent<RectTransform>();
+            wbTRect.anchorMin = Vector2.zero;
+            wbTRect.anchorMax = Vector2.one;
+            wbTRect.sizeDelta = Vector2.zero;
+            var wbTxt = wbTxtObj.AddComponent<Text>();
+            wbTxt.text = "📶 MULTIJUGADOR WI-FI [N]";
+            wbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            wbTxt.fontSize = 15;
+            wbTxt.fontStyle = FontStyle.Bold;
+            wbTxt.alignment = TextAnchor.MiddleCenter;
+            wbTxt.color = Color.white;
+            wbTxt.raycastTarget = false;
 
             // Pistas de controles (Inferior Izquierda)
             GameObject hintObj = new GameObject("ControlsHint");
             hintObj.transform.SetParent(menuObj.transform, false);
             var hiRect = hintObj.AddComponent<RectTransform>();
             hiRect.anchorMin = new Vector2(0.010f, 0.015f);
-            hiRect.anchorMax = new Vector2(0.17f, 0.078f);
+            hiRect.anchorMax = new Vector2(0.15f, 0.078f);
             hiRect.offsetMin = Vector2.zero;
             hiRect.offsetMax = Vector2.zero;
 
@@ -3288,6 +3373,9 @@ namespace FightFace
 
             var touchManager = rootObj.AddComponent<VirtualTouchControls>();
             touchManager.touchRootPanel = rootObj;
+            var cg = rootObj.GetComponent<CanvasGroup>();
+            if (cg == null) cg = rootObj.AddComponent<CanvasGroup>();
+            touchManager.touchCanvasGroup = cg;
 
             Font arcadeFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
@@ -3298,19 +3386,20 @@ namespace FightFace
             dpadRect.anchorMin = Vector2.zero;
             dpadRect.anchorMax = Vector2.zero;
             dpadRect.pivot = new Vector2(0.5f, 0.5f);
-            dpadRect.anchoredPosition = new Vector2(190f, 190f);
-            dpadRect.sizeDelta = new Vector2(260f, 260f);
+            dpadRect.anchoredPosition = new Vector2(195f, 195f);
+            dpadRect.sizeDelta = new Vector2(280f, 280f);
 
             var dpadBg = dpadObj.AddComponent<Image>();
-            dpadBg.color = new Color(0.06f, 0.08f, 0.14f, 0.40f);
+            dpadBg.color = new Color(0.06f, 0.08f, 0.14f, 0.45f);
+            dpadBg.raycastTarget = false;
             var dpadOutline = dpadObj.AddComponent<Outline>();
-            dpadOutline.effectColor = new Color(0.2f, 0.4f, 0.7f, 0.5f);
+            dpadOutline.effectColor = new Color(0.2f, 0.4f, 0.7f, 0.6f);
             dpadOutline.effectDistance = new Vector2(2, 2);
 
-            CreateTouchDirectionButton(dpadObj.transform, "Btn_Left", new Vector2(-75f, 0f), new Vector2(75f, 75f), "◀", TouchAction.Left, arcadeFont);
-            CreateTouchDirectionButton(dpadObj.transform, "Btn_Right", new Vector2(75f, 0f), new Vector2(75f, 75f), "▶", TouchAction.Right, arcadeFont);
-            CreateTouchDirectionButton(dpadObj.transform, "Btn_Jump", new Vector2(0f, 75f), new Vector2(75f, 75f), "▲\nSALTO", TouchAction.Jump, arcadeFont);
-            CreateTouchDirectionButton(dpadObj.transform, "Btn_Down", new Vector2(0f, -75f), new Vector2(75f, 75f), "▼\nABAJO", TouchAction.Down, arcadeFont);
+            CreateTouchDirectionButton(dpadObj.transform, "Btn_Left", new Vector2(-80f, 0f), new Vector2(85f, 85f), "◀\nIZQ", TouchAction.Left, arcadeFont);
+            CreateTouchDirectionButton(dpadObj.transform, "Btn_Right", new Vector2(80f, 0f), new Vector2(85f, 85f), "▶\nDER", TouchAction.Right, arcadeFont);
+            CreateTouchDirectionButton(dpadObj.transform, "Btn_Jump", new Vector2(0f, 80f), new Vector2(85f, 85f), "▲\nSALTO", TouchAction.Jump, arcadeFont);
+            CreateTouchDirectionButton(dpadObj.transform, "Btn_Down", new Vector2(0f, -80f), new Vector2(85f, 85f), "▼\nABAJO", TouchAction.Down, arcadeFont);
 
             // 2. BOTONERA DE ACCIÓN ARCADE (Inferior Derecha)
             GameObject actObj = new GameObject("Action_Cluster");
@@ -3320,18 +3409,20 @@ namespace FightFace
             actRect.anchorMax = new Vector2(1f, 0f);
             actRect.pivot = new Vector2(1f, 0f);
             actRect.anchoredPosition = Vector2.zero;
-            actRect.sizeDelta = new Vector2(500f, 350f);
+            actRect.sizeDelta = new Vector2(520f, 360f);
 
             // Puño Ligero (LP)
-            CreateTouchActionButton(actObj.transform, "Btn_Punch", new Vector2(-220f, 120f), new Vector2(85f, 85f), "👊\nPUÑO", new Color(0.85f, 0.25f, 0.15f, 0.75f), new Color(1f, 0.4f, 0.3f), TouchAction.Punch, arcadeFont);
+            CreateTouchActionButton(actObj.transform, "Btn_Punch", new Vector2(-225f, 115f), new Vector2(90f, 90f), "👊\nPUÑO", new Color(0.85f, 0.25f, 0.15f, 0.85f), new Color(1f, 0.4f, 0.3f), TouchAction.Punch, arcadeFont);
             // Patada Ligera (LK)
-            CreateTouchActionButton(actObj.transform, "Btn_Kick", new Vector2(-115f, 75f), new Vector2(85f, 85f), "🦶\nPATADA", new Color(0.15f, 0.50f, 0.90f, 0.75f), new Color(0.4f, 0.75f, 1f), TouchAction.Kick, arcadeFont);
+            CreateTouchActionButton(actObj.transform, "Btn_Kick", new Vector2(-120f, 75f), new Vector2(90f, 90f), "🦶\nPATADA", new Color(0.15f, 0.50f, 0.90f, 0.85f), new Color(0.4f, 0.75f, 1f), TouchAction.Kick, arcadeFont);
             // Puño Fuerte (HP)
-            CreateTouchActionButton(actObj.transform, "Btn_HeavyPunch", new Vector2(-220f, 225f), new Vector2(85f, 85f), "💥\nP.FUERTE", new Color(0.95f, 0.55f, 0.10f, 0.75f), new Color(1f, 0.8f, 0.3f), TouchAction.HeavyPunch, arcadeFont);
+            CreateTouchActionButton(actObj.transform, "Btn_HeavyPunch", new Vector2(-225f, 225f), new Vector2(90f, 90f), "💥\nP.FUERTE", new Color(0.95f, 0.55f, 0.10f, 0.85f), new Color(1f, 0.8f, 0.3f), TouchAction.HeavyPunch, arcadeFont);
             // Patada Fuerte (HK)
-            CreateTouchActionButton(actObj.transform, "Btn_HeavyKick", new Vector2(-115f, 180f), new Vector2(85f, 85f), "⚡\nK.FUERTE", new Color(0.70f, 0.20f, 0.80f, 0.75f), new Color(0.9f, 0.45f, 1f), TouchAction.HeavyKick, arcadeFont);
+            CreateTouchActionButton(actObj.transform, "Btn_HeavyKick", new Vector2(-120f, 185f), new Vector2(90f, 90f), "⚡\nK.FUERTE", new Color(0.70f, 0.20f, 0.80f, 0.85f), new Color(0.9f, 0.45f, 1f), TouchAction.HeavyKick, arcadeFont);
             // Hadouken Especial
-            CreateTouchActionButton(actObj.transform, "Btn_Special", new Vector2(-335f, 175f), new Vector2(95f, 95f), "🔥\nHADOUKEN", new Color(0.10f, 0.85f, 0.95f, 0.85f), new Color(0.5f, 1f, 1f), TouchAction.Special, arcadeFont);
+            CreateTouchActionButton(actObj.transform, "Btn_Special", new Vector2(-335f, 180f), new Vector2(95f, 95f), "🔥\nHADOUKEN", new Color(0.10f, 0.85f, 0.95f, 0.90f), new Color(0.5f, 1f, 1f), TouchAction.Special, arcadeFont);
+            // Agarre / Proyección
+            CreateTouchActionButton(actObj.transform, "Btn_Grab", new Vector2(-335f, 75f), new Vector2(85f, 85f), "🤼\nAGARRE", new Color(0.15f, 0.75f, 0.50f, 0.85f), new Color(0.4f, 1f, 0.7f), TouchAction.Grab, arcadeFont);
 
             // 3. BOTÓN DE PAUSA / MENÚ TÁCTIL (Superior Derecha)
             GameObject pauseObj = new GameObject("Btn_TouchPause");
@@ -3340,11 +3431,12 @@ namespace FightFace
             pauseRect.anchorMin = new Vector2(1f, 1f);
             pauseRect.anchorMax = new Vector2(1f, 1f);
             pauseRect.pivot = new Vector2(1f, 1f);
-            pauseRect.anchoredPosition = new Vector2(-30f, -30f);
-            pauseRect.sizeDelta = new Vector2(65f, 65f);
+            pauseRect.anchoredPosition = new Vector2(-25f, -25f);
+            pauseRect.sizeDelta = new Vector2(70f, 70f);
 
             var pauseImg = pauseObj.AddComponent<Image>();
-            pauseImg.color = new Color(0.12f, 0.15f, 0.22f, 0.75f);
+            pauseImg.color = new Color(0.12f, 0.15f, 0.22f, 0.85f);
+            pauseImg.raycastTarget = true;
             var pauseOutline = pauseObj.AddComponent<Outline>();
             pauseOutline.effectColor = new Color(1f, 0.85f, 0.2f);
             pauseOutline.effectDistance = new Vector2(2, 2);
@@ -3361,9 +3453,48 @@ namespace FightFace
             var pTxt = pTxtObj.AddComponent<Text>();
             pTxt.text = "⏸️";
             pTxt.font = arcadeFont;
-            pTxt.fontSize = 26;
+            pTxt.fontSize = 28;
             pTxt.alignment = TextAnchor.MiddleCenter;
             pTxt.color = Color.white;
+            pTxt.raycastTarget = false;
+
+            // 4. BOTÓN FLOTANTE PARA FINALIZAR ENTRENAMIENTO EN MÓVILES (Superior Centro)
+            GameObject exitTrainObj = new GameObject("Btn_ExitTrainingTouch");
+            exitTrainObj.transform.SetParent(rootObj.transform, false);
+            var etRect = exitTrainObj.AddComponent<RectTransform>();
+            etRect.anchorMin = new Vector2(0.5f, 1f);
+            etRect.anchorMax = new Vector2(0.5f, 1f);
+            etRect.pivot = new Vector2(0.5f, 1f);
+            etRect.anchoredPosition = new Vector2(0f, -20f);
+            etRect.sizeDelta = new Vector2(340f, 54f);
+
+            var etImg = exitTrainObj.AddComponent<Image>();
+            etImg.color = new Color(0.95f, 0.15f, 0.15f, 0.95f);
+            etImg.raycastTarget = true;
+            var etOutline = exitTrainObj.AddComponent<Outline>();
+            etOutline.effectColor = new Color(1f, 0.85f, 0.2f);
+            etOutline.effectDistance = new Vector2(2, 2);
+
+            var etHandler = exitTrainObj.AddComponent<TouchButtonHandler>();
+            etHandler.action = TouchAction.ExitTraining;
+
+            GameObject etTxtObj = new GameObject("Text");
+            etTxtObj.transform.SetParent(exitTrainObj.transform, false);
+            var etTRect = etTxtObj.AddComponent<RectTransform>();
+            etTRect.anchorMin = Vector2.zero;
+            etTRect.anchorMax = Vector2.one;
+            etTRect.sizeDelta = Vector2.zero;
+            var etTxt = etTxtObj.AddComponent<Text>();
+            etTxt.text = "🛑 FINALIZAR ENTRENAMIENTO";
+            etTxt.font = arcadeFont;
+            etTxt.fontSize = 15;
+            etTxt.fontStyle = FontStyle.Bold;
+            etTxt.alignment = TextAnchor.MiddleCenter;
+            etTxt.color = Color.white;
+            etTxt.raycastTarget = false;
+
+            touchManager.exitTrainingTouchButton = exitTrainObj;
+            exitTrainObj.SetActive(false);
         }
 
         private static void CreateTouchDirectionButton(Transform parent, string name, Vector2 pos, Vector2 size, string label, TouchAction action, Font font)
@@ -3375,9 +3506,10 @@ namespace FightFace
             rect.sizeDelta = size;
 
             var img = btnObj.AddComponent<Image>();
-            img.color = new Color(0.18f, 0.22f, 0.32f, 0.65f);
+            img.color = new Color(0.18f, 0.22f, 0.32f, 0.75f);
+            img.raycastTarget = true;
             var outline = btnObj.AddComponent<Outline>();
-            outline.effectColor = new Color(0.35f, 0.65f, 1f, 0.7f);
+            outline.effectColor = new Color(0.35f, 0.65f, 1f, 0.8f);
             outline.effectDistance = new Vector2(2, 2);
 
             var handler = btnObj.AddComponent<TouchButtonHandler>();
@@ -3396,6 +3528,7 @@ namespace FightFace
             txt.fontStyle = FontStyle.Bold;
             txt.alignment = TextAnchor.MiddleCenter;
             txt.color = Color.white;
+            txt.raycastTarget = false;
         }
 
         private static void CreateTouchActionButton(Transform parent, string name, Vector2 pos, Vector2 size, string label, Color color, Color outlineColor, TouchAction action, Font font)
@@ -3408,6 +3541,7 @@ namespace FightFace
 
             var img = btnObj.AddComponent<Image>();
             img.color = color;
+            img.raycastTarget = true;
             var outline = btnObj.AddComponent<Outline>();
             outline.effectColor = outlineColor;
             outline.effectDistance = new Vector2(2, 2);
@@ -3424,10 +3558,11 @@ namespace FightFace
             var txt = txtObj.AddComponent<Text>();
             txt.text = label;
             txt.font = font;
-            txt.fontSize = 11;
+            txt.fontSize = 12;
             txt.fontStyle = FontStyle.Bold;
             txt.alignment = TextAnchor.MiddleCenter;
             txt.color = Color.white;
+            txt.raycastTarget = false;
         }
 
         private static Sprite CreateWhiteUiSprite()

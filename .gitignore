@@ -38,6 +38,7 @@ desktop.ini
 [Bb]uild_*/
 build_log.txt
 build_android_log.txt
+build_windows_log.txt
 Assets/Resources/PerformanceTestRun*
 
 # Local temporary images / generator scripts

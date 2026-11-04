@@ -267,6 +267,13 @@ namespace FightFace
                     VirtualTouchControls.Instance.ToggleTouchControls();
                 }
             }
+            else if (FightInput.GetToggleWifiLobby())
+            {
+                if (NetworkLobbyUI.Instance != null)
+                {
+                    NetworkLobbyUI.Instance.ToggleLobby();
+                }
+            }
         }
 
         private void UpdateFacePortraits()
@@ -362,6 +369,22 @@ namespace FightFace
 
         public void SetTrainingModeUI(bool active)
         {
+            if (openSelectMenuButton != null)
+            {
+                var txt = openSelectMenuButton.GetComponentInChildren<Text>();
+                var img = openSelectMenuButton.GetComponent<Image>();
+                if (active)
+                {
+                    if (txt != null) txt.text = "🛑 SALIR [ESC]";
+                    if (img != null) img.color = new Color(0.95f, 0.15f, 0.15f);
+                }
+                else
+                {
+                    if (txt != null) txt.text = "🥊 Menú [ESC]";
+                    if (img != null) img.color = new Color(0.95f, 0.25f, 0.35f);
+                }
+            }
+
             if (active)
             {
                 if (trainingOverlayPanel == null)
@@ -408,8 +431,8 @@ namespace FightFace
             trainingOverlayPanel = new GameObject("TrainingOverlayPanel");
             trainingOverlayPanel.transform.SetParent(canvas.transform, false);
             var rect = trainingOverlayPanel.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.12f, 0.76f);
-            rect.anchorMax = new Vector2(0.88f, 0.86f);
+            rect.anchorMin = new Vector2(0.10f, 0.74f);
+            rect.anchorMax = new Vector2(0.90f, 0.86f);
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
@@ -450,52 +473,55 @@ namespace FightFace
             rbTxt.fontStyle = FontStyle.Bold;
             rbTxt.alignment = TextAnchor.MiddleCenter;
             rbTxt.color = Color.white;
+            rbTxt.raycastTarget = false;
 
             // Título Badge Central
             GameObject badgeObj = new GameObject("Badge");
             badgeObj.transform.SetParent(trainingOverlayPanel.transform, false);
             var bRect = badgeObj.AddComponent<RectTransform>();
             bRect.anchorMin = new Vector2(0.20f, 0.48f);
-            bRect.anchorMax = new Vector2(0.79f, 0.98f);
+            bRect.anchorMax = new Vector2(0.76f, 0.98f);
             bRect.offsetMin = Vector2.zero;
             bRect.offsetMax = Vector2.zero;
             trainingBadgeText = badgeObj.AddComponent<Text>();
-            trainingBadgeText.text = "🥋 MODO ENTRENAMIENTO  •  PRÁCTICA Y PRUEBA DE COMBOS";
+            trainingBadgeText.text = "🥋 MODO ENTRENAMIENTO  •  PRÁCTICA Y COMBOS";
             trainingBadgeText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            trainingBadgeText.fontSize = 14;
+            trainingBadgeText.fontSize = 13;
             trainingBadgeText.fontStyle = FontStyle.Bold;
             trainingBadgeText.alignment = TextAnchor.MiddleCenter;
             trainingBadgeText.color = new Color(1f, 0.85f, 0.2f);
+            trainingBadgeText.raycastTarget = false;
 
             // Move & Damage readout
             GameObject moveObj = new GameObject("MoveText");
             moveObj.transform.SetParent(trainingOverlayPanel.transform, false);
             var mRect = moveObj.AddComponent<RectTransform>();
             mRect.anchorMin = new Vector2(0.20f, 0.02f);
-            mRect.anchorMax = new Vector2(0.79f, 0.50f);
+            mRect.anchorMax = new Vector2(0.76f, 0.50f);
             mRect.offsetMin = Vector2.zero;
             mRect.offsetMax = Vector2.zero;
             trainingMoveText = moveObj.AddComponent<Text>();
-            trainingMoveText.text = "[F] Jab • [R] Cross • [G] Patada Baja • [T] Patada Alta • [Q] Super";
+            trainingMoveText.text = "Golpea al muñeco dummy para practicar todos tus movimientos";
             trainingMoveText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             trainingMoveText.fontSize = 12;
             trainingMoveText.fontStyle = FontStyle.Normal;
             trainingMoveText.alignment = TextAnchor.MiddleCenter;
             trainingMoveText.color = Color.white;
+            trainingMoveText.raycastTarget = false;
 
             // Botón Derecho: Salir al Menú [M / ESC]
             GameObject exitBtnObj = new GameObject("Btn_ExitTraining");
             exitBtnObj.transform.SetParent(trainingOverlayPanel.transform, false);
             var ebRect = exitBtnObj.AddComponent<RectTransform>();
-            ebRect.anchorMin = new Vector2(0.80f, 0.12f);
+            ebRect.anchorMin = new Vector2(0.77f, 0.12f);
             ebRect.anchorMax = new Vector2(0.985f, 0.88f);
             ebRect.offsetMin = Vector2.zero;
             ebRect.offsetMax = Vector2.zero;
             var ebImg = exitBtnObj.AddComponent<Image>();
-            ebImg.color = new Color(0.85f, 0.22f, 0.15f);
+            ebImg.color = new Color(0.95f, 0.20f, 0.15f);
             var ebOutline = exitBtnObj.AddComponent<Outline>();
-            ebOutline.effectColor = new Color(1f, 0.5f, 0.4f);
-            ebOutline.effectDistance = new Vector2(1, 1);
+            ebOutline.effectColor = new Color(1f, 0.85f, 0.2f);
+            ebOutline.effectDistance = new Vector2(2, 2);
             var ebBtn = exitBtnObj.AddComponent<Button>();
             ebBtn.onClick.AddListener(ExitTrainingToSelectMenu);
 
@@ -506,12 +532,13 @@ namespace FightFace
             ebTRect.anchorMax = Vector2.one;
             ebTRect.sizeDelta = Vector2.zero;
             var ebTxt = ebTxtObj.AddComponent<Text>();
-            ebTxt.text = "SALIR [M / ESC]";
+            ebTxt.text = "🛑 FINALIZAR\n[ESC / TOQUE]";
             ebTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            ebTxt.fontSize = 11;
+            ebTxt.fontSize = 12;
             ebTxt.fontStyle = FontStyle.Bold;
             ebTxt.alignment = TextAnchor.MiddleCenter;
             ebTxt.color = Color.white;
+            ebTxt.raycastTarget = false;
         }
 
         public void ExitTrainingToSelectMenu()
@@ -520,6 +547,14 @@ namespace FightFace
             if (BattleManager.Instance != null)
             {
                 BattleManager.Instance.isTrainingMode = false;
+                BattleManager.Instance.isMatchActive = false;
+            }
+            if (openSelectMenuButton != null)
+            {
+                var txt = openSelectMenuButton.GetComponentInChildren<Text>();
+                var img = openSelectMenuButton.GetComponent<Image>();
+                if (txt != null) txt.text = "🥊 Menú [ESC]";
+                if (img != null) img.color = new Color(0.95f, 0.25f, 0.35f);
             }
             ShowCharacterSelectMenu();
         }

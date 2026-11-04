@@ -36,10 +36,11 @@ namespace FightFace
         public int currentRound = 1;
         public const int RoundsToWin = 2; // 2 rondas ganadas para proclamarse campeón
 
-        private float currentRoundTime;
-        private bool isMatchActive = false;
+        public float currentRoundTime;
+        public bool isMatchActive = false;
 
         public bool IsMatchActive => isMatchActive;
+        public float CurrentRoundTime => currentRoundTime;
 
         private void Awake()
         {

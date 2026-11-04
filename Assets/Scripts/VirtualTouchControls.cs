@@ -12,6 +12,7 @@ namespace FightFace
     /// - Botón de Pausa / Menú táctil
     /// - Soporte multitáctil independiente para moverte y golpear al mismo tiempo con ambos pulgares.
     /// - Activación automática en Android/iOS o manual con tecla [T] en PC/Editor.
+    /// - Uso de CanvasGroup para transiciones fluidas sin desactivar GameObjects ni pausar scripts.
     /// </summary>
     public class VirtualTouchControls : MonoBehaviour
     {
@@ -26,7 +27,9 @@ namespace FightFace
         public static bool IsHeavyPunchPressed { get; set; }
         public static bool IsHeavyKickPressed { get; set; }
         public static bool IsSpecialPressed { get; set; }
+        public static bool IsGrabPressed { get; set; }
         public static bool IsPausePressed { get; set; }
+        public static bool IsExitTrainingPressed { get; set; }
 
         private static bool jumpConsumed = false;
         private static bool punchConsumed = false;
@@ -34,12 +37,16 @@ namespace FightFace
         private static bool heavyPunchConsumed = false;
         private static bool heavyKickConsumed = false;
         private static bool specialConsumed = false;
+        private static bool grabConsumed = false;
         private static bool pauseConsumed = false;
+        private static bool exitTrainingConsumed = false;
 
         public static bool isTouchControlsEnabled { get; private set; } = true;
 
-        [Header("Contenedor Principal")]
+        [Header("Contenedores UI")]
         public GameObject touchRootPanel;
+        public CanvasGroup touchCanvasGroup;
+        public GameObject exitTrainingTouchButton;
 
         private void Awake()
         {
@@ -53,9 +60,23 @@ namespace FightFace
                 return;
             }
 
-            // En dispositivos móviles (Android/iOS) o pantallas táctiles se activa por defecto
+            // En dispositivos móviles (Android/iOS) siempre activado por defecto
             bool isMobile = Application.isMobilePlatform || Input.touchSupported;
-            isTouchControlsEnabled = PlayerPrefs.GetInt("FightFace_TouchEnabled", isMobile ? 1 : 0) == 1;
+            isTouchControlsEnabled = isMobile || PlayerPrefs.GetInt("FightFace_TouchEnabled", isMobile ? 1 : 0) == 1;
+
+            if (touchRootPanel == null)
+            {
+                touchRootPanel = gameObject;
+            }
+
+            if (touchCanvasGroup == null && touchRootPanel != null)
+            {
+                touchCanvasGroup = touchRootPanel.GetComponent<CanvasGroup>();
+                if (touchCanvasGroup == null)
+                {
+                    touchCanvasGroup = touchRootPanel.AddComponent<CanvasGroup>();
+                }
+            }
 
             // En dispositivos móviles asegurar 60 FPS y pantalla siempre encendida
             if (Application.isMobilePlatform)
@@ -73,18 +94,57 @@ namespace FightFace
                 ToggleTouchControls();
             }
 
-            // Visibilidad dinámica: solo se muestran durante el combate activo (no en menús de fotos o selección)
-            if (touchRootPanel != null)
+            // Salir de entrenamiento si se presiona el botón táctil de salir
+            if (ConsumeExitTrainingPressed())
             {
-                bool inFight = BattleManager.Instance != null && BattleManager.Instance.IsMatchActive;
+                if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.ExitTrainingToSelectMenu();
+                }
+            }
+
+            // Atajo táctil de pausa / menú
+            if (ConsumePausePressed())
+            {
+                if (BattleUI.Instance != null)
+                {
+                    if (BattleManager.Instance != null && BattleManager.Instance.isTrainingMode)
+                    {
+                        BattleUI.Instance.ExitTrainingToSelectMenu();
+                    }
+                    else
+                    {
+                        BattleUI.Instance.ToggleCharacterSelectMenu();
+                    }
+                }
+            }
+
+            // Visibilidad del botón flotante para finalizar entrenamiento en móvil
+            bool inTraining = BattleManager.Instance != null && BattleManager.Instance.isTrainingMode;
+            if (exitTrainingTouchButton != null && exitTrainingTouchButton.activeSelf != inTraining)
+            {
+                exitTrainingTouchButton.SetActive(inTraining);
+            }
+
+            // Visibilidad dinámica mediante CanvasGroup (NUNCA desactiva el GameObject)
+            if (touchCanvasGroup != null)
+            {
                 bool isSelectActive = CharacterSelectUI.Instance != null && CharacterSelectUI.Instance.gameObject.activeInHierarchy;
                 bool isWebcamActive = WebcamCaptureManager.Instance != null && WebcamCaptureManager.Instance.gameObject.activeInHierarchy;
+                bool isWinnerActive = BattleUI.Instance != null && BattleUI.Instance.winnerModalPanel != null && BattleUI.Instance.winnerModalPanel.activeInHierarchy;
+                bool isCelebrationActive = TournamentCelebrationUI.Instance != null && TournamentCelebrationUI.Instance.IsActive;
+                bool isLobbyActive = NetworkLobbyUI.Instance != null && NetworkLobbyUI.Instance.IsLobbyOpen();
 
-                bool shouldShow = isTouchControlsEnabled && (inFight && !isSelectActive && !isWebcamActive);
+                // Controles visibles en combate normal o entrenamiento mientras no haya menús modales superpuestos
+                bool inArena = !isSelectActive && !isWebcamActive && !isWinnerActive && !isCelebrationActive && !isLobbyActive;
+                bool shouldShow = isTouchControlsEnabled && inArena;
 
-                if (touchRootPanel.activeSelf != shouldShow)
+                float targetAlpha = shouldShow ? 1f : 0f;
+                if (!Mathf.Approximately(touchCanvasGroup.alpha, targetAlpha))
                 {
-                    touchRootPanel.SetActive(shouldShow);
+                    touchCanvasGroup.alpha = targetAlpha;
+                    touchCanvasGroup.interactable = shouldShow;
+                    touchCanvasGroup.blocksRaycasts = shouldShow;
                 }
             }
         }
@@ -100,9 +160,11 @@ namespace FightFace
             PlayerPrefs.SetInt("FightFace_TouchEnabled", isTouchControlsEnabled ? 1 : 0);
             PlayerPrefs.Save();
 
-            if (touchRootPanel != null)
+            if (touchCanvasGroup != null)
             {
-                touchRootPanel.SetActive(isTouchControlsEnabled);
+                touchCanvasGroup.alpha = isTouchControlsEnabled ? 1f : 0f;
+                touchCanvasGroup.interactable = isTouchControlsEnabled;
+                touchCanvasGroup.blocksRaycasts = isTouchControlsEnabled;
             }
 
             if (BattleUI.Instance != null)
@@ -185,6 +247,26 @@ namespace FightFace
             return false;
         }
 
+        public static bool ConsumeGrabPressed()
+        {
+            if (IsGrabPressed && !grabConsumed)
+            {
+                grabConsumed = true;
+                return true;
+            }
+            return false;
+        }
+
+        public static bool ConsumeExitTrainingPressed()
+        {
+            if (IsExitTrainingPressed && !exitTrainingConsumed)
+            {
+                exitTrainingConsumed = true;
+                return true;
+            }
+            return false;
+        }
+
         // ================== ACCIONES DE BOTONES TÁCTILES ==================
 
         public static void SetTouchAction(TouchAction action, bool isPressed)
@@ -224,9 +306,17 @@ namespace FightFace
                     IsSpecialPressed = isPressed;
                     if (!isPressed) specialConsumed = false;
                     break;
+                case TouchAction.Grab:
+                    IsGrabPressed = isPressed;
+                    if (!isPressed) grabConsumed = false;
+                    break;
                 case TouchAction.Pause:
                     IsPausePressed = isPressed;
                     if (!isPressed) pauseConsumed = false;
+                    break;
+                case TouchAction.ExitTraining:
+                    IsExitTrainingPressed = isPressed;
+                    if (!isPressed) exitTrainingConsumed = false;
                     break;
             }
         }
@@ -243,14 +333,16 @@ namespace FightFace
         HeavyPunch,
         HeavyKick,
         Special,
-        Pause
+        Grab,
+        Pause,
+        ExitTraining
     }
 
     /// <summary>
     /// Componente de botón táctil multitáctil altamente responsivo estilo Arcade.
-    /// Responde a IPointerDownHandler, IPointerUpHandler y IPointerExitHandler para control táctil fluido.
+    /// Responde a IPointerDownHandler, IPointerUpHandler, IPointerExitHandler e IPointerEnterHandler para control táctil fluido.
     /// </summary>
-    public class TouchButtonHandler : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
+    public class TouchButtonHandler : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler, IPointerEnterHandler
     {
         public TouchAction action;
         private Image buttonImage;
@@ -265,13 +357,19 @@ namespace FightFace
             {
                 normalColor = buttonImage.color;
                 pressedColor = new Color(
-                    Mathf.Min(normalColor.r * 1.35f, 1f),
-                    Mathf.Min(normalColor.g * 1.35f, 1f),
-                    Mathf.Min(normalColor.b * 1.35f, 1f),
-                    Mathf.Min(normalColor.a * 1.35f, 1f)
+                    Mathf.Min(normalColor.r * 1.4f, 1f),
+                    Mathf.Min(normalColor.g * 1.4f, 1f),
+                    Mathf.Min(normalColor.b * 1.4f, 1f),
+                    Mathf.Min(normalColor.a * 1.4f, 1f)
                 );
             }
             originalScale = transform.localScale;
+
+            // Desactivar raycastTarget en todos los Text hijos para que el toque lo reciba directamente el Image del botón
+            foreach (Text t in GetComponentsInChildren<Text>(true))
+            {
+                t.raycastTarget = false;
+            }
         }
 
         public void OnPointerDown(PointerEventData eventData)
@@ -293,6 +391,16 @@ namespace FightFace
             VirtualTouchControls.SetTouchAction(action, false);
             transform.localScale = originalScale;
             if (buttonImage != null) buttonImage.color = normalColor;
+        }
+
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            if (eventData.dragging || eventData.eligibleForClick)
+            {
+                VirtualTouchControls.SetTouchAction(action, true);
+                transform.localScale = originalScale * 0.90f;
+                if (buttonImage != null) buttonImage.color = pressedColor;
+            }
         }
 
         private void OnDisable()

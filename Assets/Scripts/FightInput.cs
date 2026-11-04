@@ -183,6 +183,8 @@ namespace FightFace
 
         public static bool GetP1Grab()
         {
+            if (VirtualTouchControls.ConsumeGrabPressed()) return true;
+
 #if ENABLE_INPUT_SYSTEM
             var kb = Keyboard.current;
             if (kb != null && kb.hKey.wasPressedThisFrame) return true;
@@ -220,9 +222,14 @@ namespace FightFace
 #endif
         }
 
-        // ----------------- JUGADOR 2 (Teclado: Flechas + L / K / P / O / I | Joystick 2 si está conectado) -----------------
+        // ----------------- JUGADOR 2 (Teclado: Flechas + L / K / P / O / I | Joystick 2 si está conectado | Red Local Wi-Fi) -----------------
         public static bool GetP2Down()
         {
+            if (NetworkFightManager.Instance != null && NetworkFightManager.Instance.IsNetworkMatchActive && NetworkFightManager.Instance.IsHost)
+            {
+                if (NetworkFightManager.Instance.RemoteP2Down) return true;
+            }
+
 #if ENABLE_INPUT_SYSTEM
             var kb = Keyboard.current;
             if (kb != null && kb.downArrowKey.isPressed) return true;
@@ -241,6 +248,11 @@ namespace FightFace
 
         public static bool GetP2Left()
         {
+            if (NetworkFightManager.Instance != null && NetworkFightManager.Instance.IsNetworkMatchActive && NetworkFightManager.Instance.IsHost)
+            {
+                if (NetworkFightManager.Instance.RemoteP2Left) return true;
+            }
+
 #if ENABLE_INPUT_SYSTEM
             var kb = Keyboard.current;
             if (kb != null && kb.leftArrowKey.isPressed) return true;
@@ -259,6 +271,11 @@ namespace FightFace
 
         public static bool GetP2Right()
         {
+            if (NetworkFightManager.Instance != null && NetworkFightManager.Instance.IsNetworkMatchActive && NetworkFightManager.Instance.IsHost)
+            {
+                if (NetworkFightManager.Instance.RemoteP2Right) return true;
+            }
+
 #if ENABLE_INPUT_SYSTEM
             var kb = Keyboard.current;
             if (kb != null && kb.rightArrowKey.isPressed) return true;
@@ -277,6 +294,11 @@ namespace FightFace
 
         public static bool GetP2Jump()
         {
+            if (NetworkFightManager.Instance != null && NetworkFightManager.Instance.IsNetworkMatchActive && NetworkFightManager.Instance.IsHost)
+            {
+                if (NetworkFightManager.Instance.RemoteP2Jump) return true;
+            }
+
 #if ENABLE_INPUT_SYSTEM
             var kb = Keyboard.current;
             if (kb != null && kb.upArrowKey.wasPressedThisFrame) return true;
@@ -295,6 +317,11 @@ namespace FightFace
 
         public static bool GetP2Punch()
         {
+            if (NetworkFightManager.Instance != null && NetworkFightManager.Instance.IsNetworkMatchActive && NetworkFightManager.Instance.IsHost)
+            {
+                if (NetworkFightManager.Instance.RemoteP2Punch) return true;
+            }
+
 #if ENABLE_INPUT_SYSTEM
             var kb = Keyboard.current;
             if (kb != null && (kb.lKey.wasPressedThisFrame || kb.numpad1Key.wasPressedThisFrame)) return true;
@@ -308,6 +335,11 @@ namespace FightFace
 
         public static bool GetP2Kick()
         {
+            if (NetworkFightManager.Instance != null && NetworkFightManager.Instance.IsNetworkMatchActive && NetworkFightManager.Instance.IsHost)
+            {
+                if (NetworkFightManager.Instance.RemoteP2Kick) return true;
+            }
+
 #if ENABLE_INPUT_SYSTEM
             var kb = Keyboard.current;
             if (kb != null && (kb.kKey.wasPressedThisFrame || kb.numpad2Key.wasPressedThisFrame)) return true;
@@ -321,6 +353,11 @@ namespace FightFace
 
         public static bool GetP2HeavyPunch()
         {
+            if (NetworkFightManager.Instance != null && NetworkFightManager.Instance.IsNetworkMatchActive && NetworkFightManager.Instance.IsHost)
+            {
+                if (NetworkFightManager.Instance.RemoteP2HeavyPunch) return true;
+            }
+
 #if ENABLE_INPUT_SYSTEM
             var kb = Keyboard.current;
             if (kb != null && (kb.pKey.wasPressedThisFrame || kb.numpad4Key.wasPressedThisFrame)) return true;
@@ -334,6 +371,11 @@ namespace FightFace
 
         public static bool GetP2HeavyKick()
         {
+            if (NetworkFightManager.Instance != null && NetworkFightManager.Instance.IsNetworkMatchActive && NetworkFightManager.Instance.IsHost)
+            {
+                if (NetworkFightManager.Instance.RemoteP2HeavyKick) return true;
+            }
+
 #if ENABLE_INPUT_SYSTEM
             var kb = Keyboard.current;
             if (kb != null && (kb.oKey.wasPressedThisFrame || kb.numpad5Key.wasPressedThisFrame)) return true;
@@ -347,6 +389,11 @@ namespace FightFace
 
         public static bool GetP2Special()
         {
+            if (NetworkFightManager.Instance != null && NetworkFightManager.Instance.IsNetworkMatchActive && NetworkFightManager.Instance.IsHost)
+            {
+                if (NetworkFightManager.Instance.RemoteP2Special) return true;
+            }
+
 #if ENABLE_INPUT_SYSTEM
             var kb = Keyboard.current;
             if (kb != null && (kb.iKey.wasPressedThisFrame || kb.numpad6Key.wasPressedThisFrame)) return true;
@@ -360,6 +407,11 @@ namespace FightFace
 
         public static bool GetP2Grab()
         {
+            if (NetworkFightManager.Instance != null && NetworkFightManager.Instance.IsNetworkMatchActive && NetworkFightManager.Instance.IsHost)
+            {
+                if (NetworkFightManager.Instance.RemoteP2Grab) return true;
+            }
+
 #if ENABLE_INPUT_SYSTEM
             var kb = Keyboard.current;
             if (kb != null && (kb.numpad3Key.wasPressedThisFrame || kb.semicolonKey.wasPressedThisFrame)) return true;
@@ -538,6 +590,17 @@ namespace FightFace
             return false;
 #else
             return Input.GetKeyDown(KeyCode.V) || Input.GetKeyDown(KeyCode.F6);
+#endif
+        }
+
+        public static bool GetToggleWifiLobby()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var kb = Keyboard.current;
+            if (kb != null && (kb.nKey.wasPressedThisFrame || kb.f8Key.wasPressedThisFrame)) return true;
+            return false;
+#else
+            return Input.GetKeyDown(KeyCode.N) || Input.GetKeyDown(KeyCode.F8);
 #endif
         }
 

@@ -135,6 +135,14 @@ namespace FightFace.Editor
             if (summary.result == BuildResult.Succeeded)
             {
                 Debug.Log($"[BuildGame] ✅ APK generado con ÉXITO en: {apkPath} ({summary.totalSize / (1024 * 1024)} MB)");
+
+                string desktopFolder = @"C:\Users\maritimo13\Desktop\Juego Fight Face (Listos para Jugar)";
+                if (Directory.Exists(desktopFolder))
+                {
+                    string destApk = Path.Combine(desktopFolder, "FightFace.apk");
+                    File.Copy(apkPath, destApk, true);
+                    Debug.Log($"[BuildGame] 📱 APK copiado al Escritorio: {destApk}");
+                }
             }
             else
             {
