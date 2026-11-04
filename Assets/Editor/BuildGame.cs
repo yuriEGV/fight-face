@@ -40,14 +40,11 @@ namespace FightFace.Editor
             {
                 Debug.Log($"[BuildGame] ✅ Compilación EXITOSA! Tamaño: {summary.totalSize / (1024 * 1024)} MB en {summary.totalTime.TotalSeconds:F1}s");
 
-                // 1. Copiar carpeta Luchadores si existe en persistentDataPath para que sea 100% portable
-                string persistentLuchadores = Path.Combine(Application.persistentDataPath, "Luchadores");
+                // 1. Crear carpeta Luchadores limpia para que el usuario guarde sus propias fotos y voces
                 string buildLuchadores = Path.Combine(buildFolder, "Luchadores");
-
-                if (Directory.Exists(persistentLuchadores))
+                if (!Directory.Exists(buildLuchadores))
                 {
-                    CopyDirectoryRecursive(persistentLuchadores, buildLuchadores);
-                    Debug.Log($"[BuildGame] 📁 Caras y voces personalizadas copiadas a: {buildLuchadores}");
+                    Directory.CreateDirectory(buildLuchadores);
                 }
 
                 // 2. Crear archivo de instrucciones LEEME_PENDRIVE.txt
@@ -115,8 +112,9 @@ namespace FightFace.Editor
             string apkPath = Path.Combine(buildFolder, "FightFace.apk");
             string[] scenes = new string[] { "Assets/Scenes/SampleScene.unity" };
 
-            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel24;
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
+            PlayerSettings.Android.applicationEntry = AndroidApplicationEntry.Activity;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
             EditorUserBuildSettings.buildAppBundle = false; // Generar archivo .apk instalable directamente
 
