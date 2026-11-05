@@ -72,8 +72,8 @@ namespace FightFace
             setupModalRoot = new GameObject("Modal_TournamentSetup");
             setupModalRoot.transform.SetParent(canvas, false);
             var r = setupModalRoot.AddComponent<RectTransform>();
-            r.anchorMin = new Vector2(0.10f, 0.08f);
-            r.anchorMax = new Vector2(0.90f, 0.92f);
+            r.anchorMin = new Vector2(0.04f, 0.04f);
+            r.anchorMax = new Vector2(0.96f, 0.96f);
             r.offsetMin = Vector2.zero;
             r.offsetMax = Vector2.zero;
 
@@ -84,58 +84,54 @@ namespace FightFace
             outl.effectDistance = new Vector2(3, 3);
 
             // Título
-            CreateText(setupModalRoot.transform, "Title", new Vector2(0.05f, 0.86f), new Vector2(0.95f, 0.98f),
-                "🏆 GRAN CAMPEONATO FIGHT FACE - SELECCIÓN DE TORNEO 🏆", 22, FontStyle.Bold, new Color(1f, 0.85f, 0.2f), font);
-
-            // Botón Cerrar (X)
-            CreateButton(setupModalRoot.transform, "Btn_Close", new Vector2(0.92f, 0.88f), new Vector2(0.98f, 0.97f),
-                "✕", new Color(0.85f, 0.2f, 0.2f), font, 16, CloseAll);
+            CreateText(setupModalRoot.transform, "Title", new Vector2(0.05f, 0.88f), new Vector2(0.90f, 0.98f),
+                "🏆 GRAN CAMPEONATO FIGHT FACE - SELECCIÓN DE TORNEO 🏆", 26, FontStyle.Bold, new Color(1f, 0.85f, 0.2f), font);
 
             // Subtítulo Duración / Participantes
-            CreateText(setupModalRoot.transform, "SubSize", new Vector2(0.05f, 0.77f), new Vector2(0.95f, 0.84f),
-                "1. ELIGE LA DURACIÓN Y TAMAÑO DEL TORNEO:", 16, FontStyle.Bold, Color.white, font);
+            CreateText(setupModalRoot.transform, "SubSize", new Vector2(0.04f, 0.79f), new Vector2(0.96f, 0.86f),
+                "1. ELIGE LA DURACIÓN Y TAMAÑO DEL TORNEO:", 18, FontStyle.Bold, new Color(1f, 0.92f, 0.4f), font);
 
             // Botón 8 Jugadores (Recomendado ~30 min)
-            btnSize8 = CreateButton(setupModalRoot.transform, "Btn_Size8", new Vector2(0.06f, 0.58f), new Vector2(0.50f, 0.75f),
-                "👑 TORNEO 8 LUCHADORES\n<size=13>★ DURACIÓN: ~30 MINUTOS (RECOMENDADO PARA FIESTAS Y AMIGOS)\nCuartos de Final (4 peleas) ➔ Semis ➔ 3er Puesto ➔ ¡Gran Final!</size>",
-                new Color(0.15f, 0.65f, 0.35f), font, 14, () => SelectSize(TournamentSize.EightPlayers));
+            btnSize8 = CreateButton(setupModalRoot.transform, "Btn_Size8", new Vector2(0.04f, 0.58f), new Vector2(0.49f, 0.78f),
+                "👑 TORNEO 8 LUCHADORES\n<size=16>★ DURACIÓN: ~30 MINUTOS (RECOMENDADO)</size>\n<size=14>Cuartos de Final (4 peleas) ➔ Semis ➔ 3er Puesto ➔ ¡Gran Final!</size>",
+                new Color(0.12f, 0.70f, 0.35f), font, 19, () => SelectSize(TournamentSize.EightPlayers));
             txtSize8 = btnSize8.GetComponentInChildren<Text>();
 
             // Botón 4 Jugadores (~15 min)
-            btnSize4 = CreateButton(setupModalRoot.transform, "Btn_Size4", new Vector2(0.52f, 0.58f), new Vector2(0.94f, 0.75f),
-                "⚡ TORNEO 4 LUCHADORES\n<size=13>★ DURACIÓN: ~15 MINUTOS (MODO EXPRÉS)\nSemifinales directas (2 peleas) ➔ 3er Puesto ➔ ¡Gran Final!</size>",
-                new Color(0.18f, 0.25f, 0.40f), font, 14, () => SelectSize(TournamentSize.FourPlayers));
+            btnSize4 = CreateButton(setupModalRoot.transform, "Btn_Size4", new Vector2(0.51f, 0.58f), new Vector2(0.96f, 0.78f),
+                "⚡ TORNEO 4 LUCHADORES\n<size=16>★ DURACIÓN: ~15 MINUTOS (MODO EXPRÉS)</size>\n<size=14>Semifinales directas (2 peleas) ➔ 3er Puesto ➔ ¡Gran Final!</size>",
+                new Color(0.10f, 0.14f, 0.22f), font, 19, () => SelectSize(TournamentSize.FourPlayers));
             txtSize4 = btnSize4.GetComponentInChildren<Text>();
 
             // Subtítulo Modalidad
-            CreateText(setupModalRoot.transform, "SubMode", new Vector2(0.05f, 0.47f), new Vector2(0.95f, 0.54f),
-                "2. ELIGE CÓMO SE JUEGA (MODALIDAD HÍBRIDA):", 16, FontStyle.Bold, Color.white, font);
+            CreateText(setupModalRoot.transform, "SubMode", new Vector2(0.04f, 0.48f), new Vector2(0.96f, 0.55f),
+                "2. ELIGE CÓMO SE JUEGA (MODALIDAD HÍBRIDA):", 18, FontStyle.Bold, new Color(1f, 0.92f, 0.4f), font);
 
             // Opción 1: Pase y Juegue (Amigos)
-            btnModePassPlay = CreateButton(setupModalRoot.transform, "Btn_ModePassPlay", new Vector2(0.06f, 0.28f), new Vector2(0.34f, 0.45f),
-                "👥 PASE Y JUEGUE\n<size=12>Turnos en el mismo celular o PC.\nDos amigos juegan cada pelea y el ganador avanza.</size>",
-                new Color(0.85f, 0.45f, 0.10f), font, 13, () => SelectMode(TournamentParticipationMode.PassAndPlay));
+            btnModePassPlay = CreateButton(setupModalRoot.transform, "Btn_ModePassPlay", new Vector2(0.04f, 0.23f), new Vector2(0.33f, 0.46f),
+                "👥 PASE Y JUEGUE\n<size=15>Turnos en el mismo móvil o PC.\nDos amigos juegan cada pelea.</size>",
+                new Color(0.95f, 0.50f, 0.10f), font, 18, () => SelectMode(TournamentParticipationMode.PassAndPlay));
             txtModePassPlay = btnModePassPlay.GetComponentInChildren<Text>();
 
             // Opción 2: Solitario (Tú vs Máquina)
-            btnModeSingle = CreateButton(setupModalRoot.transform, "Btn_ModeSingle", new Vector2(0.36f, 0.28f), new Vector2(0.64f, 0.45f),
-                "🤖 SOLITARIO VS CPU\n<size=12>Tú solo contra la máquina.\nEscalera arcade de rivales hasta el Gran Jefe.</size>",
-                new Color(0.18f, 0.25f, 0.40f), font, 13, () => SelectMode(TournamentParticipationMode.SinglePlayerVsAi));
+            btnModeSingle = CreateButton(setupModalRoot.transform, "Btn_ModeSingle", new Vector2(0.355f, 0.23f), new Vector2(0.645f, 0.46f),
+                "🤖 SOLITARIO VS CPU\n<size=15>Tú solo contra la máquina.\nEscalera arcade de rivales.</size>",
+                new Color(0.10f, 0.14f, 0.22f), font, 18, () => SelectMode(TournamentParticipationMode.SinglePlayerVsAi));
             txtModeSingle = btnModeSingle.GetComponentInChildren<Text>();
 
             // Opción 3: Red Local Wi-Fi
-            btnModeWifi = CreateButton(setupModalRoot.transform, "Btn_ModeWifi", new Vector2(0.66f, 0.28f), new Vector2(0.94f, 0.45f),
-                "📶 RED WI-FI (2 CELULARES)\n<size=12>Combates por red Wi-Fi o Hotspot.\nRetos en vivo entre dos dispositivos.</size>",
-                new Color(0.18f, 0.25f, 0.40f), font, 13, () => SelectMode(TournamentParticipationMode.LocalWifi));
+            btnModeWifi = CreateButton(setupModalRoot.transform, "Btn_ModeWifi", new Vector2(0.67f, 0.23f), new Vector2(0.96f, 0.46f),
+                "📶 RED WI-FI (2 MÓVILES)\n<size=15>Combates por Wi-Fi o Hotspot.\nRetos en vivo entre dos celulares.</size>",
+                new Color(0.10f, 0.14f, 0.22f), font, 18, () => SelectMode(TournamentParticipationMode.LocalWifi));
             txtModeWifi = btnModeWifi.GetComponentInChildren<Text>();
 
             // Botón INICIAR TORNEO
-            CreateButton(setupModalRoot.transform, "Btn_StartTourney", new Vector2(0.20f, 0.06f), new Vector2(0.80f, 0.20f),
-                "🔥 ¡INICIAR CAMPEONATO AHORA! 🔥", new Color(0.95f, 0.20f, 0.10f), font, 18, OnConfirmStartTournament);
+            CreateButton(setupModalRoot.transform, "Btn_StartTourney", new Vector2(0.16f, 0.045f), new Vector2(0.84f, 0.18f),
+                "🔥 ¡INICIAR CAMPEONATO AHORA! 🔥", new Color(0.95f, 0.20f, 0.10f), font, 24, OnConfirmStartTournament);
 
-            // Botón Volver / Cerrar Setup
-            CreateButton(setupModalRoot.transform, "Btn_CloseSetup", new Vector2(0.92f, 0.91f), new Vector2(0.98f, 0.98f),
-                "✖", new Color(0.70f, 0.15f, 0.15f), font, 18, () =>
+            // Botón Volver / Cerrar Setup (X)
+            CreateButton(setupModalRoot.transform, "Btn_CloseSetup", new Vector2(0.92f, 0.90f), new Vector2(0.98f, 0.98f),
+                "✖", new Color(0.70f, 0.15f, 0.15f), font, 22, () =>
                 {
                     CloseAll();
                     if (CharacterSelectUI.Instance != null) CharacterSelectUI.Instance.gameObject.SetActive(true);
@@ -147,16 +143,47 @@ namespace FightFace
         private void SelectSize(TournamentSize size)
         {
             selectedSize = size;
-            if (btnSize8 != null) btnSize8.GetComponent<Image>().color = (size == TournamentSize.EightPlayers) ? new Color(0.15f, 0.65f, 0.35f) : new Color(0.18f, 0.25f, 0.40f);
-            if (btnSize4 != null) btnSize4.GetComponent<Image>().color = (size == TournamentSize.FourPlayers) ? new Color(0.15f, 0.65f, 0.35f) : new Color(0.18f, 0.25f, 0.40f);
+            bool is8 = (size == TournamentSize.EightPlayers);
+            if (btnSize8 != null)
+            {
+                btnSize8.GetComponent<Image>().color = is8 ? new Color(0.12f, 0.70f, 0.35f) : new Color(0.10f, 0.14f, 0.22f, 0.85f);
+                var outl = btnSize8.GetComponent<Outline>();
+                if (outl != null)
+                {
+                    outl.effectColor = is8 ? new Color(1f, 0.88f, 0.2f, 1f) : new Color(0.25f, 0.35f, 0.50f, 0.4f);
+                    outl.effectDistance = is8 ? new Vector2(3f, 3f) : new Vector2(1f, 1f);
+                }
+            }
+            if (btnSize4 != null)
+            {
+                btnSize4.GetComponent<Image>().color = !is8 ? new Color(0.15f, 0.55f, 0.95f) : new Color(0.10f, 0.14f, 0.22f, 0.85f);
+                var outl = btnSize4.GetComponent<Outline>();
+                if (outl != null)
+                {
+                    outl.effectColor = !is8 ? new Color(1f, 0.88f, 0.2f, 1f) : new Color(0.25f, 0.35f, 0.50f, 0.4f);
+                    outl.effectDistance = !is8 ? new Vector2(3f, 3f) : new Vector2(1f, 1f);
+                }
+            }
         }
 
         private void SelectMode(TournamentParticipationMode mode)
         {
             selectedMode = mode;
-            if (btnModePassPlay != null) btnModePassPlay.GetComponent<Image>().color = (mode == TournamentParticipationMode.PassAndPlay) ? new Color(0.85f, 0.45f, 0.10f) : new Color(0.18f, 0.25f, 0.40f);
-            if (btnModeSingle != null) btnModeSingle.GetComponent<Image>().color = (mode == TournamentParticipationMode.SinglePlayerVsAi) ? new Color(0.85f, 0.45f, 0.10f) : new Color(0.18f, 0.25f, 0.40f);
-            if (btnModeWifi != null) btnModeWifi.GetComponent<Image>().color = (mode == TournamentParticipationMode.LocalWifi) ? new Color(0.85f, 0.45f, 0.10f) : new Color(0.18f, 0.25f, 0.40f);
+            UpdateButtonMode(btnModePassPlay, mode == TournamentParticipationMode.PassAndPlay, new Color(0.95f, 0.50f, 0.10f));
+            UpdateButtonMode(btnModeSingle, mode == TournamentParticipationMode.SinglePlayerVsAi, new Color(0.15f, 0.55f, 0.95f));
+            UpdateButtonMode(btnModeWifi, mode == TournamentParticipationMode.LocalWifi, new Color(0.12f, 0.70f, 0.40f));
+        }
+
+        private void UpdateButtonMode(Button btn, bool isSelected, Color activeColor)
+        {
+            if (btn == null) return;
+            btn.GetComponent<Image>().color = isSelected ? activeColor : new Color(0.10f, 0.14f, 0.22f, 0.85f);
+            var outl = btn.GetComponent<Outline>();
+            if (outl != null)
+            {
+                outl.effectColor = isSelected ? new Color(1f, 0.88f, 0.2f, 1f) : new Color(0.25f, 0.35f, 0.50f, 0.4f);
+                outl.effectDistance = isSelected ? new Vector2(3f, 3f) : new Vector2(1f, 1f);
+            }
         }
 
         private void OnConfirmStartTournament()
@@ -494,6 +521,7 @@ namespace FightFace
             txt.color = color;
             txt.alignment = TextAnchor.MiddleCenter;
             txt.raycastTarget = false;
+            txt.verticalOverflow = VerticalWrapMode.Overflow;
             return txt;
         }
 
@@ -534,6 +562,9 @@ namespace FightFace
             txt.alignment = TextAnchor.MiddleCenter;
             txt.color = Color.white;
             txt.raycastTarget = false;
+            txt.verticalOverflow = VerticalWrapMode.Overflow;
+            txt.horizontalOverflow = HorizontalWrapMode.Wrap;
+            txt.lineSpacing = 1.15f;
 
             return btn;
         }

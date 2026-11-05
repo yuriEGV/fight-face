@@ -65,6 +65,14 @@ namespace FightFace
         public Text p2StatsText;
         public Text p2AILabelText;
         public Button p2AIToggleButton;
+        public Button p2ModeCpuButton;
+        public Button p2ModeHumanButton;
+        public Image p2ModeCpuBg;
+        public Image p2ModeHumanBg;
+        public Text p2ModeCpuText;
+        public Text p2ModeHumanText;
+        public Outline p2ModeCpuOutline;
+        public Outline p2ModeHumanOutline;
         public Button p2WebcamButton;
         public Button p2UploadFileButton;
         public Button[] p2BodyButtons;
@@ -218,6 +226,17 @@ namespace FightFace
             {
                 p2AIToggleButton.onClick.AddListener(ToggleP2AI);
             }
+
+            if (p2ModeCpuButton != null)
+            {
+                p2ModeCpuButton.onClick.AddListener(() => SetP2ControllerMode(true));
+            }
+
+            if (p2ModeHumanButton != null)
+            {
+                p2ModeHumanButton.onClick.AddListener(() => SetP2ControllerMode(false));
+            }
+            UpdateP2ControllerModeUI();
 
             if (p1WebcamButton != null)
             {
@@ -432,26 +451,56 @@ namespace FightFace
             RefreshStageUI();
         }
 
+        public void SetP2ControllerMode(bool isAI)
+        {
+            p2IsAI = isAI;
+            currentGameMode = isAI ? GameMode.VsAI : GameMode.VsHuman;
+            UpdateP2ControllerModeUI();
+            RefreshRosterHighlights();
+            RefreshP2UI();
+        }
+
         public void ToggleP2AI()
         {
-            if (currentGameMode == GameMode.VsAI)
+            SetP2ControllerMode(!p2IsAI);
+        }
+
+        public void UpdateP2ControllerModeUI()
+        {
+            if (p2ModeCpuBg != null)
             {
-                currentGameMode = GameMode.VsHuman;
-                p2IsAI = false;
+                p2ModeCpuBg.color = p2IsAI ? new Color(0.12f, 0.52f, 0.95f, 1f) : new Color(0.11f, 0.15f, 0.23f, 0.90f);
             }
-            else if (currentGameMode == GameMode.VsHuman)
+            if (p2ModeCpuOutline != null)
             {
-                currentGameMode = GameMode.Training;
-                p2IsAI = false;
+                p2ModeCpuOutline.effectColor = p2IsAI ? new Color(1f, 0.88f, 0.2f, 1f) : new Color(0.25f, 0.35f, 0.50f, 0.5f);
+                p2ModeCpuOutline.effectDistance = p2IsAI ? new Vector2(2f, 2f) : new Vector2(1f, 1f);
             }
-            else
+            if (p2ModeCpuText != null)
             {
-                currentGameMode = GameMode.VsAI;
-                p2IsAI = true;
+                p2ModeCpuText.color = p2IsAI ? Color.white : new Color(0.65f, 0.75f, 0.85f);
+                p2ModeCpuText.fontStyle = p2IsAI ? FontStyle.Bold : FontStyle.Normal;
             }
 
-            RefreshP2UI();
-            RefreshRosterHighlights();
+            if (p2ModeHumanBg != null)
+            {
+                p2ModeHumanBg.color = !p2IsAI ? new Color(0.12f, 0.70f, 0.40f, 1f) : new Color(0.11f, 0.15f, 0.23f, 0.90f);
+            }
+            if (p2ModeHumanOutline != null)
+            {
+                p2ModeHumanOutline.effectColor = !p2IsAI ? new Color(1f, 0.88f, 0.2f, 1f) : new Color(0.25f, 0.35f, 0.50f, 0.5f);
+                p2ModeHumanOutline.effectDistance = !p2IsAI ? new Vector2(2f, 2f) : new Vector2(1f, 1f);
+            }
+            if (p2ModeHumanText != null)
+            {
+                p2ModeHumanText.color = !p2IsAI ? Color.white : new Color(0.65f, 0.75f, 0.85f);
+                p2ModeHumanText.fontStyle = !p2IsAI ? FontStyle.Bold : FontStyle.Normal;
+            }
+
+            if (p2AILabelText != null)
+            {
+                p2AILabelText.text = p2IsAI ? "🤖 MODO: CPU (IA)" : "👥 MODO: 2P HUMANO";
+            }
         }
 
         public void OpenP1Webcam()
@@ -525,10 +574,20 @@ namespace FightFace
             if (stagePreviewImage != null)
             {
                 Sprite sp = FaceLoader.LoadStageSprite(selectedStage, p2BodyType);
+                var outl = stagePreviewImage.GetComponent<Outline>();
                 if (sp != null)
                 {
                     stagePreviewImage.sprite = sp;
                     stagePreviewImage.color = Color.white;
+                    stagePreviewImage.enabled = true;
+                    if (outl != null) outl.enabled = true;
+                }
+                else
+                {
+                    stagePreviewImage.sprite = null;
+                    stagePreviewImage.color = new Color(0, 0, 0, 0);
+                    stagePreviewImage.enabled = false;
+                    if (outl != null) outl.enabled = false;
                 }
             }
         }
@@ -902,6 +961,7 @@ namespace FightFace
             RefreshRosterHighlights();
             UpdateMusicToggleVisuals();
             UpdateVoiceVolumeVisuals();
+            UpdateP2ControllerModeUI();
         }
     }
 }
