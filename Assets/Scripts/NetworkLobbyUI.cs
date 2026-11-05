@@ -6,9 +6,9 @@ namespace FightFace
 {
     /// <summary>
     /// Interfaz visual para el emparejamiento Multijugador en Red Local (Wi-Fi / Hotspot):
-    /// - Crear sala (Host / Jugador 1)
-    /// - Descubrir y unirse a salas en la misma red Wi-Fi (Cliente / Jugador 2)
-    /// - Conexión directa por IP
+    /// - Crear sala (Host / Jugador 1) con Código Rápido de 1 o 2 dígitos.
+    /// - Descubrimiento automático de salas en la misma red Wi-Fi (Cliente / Jugador 2) con unirse en 1 clic.
+    /// - Conexión ultra sencilla por Código Rápido (PIN) o IP directa sin complicaciones técnicas.
     /// </summary>
     public class NetworkLobbyUI : MonoBehaviour
     {
@@ -21,6 +21,7 @@ namespace FightFace
         private GameObject hostWaitingBox;
         private Text hostInfoText;
         private GameObject clientScanBox;
+        private Font arcadeFont;
 
         private void Awake()
         {
@@ -38,18 +39,18 @@ namespace FightFace
         {
             if (lobbyModalPanel != null) return;
 
-            Font arcadeFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            arcadeFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
             lobbyModalPanel = new GameObject("Modal_NetworkLobby");
             lobbyModalPanel.transform.SetParent(canvas, false);
             var rect = lobbyModalPanel.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.08f, 0.08f);
-            rect.anchorMax = new Vector2(0.92f, 0.92f);
+            rect.anchorMin = new Vector2(0.06f, 0.06f);
+            rect.anchorMax = new Vector2(0.94f, 0.94f);
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
             var bg = lobbyModalPanel.AddComponent<Image>();
-            bg.color = new Color(0.05f, 0.07f, 0.12f, 0.98f);
+            bg.color = new Color(0.04f, 0.06f, 0.12f, 0.98f);
             var outline = lobbyModalPanel.AddComponent<Outline>();
             outline.effectColor = new Color(0.15f, 0.85f, 1f, 0.9f);
             outline.effectDistance = new Vector2(3, 3);
@@ -72,9 +73,9 @@ namespace FightFace
             tRect.anchorMax = Vector2.one;
             tRect.sizeDelta = Vector2.zero;
             var tText = titleObj.AddComponent<Text>();
-            tText.text = "📶 MULTIJUGADOR EN RED LOCAL (WI-FI / 2 CELULARES)";
+            tText.text = "📶 MULTIJUGADOR EN RED LOCAL (WI-FI / 2 CELULARES O PC)";
             tText.font = arcadeFont;
-            tText.fontSize = 20;
+            tText.fontSize = 19;
             tText.fontStyle = FontStyle.Bold;
             tText.alignment = TextAnchor.MiddleCenter;
             tText.color = new Color(0.2f, 0.9f, 1f);
@@ -116,7 +117,7 @@ namespace FightFace
             stRect.offsetMin = Vector2.zero;
             stRect.offsetMax = Vector2.zero;
             statusText = statusObj.AddComponent<Text>();
-            statusText.text = "Ambos celulares deben estar conectados a la misma red Wi-Fi o a un Punto de Acceso (Zona Wi-Fi).";
+            statusText.text = "Ambos dispositivos deben estar en la misma red Wi-Fi o Zona Portátil (Hotspot).";
             statusText.font = arcadeFont;
             statusText.fontSize = 13;
             statusText.alignment = TextAnchor.MiddleCenter;
@@ -146,21 +147,21 @@ namespace FightFace
             GameObject hwTxtObj = new GameObject("HostInfoText");
             hwTxtObj.transform.SetParent(hostWaitingBox.transform, false);
             var hwtRect = hwTxtObj.AddComponent<RectTransform>();
-            hwtRect.anchorMin = new Vector2(0.05f, 0.20f);
-            hwtRect.anchorMax = new Vector2(0.95f, 0.90f);
+            hwtRect.anchorMin = new Vector2(0.05f, 0.22f);
+            hwtRect.anchorMax = new Vector2(0.95f, 0.92f);
             hwtRect.offsetMin = Vector2.zero;
             hwtRect.offsetMax = Vector2.zero;
             hostInfoText = hwTxtObj.AddComponent<Text>();
             hostInfoText.font = arcadeFont;
             hostInfoText.fontSize = 16;
-            hostInfoText.lineSpacing = 1.3f;
+            hostInfoText.lineSpacing = 1.35f;
             hostInfoText.alignment = TextAnchor.MiddleCenter;
             hostInfoText.color = Color.white;
 
-            CreateMenuButton(hostWaitingBox.transform, "Btn_CancelHost", new Vector2(0.35f, 0.05f), new Vector2(0.65f, 0.20f),
+            CreateMenuButton(hostWaitingBox.transform, "Btn_CancelHost", new Vector2(0.35f, 0.05f), new Vector2(0.65f, 0.19f),
                 "CANCELAR SALA", new Color(0.85f, 0.25f, 0.25f), () =>
                 {
-                    NetworkFightManager.Instance.Disconnect();
+                    if (NetworkFightManager.Instance != null) NetworkFightManager.Instance.Disconnect();
                     hostWaitingBox.SetActive(false);
                     statusText.text = "Sala cancelada.";
                 });
@@ -185,16 +186,16 @@ namespace FightFace
             listScroll.transform.SetParent(clientScanBox.transform, false);
             var lsRect = listScroll.AddComponent<RectTransform>();
             lsRect.anchorMin = new Vector2(0.03f, 0.28f);
-            lsRect.anchorMax = new Vector2(0.97f, 0.92f);
+            lsRect.anchorMax = new Vector2(0.97f, 0.94f);
             lsRect.offsetMin = Vector2.zero;
             lsRect.offsetMax = Vector2.zero;
             roomListContainer = listScroll.transform;
 
-            // Entrada manual de IP directa
+            // Entrada simplificada: Código Rápido o IP
             GameObject ipBox = new GameObject("DirectIpBox");
             ipBox.transform.SetParent(clientScanBox.transform, false);
             var ipbRect = ipBox.AddComponent<RectTransform>();
-            ipbRect.anchorMin = new Vector2(0.03f, 0.05f);
+            ipbRect.anchorMin = new Vector2(0.03f, 0.04f);
             ipbRect.anchorMax = new Vector2(0.97f, 0.24f);
             ipbRect.offsetMin = Vector2.zero;
             ipbRect.offsetMax = Vector2.zero;
@@ -202,8 +203,8 @@ namespace FightFace
             GameObject ipInpObj = new GameObject("Input_IP");
             ipInpObj.transform.SetParent(ipBox.transform, false);
             var ipiRect = ipInpObj.AddComponent<RectTransform>();
-            ipiRect.anchorMin = new Vector2(0f, 0.1f);
-            ipiRect.anchorMax = new Vector2(0.68f, 0.9f);
+            ipiRect.anchorMin = new Vector2(0f, 0.08f);
+            ipiRect.anchorMax = new Vector2(0.68f, 0.92f);
             ipiRect.offsetMin = Vector2.zero;
             ipiRect.offsetMax = Vector2.zero;
             var ipImg = ipInpObj.AddComponent<Image>();
@@ -217,7 +218,7 @@ namespace FightFace
             ippRect.offsetMin = new Vector2(10, 0);
             ippRect.offsetMax = new Vector2(-10, 0);
             var ippTxt = ipPlaceObj.AddComponent<Text>();
-            ippTxt.text = "Ingresar IP del rival (ej: 192.168.1.50)...";
+            ippTxt.text = "Código de tu amigo (ej: 2) o IP...";
             ippTxt.font = arcadeFont;
             ippTxt.fontSize = 13;
             ippTxt.color = new Color(0.6f, 0.7f, 0.8f, 0.7f);
@@ -241,8 +242,8 @@ namespace FightFace
             ipInputField.placeholder = ippTxt;
             ipInputField.text = "";
 
-            CreateMenuButton(ipBox.transform, "Btn_DirectConnect", new Vector2(0.70f, 0.1f), new Vector2(1f, 0.9f),
-                "CONECTAR IP", new Color(0.18f, 0.70f, 0.35f), OnClickDirectConnect);
+            CreateMenuButton(ipBox.transform, "Btn_DirectConnect", new Vector2(0.70f, 0.08f), new Vector2(1f, 0.92f),
+                "⚡ ¡UNIRME!", new Color(0.18f, 0.70f, 0.35f), OnClickDirectConnect);
 
             clientScanBox.SetActive(false);
 
@@ -260,6 +261,7 @@ namespace FightFace
             {
                 NetworkFightManager.Instance.onClientConnected = OnCombatReady;
                 NetworkFightManager.Instance.onConnectedToHost = OnCombatReady;
+                NetworkFightManager.Instance.onRoomsUpdated = () => RefreshRoomListUI(arcadeFont);
             }
         }
 
@@ -269,6 +271,7 @@ namespace FightFace
             {
                 lobbyModalPanel.SetActive(false);
             }
+            StopAllCoroutines();
         }
 
         public bool IsLobbyOpen()
@@ -294,16 +297,18 @@ namespace FightFace
             hostWaitingBox.SetActive(true);
 
             string myIp = NetworkFightManager.GetLocalIPAddress();
+            string myPin = NetworkFightManager.GetQuickRoomCode();
             string myName = SystemInfo.deviceName;
             FighterBodyType body = CharacterSelectUI.Instance != null ? CharacterSelectUI.Instance.p1BodyType : FighterBodyType.Musculoso;
             StageType stage = CharacterSelectUI.Instance != null ? CharacterSelectUI.Instance.selectedStage : StageType.MGMGrand;
 
-            hostInfoText.text = $"📡 <b>SALA CREADA: {myName.ToUpper()}</b>\n\n" +
-                               $"Tu IP en esta red Wi-Fi: <color=#00FFAA><b>{myIp}</b></color>\n" +
-                               $"Personaje: <b>{FaceLoader.GetFighterDisplayName(body)}</b>\n\n" +
-                               $"⏳ <i>Esperando que el segundo jugador toque 'Buscar Salas' o ingrese tu IP...</i>";
+            hostInfoText.text = $"👑 <b>SALA CREADA: {myName.ToUpper()}</b>\n\n" +
+                               $"🔑 CÓDIGO RÁPIDO DE SALA: <size=26><color=#00FFAA><b>[ {myPin} ]</b></color></size>\n\n" +
+                               $"Dile a tu amigo que toque <b>'BUSCAR SALAS'</b> o ingrese el código <b>{myPin}</b>.\n" +
+                               $"<size=11><color=#88AACC>(IP Local Wi-Fi: {myIp})</color></size>\n\n" +
+                               $"⏳ <i>Transmitiendo en la red Wi-Fi... Esperando al rival...</i>";
 
-            statusText.text = "¡Sala transmitiendo en la red Wi-Fi! El jugador 2 puede unirse ahora.";
+            statusText.text = "¡Sala transmitiendo en Wi-Fi! El jugador 2 puede unirse ahora con 1 toque.";
 
             NetworkFightManager.Instance.StartHost(myName, body, stage);
         }
@@ -322,10 +327,10 @@ namespace FightFace
 
         private System.Collections.IEnumerator UpdateDiscoveredRoomsLoop(Font font)
         {
-            while (clientScanBox.activeInHierarchy)
+            while (clientScanBox != null && clientScanBox.activeInHierarchy)
             {
                 RefreshRoomListUI(font);
-                yield return new WaitForSecondsRealtime(1.0f);
+                yield return new WaitForSecondsRealtime(0.75f);
             }
         }
 
@@ -339,7 +344,7 @@ namespace FightFace
                 Destroy(child.gameObject);
             }
 
-            var rooms = NetworkFightManager.Instance.discoveredRooms;
+            var rooms = NetworkFightManager.Instance != null ? NetworkFightManager.Instance.discoveredRooms : null;
             if (rooms == null || rooms.Count == 0)
             {
                 GameObject emptyObj = new GameObject("EmptyNotice");
@@ -349,13 +354,16 @@ namespace FightFace
                 er.anchorMax = Vector2.one;
                 er.sizeDelta = Vector2.zero;
                 var et = emptyObj.AddComponent<Text>();
-                et.text = "🔍 Buscando partidas en el Wi-Fi...\n(Asegúrate de que el otro celular haya tocado 'Crear Sala' o ingresa su IP abajo)";
+                et.text = "🔍 Buscando salas en el Wi-Fi...\n\n(Asegúrate de que tu amigo haya tocado 'CREAR SALA'\no ingresa abajo su Código de Sala)";
                 et.font = font;
                 et.fontSize = 14;
+                et.lineSpacing = 1.3f;
                 et.alignment = TextAnchor.MiddleCenter;
-                et.color = new Color(0.7f, 0.8f, 0.9f, 0.7f);
+                et.color = new Color(0.7f, 0.85f, 1f, 0.85f);
                 return;
             }
+
+            statusText.text = "🟢 ¡Sala encontrada en tu Wi-Fi! Toca el botón abajo para jugar al instante:";
 
             float yOffset = 0f;
             for (int i = 0; i < rooms.Count; i++)
@@ -368,19 +376,20 @@ namespace FightFace
                 rRect.anchorMax = new Vector2(1f, 1f);
                 rRect.pivot = new Vector2(0.5f, 1f);
                 rRect.anchoredPosition = new Vector2(0f, -yOffset);
-                rRect.sizeDelta = new Vector2(0f, 50f);
-                yOffset += 56f;
+                rRect.sizeDelta = new Vector2(0f, 54f);
+                yOffset += 60f;
 
                 var rImg = rObj.AddComponent<Image>();
-                rImg.color = new Color(0.12f, 0.18f, 0.28f);
+                rImg.color = new Color(0.10f, 0.28f, 0.45f);
                 var rOutline = rObj.AddComponent<Outline>();
-                rOutline.effectColor = new Color(0.2f, 0.8f, 1f);
+                rOutline.effectColor = new Color(0.2f, 0.95f, 0.5f);
+                rOutline.effectDistance = new Vector2(2, 2);
 
                 var rBtn = rObj.AddComponent<Button>();
                 string targetIp = room.ip;
                 rBtn.onClick.AddListener(() =>
                 {
-                    statusText.text = $"Conectando a {targetIp}...";
+                    statusText.text = $"Conectando a {room.roomName}...";
                     FighterBodyType myBody = CharacterSelectUI.Instance != null ? CharacterSelectUI.Instance.p1BodyType : FighterBodyType.Gordo;
                     NetworkFightManager.Instance.ConnectToHost(targetIp, myBody);
                 });
@@ -390,10 +399,10 @@ namespace FightFace
                 var rtRect = rtObj.AddComponent<RectTransform>();
                 rtRect.anchorMin = Vector2.zero;
                 rtRect.anchorMax = Vector2.one;
-                rtRect.offsetMin = new Vector2(15, 0);
-                rtRect.offsetMax = new Vector2(-15, 0);
+                rtRect.offsetMin = new Vector2(16, 0);
+                rtRect.offsetMax = new Vector2(-16, 0);
                 var rtTxt = rtObj.AddComponent<Text>();
-                rtTxt.text = $"🎮 SALA: <b>{room.roomName.ToUpper()}</b>  |  IP: <b>{room.ip}</b>  |  Rival: <b>{FaceLoader.GetFighterDisplayName(room.hostBody)}</b>  ➔  <b>¡UNIRSE!</b>";
+                rtTxt.text = $"🎮 SALA: <b>{room.roomName.ToUpper()}</b>  |  CÓDIGO: <color=#00FFAA><b>[{room.roomPin}]</b></color>  |  Rival: <b>{FaceLoader.GetFighterDisplayName(room.hostBody)}</b>\n<size=12><color=#FFDD44>👉 ¡TOCA AQUÍ PARA PELEAR AL INSTANTE!</color></size>";
                 rtTxt.font = font;
                 rtTxt.fontSize = 13;
                 rtTxt.color = Color.white;
@@ -406,14 +415,15 @@ namespace FightFace
         {
             if (ipInputField == null || string.IsNullOrEmpty(ipInputField.text))
             {
-                statusText.text = "Por favor ingresa la IP del otro celular.";
+                statusText.text = "Por favor ingresa el Código de sala (ej: 2) o la IP de tu amigo.";
                 return;
             }
 
-            string ip = ipInputField.text.Trim();
-            statusText.text = $"Conectando directamente a {ip}...";
+            string input = ipInputField.text.Trim();
+            string resolved = NetworkFightManager.ResolveIpFromQuickCode(input);
+            statusText.text = $"Conectando con código {input} ({resolved})...";
             FighterBodyType myBody = CharacterSelectUI.Instance != null ? CharacterSelectUI.Instance.p1BodyType : FighterBodyType.Gordo;
-            NetworkFightManager.Instance.ConnectToHost(ip, myBody);
+            NetworkFightManager.Instance.ConnectToHost(input, myBody);
         }
 
         private void OnCombatReady()

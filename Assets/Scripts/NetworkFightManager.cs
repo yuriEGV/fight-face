@@ -1,7 +1,9 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -20,17 +22,19 @@ namespace FightFace
     public class DiscoveredRoom
     {
         public string ip;
+        public string roomPin;
         public string roomName;
         public FighterBodyType hostBody;
         public StageType stage;
-        public float lastSeenTime;
+        public long lastSeenTick;
     }
 
     /// <summary>
     /// Gestor de Multijugador en Red Local (Wi-Fi / Hotspot) para Fight Face:
-    /// Permite combates en tiempo real entre múltiples celulares (o celular contra PC)
-    /// conectados a la misma red Wi-Fi o punto de acceso portátil.
-    /// Utiliza sockets UDP ultra rápidos sin depender de servidores externos.
+    /// - Detección automática de salas mediante Broadcast + Subnet Sweep activo (cero configuración).
+    /// - Soporte para Código Rápido de 1 o 2 dígitos (PIN fácil) sin necesidad de saber qué es una IP.
+    /// - Comunicación por sockets UDP ultra rápidos (30-60 Hz) con sincronización fluida de posiciones y animaciones.
+    /// - Transición sincronizada e inmediata a la arena de combate en ambos dispositivos.
     /// </summary>
     public class NetworkFightManager : MonoBehaviour
     {
@@ -51,7 +55,10 @@ namespace FightFace
         private UdpClient discoverySocket;
         private Thread receiveThread;
         private Thread discoveryThread;
-        private bool isRunningThreads = false;
+        private volatile bool isRunningThreads = false;
+
+        // Cola segura de acciones para ejecutar en el hilo principal de Unity
+        private readonly Queue<Action> mainThreadQueue = new Queue<Action>();
 
         // Salas descubiertas en la red
         public List<DiscoveredRoom> discoveredRooms = new List<DiscoveredRoom>();
@@ -89,26 +96,51 @@ namespace FightFace
             }
         }
 
+        public void EnqueueMainThread(Action action)
+        {
+            if (action == null) return;
+            lock (mainThreadQueue)
+            {
+                mainThreadQueue.Enqueue(action);
+            }
+        }
+
         private void Update()
         {
+            // 1. Ejecutar SIEMPRE las acciones pendientes en el hilo principal de Unity
+            lock (mainThreadQueue)
+            {
+                while (mainThreadQueue.Count > 0)
+                {
+                    try
+                    {
+                        mainThreadQueue.Dequeue()?.Invoke();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"[NetworkFight] Error ejecutando acción en hilo principal: {ex}");
+                    }
+                }
+            }
+
             if (!IsNetworkMatchActive) return;
 
-            // Timeout de desconexión (si pasan más de 5 segundos sin paquetes)
-            if (Time.unscaledTime - lastHeartbeatReceived > 5.0f && lastHeartbeatReceived > 0f)
+            // Timeout de desconexión (si pasan más de 6 segundos sin paquetes)
+            if (Time.unscaledTime - lastHeartbeatReceived > 6.0f && lastHeartbeatReceived > 0f)
             {
                 Debug.LogWarning("[NetworkFight] ⚠️ Conexión perdida con el rival por inactividad.");
                 Disconnect("Se perdió la conexión con el rival");
                 return;
             }
 
-            // Si somos HOST: enviamos el estado de la pelea a 30 Hz al Cliente
-            if (IsHost && Time.unscaledTime - lastSnapshotSent > 0.033f)
+            // Si somos HOST: enviamos el estado completo de la pelea a ~35 Hz al Cliente
+            if (IsHost && Time.unscaledTime - lastSnapshotSent > 0.028f)
             {
                 lastSnapshotSent = Time.unscaledTime;
                 SendHostStateSnapshot();
             }
 
-            // Si somos CLIENTE: enviamos nuestras pulsaciones al Host a 30-60 Hz
+            // Si somos CLIENTE: enviamos nuestras entradas al Host a ~40 Hz
             if (IsClient && Time.unscaledTime - lastInputSent > 0.025f)
             {
                 lastInputSent = Time.unscaledTime;
@@ -116,14 +148,16 @@ namespace FightFace
             }
         }
 
-        // ======================= CREAR SALA (HOST) =======================
-
+        // =========================================================================
+        // 1. CREAR SALA (HOST)
+        // =========================================================================
         public void StartHost(string hostName, FighterBodyType body, StageType stage)
         {
             StopNetwork();
 
             Role = NetworkRole.Host;
             isRunningThreads = true;
+            isConnected = false;
 
             try
             {
@@ -132,20 +166,37 @@ namespace FightFace
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[NetworkFight] Error abriendo puerto {PORT_GAME}: {ex.Message}");
+                Debug.LogError($"[NetworkFight] Error abriendo puerto de juego {PORT_GAME}: {ex.Message}");
                 StopNetwork();
                 return;
             }
+
+            // Socket de descubrimiento para responder PINGs de clientes
+            try
+            {
+                discoverySocket = new UdpClient();
+                discoverySocket.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                discoverySocket.Client.Bind(new IPEndPoint(IPAddress.Any, PORT_DISCOVERY));
+            }
+            catch { }
 
             // Hilo de recepción de paquetes del juego
             receiveThread = new Thread(ReceiveGamePacketsHost);
             receiveThread.IsBackground = true;
             receiveThread.Start();
 
-            // Corrutina para anunciar la sala por broadcast
+            // Hilo de escucha de Pings en descubrimiento
+            if (discoverySocket != null)
+            {
+                discoveryThread = new Thread(() => ListenForDiscoveryPingsHost(hostName, body, stage));
+                discoveryThread.IsBackground = true;
+                discoveryThread.Start();
+            }
+
+            // Corrutina para anunciar la sala periódicamente
             StartCoroutine(BroadcastRoomPresence(hostName, body, stage));
 
-            Debug.Log($"[NetworkFight] 📡 Servidor Host creado en puerto {PORT_GAME}. Esperando rival...");
+            Debug.Log($"[NetworkFight] 📡 Servidor Host creado en puerto {PORT_GAME}. PIN: {GetQuickRoomCode()}");
         }
 
         private IEnumerator BroadcastRoomPresence(string hostName, FighterBodyType body, StageType stage)
@@ -158,26 +209,62 @@ namespace FightFace
             }
             catch { }
 
-            IPEndPoint bcEp = new IPEndPoint(IPAddress.Broadcast, PORT_DISCOVERY);
+            string roomPin = GetQuickRoomCode();
+            string msg = $"FF_ROOM|{hostName}|{(int)body}|{(int)stage}|{roomPin}";
+            byte[] data = Encoding.UTF8.GetBytes(msg);
+
+            var broadcastTargets = GetSubnetBroadcastEndPoints(PORT_DISCOVERY);
 
             while (Role == NetworkRole.Host && !isConnected)
             {
-                string msg = $"FF_ROOM|{hostName}|{(int)body}|{(int)stage}";
-                byte[] data = Encoding.UTF8.GetBytes(msg);
-                try
+                if (bcClient != null)
                 {
-                    bcClient?.Send(data, data.Length, bcEp);
+                    foreach (var ep in broadcastTargets)
+                    {
+                        try
+                        {
+                            bcClient.Send(data, data.Length, ep);
+                        }
+                        catch { }
+                    }
                 }
-                catch { }
 
-                yield return new WaitForSecondsRealtime(1.0f);
+                yield return new WaitForSecondsRealtime(0.85f);
             }
 
             bcClient?.Close();
         }
 
-        // ======================= BUSCAR Y UNIRSE A SALA (CLIENTE) =======================
+        private void ListenForDiscoveryPingsHost(string hostName, FighterBodyType body, StageType stage)
+        {
+            IPEndPoint clientEp = new IPEndPoint(IPAddress.Any, 0);
+            string roomPin = GetQuickRoomCode();
+            string roomMsg = $"FF_ROOM|{hostName}|{(int)body}|{(int)stage}|{roomPin}";
+            byte[] roomData = Encoding.UTF8.GetBytes(roomMsg);
 
+            while (isRunningThreads && discoverySocket != null)
+            {
+                try
+                {
+                    byte[] data = discoverySocket.Receive(ref clientEp);
+                    string text = Encoding.UTF8.GetString(data);
+
+                    if (text.StartsWith("FF_PING"))
+                    {
+                        // Responder directamente al cliente que hizo el ping
+                        discoverySocket.Send(roomData, roomData.Length, clientEp);
+                    }
+                }
+                catch
+                {
+                    break;
+                }
+            }
+        }
+
+        // =========================================================================
+        // 2. BUSCAR Y UNIRSE A SALA (CLIENTE)
+        // =========================================================================
         public void StartScanningRooms()
         {
             StopNetwork();
@@ -185,6 +272,7 @@ namespace FightFace
             Role = NetworkRole.Client;
             discoveredRooms.Clear();
             isRunningThreads = true;
+            isConnected = false;
 
             try
             {
@@ -197,14 +285,56 @@ namespace FightFace
                 Debug.LogError($"[NetworkFight] Error en puerto de descubrimiento {PORT_DISCOVERY}: {ex.Message}");
             }
 
-            discoveryThread = new Thread(ListenForRooms);
+            discoveryThread = new Thread(ListenForRoomsClient);
             discoveryThread.IsBackground = true;
             discoveryThread.Start();
+
+            // Enviar sondeos rápidos por Wi-Fi
+            StartCoroutine(ProbeNetworkCoroutine());
 
             Debug.Log("[NetworkFight] 🔍 Buscando salas en la red Wi-Fi...");
         }
 
-        private void ListenForRooms()
+        private IEnumerator ProbeNetworkCoroutine()
+        {
+            UdpClient probeClient = null;
+            try
+            {
+                probeClient = new UdpClient();
+                probeClient.EnableBroadcast = true;
+            }
+            catch { }
+
+            byte[] pingData = Encoding.UTF8.GetBytes("FF_PING");
+            var targets = GetSubnetBroadcastEndPoints(PORT_DISCOVERY);
+
+            // 1. Enviar Ping por broadcast
+            if (probeClient != null)
+            {
+                foreach (var ep in targets)
+                {
+                    try { probeClient.Send(pingData, pingData.Length, ep); } catch { }
+                }
+            }
+
+            // 2. Barrido activo de subred local (IPs .1 a .30 y .100 a .120 comunes en celulares)
+            string prefix = GetSubnetPrefix();
+            for (int i = 1; i <= 35; i++)
+            {
+                if (Role != NetworkRole.Client || isConnected) break;
+                try
+                {
+                    probeClient?.Send(pingData, pingData.Length, new IPEndPoint(IPAddress.Parse(prefix + i), PORT_DISCOVERY));
+                }
+                catch { }
+
+                if (i % 6 == 0) yield return null;
+            }
+
+            probeClient?.Close();
+        }
+
+        private void ListenForRoomsClient()
         {
             IPEndPoint senderEp = new IPEndPoint(IPAddress.Any, 0);
             while (isRunningThreads && discoverySocket != null)
@@ -223,6 +353,7 @@ namespace FightFace
                             string rName = parts[1];
                             int bId = int.Parse(parts[2]);
                             int sId = int.Parse(parts[3]);
+                            string rPin = parts.Length > 4 ? parts[4] : GetPinFromIp(ip);
 
                             lock (discoveredRooms)
                             {
@@ -232,20 +363,24 @@ namespace FightFace
                                     existing.roomName = rName;
                                     existing.hostBody = (FighterBodyType)bId;
                                     existing.stage = (StageType)sId;
-                                    existing.lastSeenTime = Time.unscaledTime;
+                                    existing.roomPin = rPin;
+                                    existing.lastSeenTick = DateTime.UtcNow.Ticks;
                                 }
                                 else
                                 {
                                     discoveredRooms.Add(new DiscoveredRoom
                                     {
                                         ip = ip,
+                                        roomPin = rPin,
                                         roomName = rName,
                                         hostBody = (FighterBodyType)bId,
                                         stage = (StageType)sId,
-                                        lastSeenTime = Time.unscaledTime
+                                        lastSeenTick = DateTime.UtcNow.Ticks
                                     });
                                 }
                             }
+
+                            EnqueueMainThread(() => onRoomsUpdated?.Invoke());
                         }
                     }
                 }
@@ -256,9 +391,11 @@ namespace FightFace
             }
         }
 
-        public void ConnectToHost(string hostIp, FighterBodyType clientBody)
+        public void ConnectToHost(string hostIpOrPin, FighterBodyType clientBody)
         {
-            // Cerrar socket de descubrimiento para no consumir recursos
+            string hostIp = ResolveIpFromQuickCode(hostIpOrPin);
+
+            // Cerrar socket de descubrimiento para liberar el puerto
             try
             {
                 discoverySocket?.Close();
@@ -274,10 +411,11 @@ namespace FightFace
             catch (Exception ex)
             {
                 Debug.LogError($"[NetworkFight] Error conectando a IP {hostIp}: {ex.Message}");
-                Disconnect("Dirección IP inválida");
+                Disconnect("Dirección IP o Código inválido");
                 return;
             }
 
+            isRunningThreads = true;
             receiveThread = new Thread(ReceiveGamePacketsClient);
             receiveThread.IsBackground = true;
             receiveThread.Start();
@@ -290,8 +428,9 @@ namespace FightFace
             Debug.Log($"[NetworkFight] 🤝 Enviando solicitud de unión a {hostIp}...");
         }
 
-        // ======================= RECEPCIÓN DE PAQUETES (HOST) =======================
-
+        // =========================================================================
+        // 3. RECEPCIÓN DE PAQUETES (HOST)
+        // =========================================================================
         private void ReceiveGamePacketsHost()
         {
             IPEndPoint clientEp = new IPEndPoint(IPAddress.Any, 0);
@@ -305,7 +444,6 @@ namespace FightFace
 
                     if (text.StartsWith("FF_JOIN|"))
                     {
-                        // Nuevo cliente conectado
                         remoteEndPoint = clientEp;
                         isConnected = true;
                         lastHeartbeatReceived = Time.unscaledTime;
@@ -314,13 +452,28 @@ namespace FightFace
                         FighterBodyType clientBody = parts.Length > 2 ? (FighterBodyType)int.Parse(parts[2]) : FighterBodyType.Gordo;
 
                         // Aceptar cliente
-                        string acceptMsg = $"FF_ACCEPT|{(int)BattleManager.Instance.p1BodyType}|{(int)clientBody}|{(int)BattleManager.Instance.selectedStage}";
+                        int hostBodyInt = BattleManager.Instance != null ? (int)BattleManager.Instance.p1BodyType : 2;
+                        int stageInt = BattleManager.Instance != null ? (int)BattleManager.Instance.selectedStage : 3;
+                        string acceptMsg = $"FF_ACCEPT|{hostBodyInt}|{(int)clientBody}|{stageInt}";
                         byte[] accData = Encoding.UTF8.GetBytes(acceptMsg);
                         gameSocket.Send(accData, accData.Length, remoteEndPoint);
 
-                        // Iniciar la pelea en el hilo principal
-                        UnityMainThreadDispatcher.Enqueue(() =>
+                        // Iniciar la pelea de inmediato en el hilo principal
+                        EnqueueMainThread(() =>
                         {
+                            Time.timeScale = 1.0f;
+                            if (NetworkLobbyUI.Instance != null)
+                            {
+                                NetworkLobbyUI.Instance.CloseLobby();
+                            }
+                            if (CharacterSelectUI.Instance != null)
+                            {
+                                CharacterSelectUI.Instance.gameObject.SetActive(false);
+                            }
+                            if (BattleUI.Instance != null)
+                            {
+                                BattleUI.Instance.HideCharacterSelectMenu();
+                            }
                             if (BattleManager.Instance != null)
                             {
                                 BattleManager.Instance.StartFightWithCharacters(
@@ -341,7 +494,6 @@ namespace FightFace
                     else if (text.StartsWith("FF_INPUT|"))
                     {
                         lastHeartbeatReceived = Time.unscaledTime;
-                        // Decodificar inputs de P2
                         string[] parts = text.Split('|');
                         if (parts.Length >= 10)
                         {
@@ -359,10 +511,7 @@ namespace FightFace
                     }
                     else if (text.StartsWith("FF_LEAVE"))
                     {
-                        UnityMainThreadDispatcher.Enqueue(() =>
-                        {
-                            Disconnect("El rival se ha desconectado");
-                        });
+                        EnqueueMainThread(() => Disconnect("El rival se ha desconectado"));
                     }
                 }
                 catch
@@ -372,8 +521,9 @@ namespace FightFace
             }
         }
 
-        // ======================= RECEPCIÓN DE PAQUETES (CLIENTE) =======================
-
+        // =========================================================================
+        // 4. RECEPCIÓN DE PAQUETES (CLIENTE)
+        // =========================================================================
         private void ReceiveGamePacketsClient()
         {
             IPEndPoint hostEp = new IPEndPoint(IPAddress.Any, 0);
@@ -395,8 +545,21 @@ namespace FightFace
                         FighterBodyType clientBody = (FighterBodyType)int.Parse(parts[2]);
                         StageType stage = (StageType)int.Parse(parts[3]);
 
-                        UnityMainThreadDispatcher.Enqueue(() =>
+                        EnqueueMainThread(() =>
                         {
+                            Time.timeScale = 1.0f;
+                            if (NetworkLobbyUI.Instance != null)
+                            {
+                                NetworkLobbyUI.Instance.CloseLobby();
+                            }
+                            if (CharacterSelectUI.Instance != null)
+                            {
+                                CharacterSelectUI.Instance.gameObject.SetActive(false);
+                            }
+                            if (BattleUI.Instance != null)
+                            {
+                                BattleUI.Instance.HideCharacterSelectMenu();
+                            }
                             if (BattleManager.Instance != null)
                             {
                                 BattleManager.Instance.StartFightWithCharacters(
@@ -421,10 +584,7 @@ namespace FightFace
                     }
                     else if (text.StartsWith("FF_LEAVE"))
                     {
-                        UnityMainThreadDispatcher.Enqueue(() =>
-                        {
-                            Disconnect("La sala fue cerrada por el Host");
-                        });
+                        EnqueueMainThread(() => Disconnect("La sala fue cerrada por el Host"));
                     }
                 }
                 catch
@@ -434,23 +594,24 @@ namespace FightFace
             }
         }
 
-        // ======================= ENVÍO DE DATOS =======================
-
+        // =========================================================================
+        // 5. ENVÍO Y APLICACIÓN DE ESTADOS
+        // =========================================================================
         private void SendClientInputs()
         {
             if (gameSocket == null || remoteEndPoint == null) return;
 
-            // En el cliente, el jugador usa los controles táctiles de P1 para controlar su personaje P2
-            bool left = VirtualTouchControls.IsLeftPressed || FightInput.GetP1Left();
-            bool right = VirtualTouchControls.IsRightPressed || FightInput.GetP1Right();
-            bool down = VirtualTouchControls.IsDownPressed || FightInput.GetP1Down();
-            bool jump = VirtualTouchControls.ConsumeJumpPressed() || FightInput.GetP1Jump();
-            bool lp = VirtualTouchControls.ConsumePunchPressed() || FightInput.GetP1Punch();
-            bool lk = VirtualTouchControls.ConsumeKickPressed() || FightInput.GetP1Kick();
-            bool hp = VirtualTouchControls.ConsumeHeavyPunchPressed() || FightInput.GetP1HeavyPunch();
-            bool hk = VirtualTouchControls.ConsumeHeavyKickPressed() || FightInput.GetP1HeavyKick();
-            bool sp = VirtualTouchControls.ConsumeSpecialPressed() || FightInput.GetP1Special();
-            bool gr = FightInput.GetP1Grab();
+            // En el cliente, leemos el estado de entrada táctil y teclado
+            bool left = VirtualTouchControls.IsLeftPressed || FightInput.GetP1LeftRaw() || FightInput.GetP2LeftRaw();
+            bool right = VirtualTouchControls.IsRightPressed || FightInput.GetP1RightRaw() || FightInput.GetP2RightRaw();
+            bool down = VirtualTouchControls.IsDownPressed || FightInput.GetP1DownRaw() || FightInput.GetP2DownRaw();
+            bool jump = VirtualTouchControls.IsJumpPressed || FightInput.GetP1JumpRaw() || FightInput.GetP2JumpRaw();
+            bool lp = VirtualTouchControls.IsPunchPressed || FightInput.GetP1PunchRaw() || FightInput.GetP2PunchRaw();
+            bool lk = VirtualTouchControls.IsKickPressed || FightInput.GetP1KickRaw() || FightInput.GetP2KickRaw();
+            bool hp = VirtualTouchControls.IsHeavyPunchPressed || FightInput.GetP1HeavyPunchRaw() || FightInput.GetP2HeavyPunchRaw();
+            bool hk = VirtualTouchControls.IsHeavyKickPressed || FightInput.GetP1HeavyKickRaw() || FightInput.GetP2HeavyKickRaw();
+            bool sp = VirtualTouchControls.IsSpecialPressed || FightInput.GetP1SpecialRaw() || FightInput.GetP2SpecialRaw();
+            bool gr = VirtualTouchControls.IsGrabPressed || FightInput.GetP1GrabRaw() || FightInput.GetP2GrabRaw();
 
             string msg = $"FF_INPUT|{(left ? "1" : "0")}|{(right ? "1" : "0")}|{(down ? "1" : "0")}|{(jump ? "1" : "0")}|{(lp ? "1" : "0")}|{(lk ? "1" : "0")}|{(hp ? "1" : "0")}|{(hk ? "1" : "0")}|{(sp ? "1" : "0")}|{(gr ? "1" : "0")}";
             byte[] data = Encoding.UTF8.GetBytes(msg);
@@ -471,11 +632,22 @@ namespace FightFace
 
             Vector2 p1Pos = p1.transform.position;
             Vector2 p2Pos = p2.transform.position;
+            var rb1 = p1.GetComponent<Rigidbody2D>();
+            var rb2 = p2.GetComponent<Rigidbody2D>();
+            float p1vx = rb1 != null ? rb1.linearVelocity.x : 0f;
+            float p2vx = rb2 != null ? rb2.linearVelocity.x : 0f;
             float p1Hp = p1.currentHealth;
             float p2Hp = p2.currentHealth;
+            int p1Facing = p1.transform.localScale.x >= 0f ? 1 : -1;
+            int p2Facing = p2.transform.localScale.x >= 0f ? 1 : -1;
             int timer = (int)BattleManager.Instance.CurrentRoundTime;
 
-            string msg = $"FF_STATE|{p1Pos.x:F2}|{p1Pos.y:F2}|{p1Hp:F0}|{(int)p1.CurrentState}|{p2Pos.x:F2}|{p2Pos.y:F2}|{p2Hp:F0}|{(int)p2.CurrentState}|{timer}";
+            string msg = string.Format(CultureInfo.InvariantCulture,
+                "FF_STATE|{0:F2}|{1:F2}|{2:F2}|{3:F0}|{4}|{5}|{6:F2}|{7:F2}|{8:F2}|{9:F0}|{10}|{11}|{12}",
+                p1Pos.x, p1Pos.y, p1vx, p1Hp, (int)p1.CurrentState, p1Facing,
+                p2Pos.x, p2Pos.y, p2vx, p2Hp, (int)p2.CurrentState, p2Facing,
+                timer);
+
             byte[] data = Encoding.UTF8.GetBytes(msg);
             try
             {
@@ -487,19 +659,23 @@ namespace FightFace
         private void ApplyHostSnapshot(string packet)
         {
             string[] parts = packet.Split('|');
-            if (parts.Length < 10) return;
+            if (parts.Length < 13) return;
 
-            if (float.TryParse(parts[1], out float p1x) &&
-                float.TryParse(parts[2], out float p1y) &&
-                float.TryParse(parts[3], out float p1hp) &&
-                int.TryParse(parts[4], out int p1State) &&
-                float.TryParse(parts[5], out float p2x) &&
-                float.TryParse(parts[6], out float p2y) &&
-                float.TryParse(parts[7], out float p2hp) &&
-                int.TryParse(parts[8], out int p2State) &&
-                int.TryParse(parts[9], out int timer))
+            if (float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float p1x) &&
+                float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float p1y) &&
+                float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out float p1vx) &&
+                float.TryParse(parts[4], NumberStyles.Float, CultureInfo.InvariantCulture, out float p1hp) &&
+                int.TryParse(parts[5], out int p1State) &&
+                int.TryParse(parts[6], out int p1Facing) &&
+                float.TryParse(parts[7], NumberStyles.Float, CultureInfo.InvariantCulture, out float p2x) &&
+                float.TryParse(parts[8], NumberStyles.Float, CultureInfo.InvariantCulture, out float p2y) &&
+                float.TryParse(parts[9], NumberStyles.Float, CultureInfo.InvariantCulture, out float p2vx) &&
+                float.TryParse(parts[10], NumberStyles.Float, CultureInfo.InvariantCulture, out float p2hp) &&
+                int.TryParse(parts[11], out int p2State) &&
+                int.TryParse(parts[12], out int p2Facing) &&
+                int.TryParse(parts[13], out int timer))
             {
-                UnityMainThreadDispatcher.Enqueue(() =>
+                EnqueueMainThread(() =>
                 {
                     if (BattleManager.Instance != null)
                     {
@@ -508,17 +684,29 @@ namespace FightFace
 
                         if (p1 != null)
                         {
-                            p1.transform.position = Vector3.Lerp(p1.transform.position, new Vector3(p1x, p1y, 0f), 0.5f);
+                            // P1 es el Host remoto: interpolar posición y animar
+                            p1.transform.position = Vector3.Lerp(p1.transform.position, new Vector3(p1x, p1y, 0f), 0.65f);
+                            p1.transform.localScale = new Vector3(Mathf.Abs(p1.transform.localScale.x) * p1Facing, p1.transform.localScale.y, p1.transform.localScale.z);
                             int p1HealthInt = Mathf.RoundToInt(p1hp);
                             p1.currentHealth = p1HealthInt;
+                            if (p1.bodyController != null)
+                            {
+                                p1.bodyController.UpdateAnimation(p1vx, isGrounded: p1y <= -2.75f, guardHeld: p1State == (int)FighterState.BLOCKING);
+                            }
                             if (BattleUI.Instance != null) BattleUI.Instance.UpdateHealth(1, p1HealthInt, p1.maxHealth);
                         }
 
                         if (p2 != null)
                         {
-                            p2.transform.position = Vector3.Lerp(p2.transform.position, new Vector3(p2x, p2y, 0f), 0.5f);
+                            // P2 es el cliente local: suavizar posición para corregir desvíos
+                            p2.transform.position = Vector3.Lerp(p2.transform.position, new Vector3(p2x, p2y, 0f), 0.35f);
+                            p2.transform.localScale = new Vector3(Mathf.Abs(p2.transform.localScale.x) * p2Facing, p2.transform.localScale.y, p2.transform.localScale.z);
                             int p2HealthInt = Mathf.RoundToInt(p2hp);
                             p2.currentHealth = p2HealthInt;
+                            if (p2.bodyController != null)
+                            {
+                                p2.bodyController.UpdateAnimation(p2vx, isGrounded: p2y <= -2.75f, guardHeld: p2State == (int)FighterState.BLOCKING);
+                            }
                             if (BattleUI.Instance != null) BattleUI.Instance.UpdateHealth(2, p2HealthInt, p2.maxHealth);
                         }
 
@@ -531,8 +719,9 @@ namespace FightFace
             }
         }
 
-        // ======================= DESCONEXIÓN =======================
-
+        // =========================================================================
+        // 6. DESCONEXIÓN
+        // =========================================================================
         public void Disconnect(string reason = null)
         {
             if (isConnected && gameSocket != null && remoteEndPoint != null)
@@ -549,46 +738,41 @@ namespace FightFace
 
             if (!string.IsNullOrEmpty(reason) && BattleUI.Instance != null)
             {
-                BattleUI.Instance.ShowBanner($"📶 {reason.ToUpper()}", 3.0f);
+                BattleUI.Instance.ShowBanner($"⚠️ {reason}", 3.0f);
             }
 
             onDisconnected?.Invoke();
         }
 
-        private void StopNetwork()
+        public void StopNetwork()
         {
             isRunningThreads = false;
             isConnected = false;
             Role = NetworkRole.None;
             remoteEndPoint = null;
 
-            try
-            {
-                gameSocket?.Close();
-                gameSocket = null;
-            }
-            catch { }
+            try { gameSocket?.Close(); } catch { }
+            try { discoverySocket?.Close(); } catch { }
+            gameSocket = null;
+            discoverySocket = null;
 
-            try
-            {
-                discoverySocket?.Close();
-                discoverySocket = null;
-            }
-            catch { }
+            StopAllCoroutines();
 
-            try
-            {
-                if (receiveThread != null && receiveThread.IsAlive) receiveThread.Abort();
-                receiveThread = null;
-            }
-            catch { }
+            RemoteP2Left = false;
+            RemoteP2Right = false;
+            RemoteP2Down = false;
+            RemoteP2Jump = false;
+            RemoteP2Punch = false;
+            RemoteP2Kick = false;
+            RemoteP2HeavyPunch = false;
+            RemoteP2HeavyKick = false;
+            RemoteP2Special = false;
+            RemoteP2Grab = false;
+        }
 
-            try
-            {
-                if (discoveryThread != null && discoveryThread.IsAlive) discoveryThread.Abort();
-                discoveryThread = null;
-            }
-            catch { }
+        private void OnApplicationQuit()
+        {
+            StopNetwork();
         }
 
         private void OnDestroy()
@@ -596,64 +780,133 @@ namespace FightFace
             StopNetwork();
         }
 
-        // ======================= UTILIDAD: OBTENER IP LOCAL =======================
-
-        public static string GetLocalIPAddress()
+        // =========================================================================
+        // 7. UTILIDADES DE RED Y CÓDIGO RÁPIDO (PIN)
+        // =========================================================================
+        public static List<IPAddress> GetAllLocalIPv4Addresses()
         {
+            var list = new List<IPAddress>();
             try
             {
-                var host = Dns.GetHostEntry(Dns.GetHostName());
-                foreach (var ip in host.AddressList)
+                foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
                 {
-                    if (ip.AddressFamily == AddressFamily.InterNetwork)
+                    if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                        continue;
+
+                    var ipProps = ni.GetIPProperties();
+                    foreach (var u in ipProps.UnicastAddresses)
                     {
-                        string s = ip.ToString();
-                        if (!s.StartsWith("127."))
+                        if (u.Address.AddressFamily == AddressFamily.InterNetwork && !u.Address.ToString().StartsWith("127."))
                         {
-                            return s;
+                            list.Add(u.Address);
                         }
                     }
                 }
             }
             catch { }
-            return "192.168.1.X";
+
+            if (list.Count == 0)
+            {
+                try
+                {
+                    var host = Dns.GetHostEntry(Dns.GetHostName());
+                    foreach (var ip in host.AddressList)
+                    {
+                        if (ip.AddressFamily == AddressFamily.InterNetwork && !ip.ToString().StartsWith("127."))
+                        {
+                            list.Add(ip);
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            return list;
+        }
+
+        public static string GetLocalIPAddress()
+        {
+            var list = GetAllLocalIPv4Addresses();
+            // Priorizar direcciones de red local Wi-Fi / Hotspot comunes
+            foreach (var ip in list)
+            {
+                string s = ip.ToString();
+                if (s.StartsWith("192.168.") || s.StartsWith("10.") || s.StartsWith("172."))
+                    return s;
+            }
+            return list.Count > 0 ? list[0].ToString() : "127.0.0.1";
+        }
+
+        public static string GetSubnetPrefix()
+        {
+            string ip = GetLocalIPAddress();
+            int lastDot = ip.LastIndexOf('.');
+            if (lastDot > 0)
+            {
+                return ip.Substring(0, lastDot + 1);
+            }
+            return "192.168.1.";
+        }
+
+        public static string GetQuickRoomCode()
+        {
+            return GetPinFromIp(GetLocalIPAddress());
+        }
+
+        public static string GetPinFromIp(string ip)
+        {
+            if (string.IsNullOrEmpty(ip)) return "1";
+            int lastDot = ip.LastIndexOf('.');
+            if (lastDot >= 0 && lastDot < ip.Length - 1)
+            {
+                return ip.Substring(lastDot + 1);
+            }
+            return "1";
+        }
+
+        public static string ResolveIpFromQuickCode(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return GetLocalIPAddress();
+            input = input.Trim();
+
+            // Si ya contiene un punto (ej: "192.168.137.2") es una IP completa
+            if (input.Contains("."))
+            {
+                return input;
+            }
+
+            // Si es un código corto (ej: "2"), autocompletar con la subred local actual
+            string prefix = GetSubnetPrefix();
+            return prefix + input;
+        }
+
+        public static List<IPEndPoint> GetSubnetBroadcastEndPoints(int port)
+        {
+            var list = new List<IPEndPoint>();
+            list.Add(new IPEndPoint(IPAddress.Broadcast, port));
+
+            try
+            {
+                string prefix = GetSubnetPrefix();
+                list.Add(new IPEndPoint(IPAddress.Parse(prefix + "255"), port));
+                list.Add(new IPEndPoint(IPAddress.Parse(prefix + "1"), port));
+            }
+            catch { }
+
+            return list;
         }
     }
 
     /// <summary>
-    /// Despachador de acciones a ejecutar de forma segura en el hilo principal de Unity desde threads secundarios.
+    /// Despachador seguro para delegar llamadas al hilo principal de Unity.
     /// </summary>
     public class UnityMainThreadDispatcher : MonoBehaviour
     {
-        private static readonly Queue<Action> executionQueue = new Queue<Action>();
-        private static UnityMainThreadDispatcher instance;
-
         public static void Enqueue(Action action)
         {
-            if (action == null) return;
-            lock (executionQueue)
+            if (NetworkFightManager.Instance != null)
             {
-                executionQueue.Enqueue(action);
-            }
-            EnsureInstance();
-        }
-
-        private static void EnsureInstance()
-        {
-            if (instance != null) return;
-            var go = new GameObject("MainThreadDispatcher");
-            instance = go.AddComponent<UnityMainThreadDispatcher>();
-            DontDestroyOnLoad(go);
-        }
-
-        private void Update()
-        {
-            lock (executionQueue)
-            {
-                while (executionQueue.Count > 0)
-                {
-                    executionQueue.Dequeue()?.Invoke();
-                }
+                NetworkFightManager.Instance.EnqueueMainThread(action);
             }
         }
     }

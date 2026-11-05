@@ -132,6 +132,11 @@ namespace FightFace
                 BattleUI.Instance.HideCharacterSelectMenu();
             }
 
+            if (NetworkLobbyUI.Instance != null && NetworkLobbyUI.Instance.IsLobbyOpen())
+            {
+                NetworkLobbyUI.Instance.CloseLobby();
+            }
+
             RestartMatch();
         }
 
