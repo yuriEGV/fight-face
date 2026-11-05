@@ -56,6 +56,8 @@ namespace FightFace
         private Thread receiveThread;
         private Thread discoveryThread;
         private volatile bool isRunningThreads = false;
+        private FighterBodyType hostFighterBody = FighterBodyType.Musculoso;
+        private StageType hostStage = StageType.Auto;
 
         // Cola segura de acciones para ejecutar en el hilo principal de Unity
         private readonly Queue<Action> mainThreadQueue = new Queue<Action>();
@@ -158,10 +160,14 @@ namespace FightFace
             Role = NetworkRole.Host;
             isRunningThreads = true;
             isConnected = false;
+            hostFighterBody = body;
+            hostStage = stage;
 
             try
             {
-                gameSocket = new UdpClient(PORT_GAME);
+                gameSocket = new UdpClient();
+                gameSocket.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                gameSocket.Client.Bind(new IPEndPoint(IPAddress.Any, PORT_GAME));
                 gameSocket.EnableBroadcast = true;
             }
             catch (Exception ex)
@@ -253,6 +259,11 @@ namespace FightFace
                     {
                         // Responder directamente al cliente que hizo el ping
                         discoverySocket.Send(roomData, roomData.Length, clientEp);
+                    }
+                    else if (text.StartsWith("FF_JOIN|"))
+                    {
+                        // Respaldo: cliente intentó unirse a través del puerto de descubrimiento
+                        HandleClientJoinRequest(text, clientEp, discoverySocket);
                     }
                 }
                 catch
@@ -395,7 +406,9 @@ namespace FightFace
         {
             string hostIp = ResolveIpFromQuickCode(hostIpOrPin);
 
-            // Cerrar socket de descubrimiento para liberar el puerto
+            // Detener tareas previas
+            StopAllCoroutines();
+
             try
             {
                 discoverySocket?.Close();
@@ -406,26 +419,52 @@ namespace FightFace
             try
             {
                 gameSocket = new UdpClient();
+                gameSocket.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                gameSocket.EnableBroadcast = true;
                 remoteEndPoint = new IPEndPoint(IPAddress.Parse(hostIp), PORT_GAME);
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[NetworkFight] Error conectando a IP {hostIp}: {ex.Message}");
-                Disconnect("Dirección IP o Código inválido");
+                Disconnect("Dirección IP o Código inválido: " + hostIp);
                 return;
             }
 
+            Role = NetworkRole.Client;
             isRunningThreads = true;
+            isConnected = false;
+
             receiveThread = new Thread(ReceiveGamePacketsClient);
             receiveThread.IsBackground = true;
             receiveThread.Start();
 
-            // Enviar petición de unión
+            // Iniciar protocolo de reintento continuo de unión
+            StartCoroutine(HandshakeClientRoutine(hostIp, clientBody));
+            Debug.Log($"[NetworkFight] 🤝 Iniciando protocolo de unión continua hacia {hostIp}...");
+        }
+
+        private IEnumerator HandshakeClientRoutine(string hostIp, FighterBodyType clientBody)
+        {
+            IPEndPoint targetGame = new IPEndPoint(IPAddress.Parse(hostIp), PORT_GAME);
+            IPEndPoint targetDisc = new IPEndPoint(IPAddress.Parse(hostIp), PORT_DISCOVERY);
+
             string joinMsg = $"FF_JOIN|{SystemInfo.deviceName}|{(int)clientBody}";
             byte[] data = Encoding.UTF8.GetBytes(joinMsg);
-            gameSocket.Send(data, data.Length, remoteEndPoint);
 
-            Debug.Log($"[NetworkFight] 🤝 Enviando solicitud de unión a {hostIp}...");
+            int attempts = 0;
+            while (!isConnected && Role == NetworkRole.Client && attempts < 30)
+            {
+                attempts++;
+                try { gameSocket?.Send(data, data.Length, targetGame); } catch { }
+                try { gameSocket?.Send(data, data.Length, targetDisc); } catch { }
+
+                yield return new WaitForSecondsRealtime(0.20f);
+            }
+
+            if (!isConnected && Role == NetworkRole.Client)
+            {
+                Disconnect("No se pudo conectar a la sala (tiempo de espera agotado)");
+            }
         }
 
         // =========================================================================
@@ -444,52 +483,7 @@ namespace FightFace
 
                     if (text.StartsWith("FF_JOIN|"))
                     {
-                        remoteEndPoint = clientEp;
-                        isConnected = true;
-                        lastHeartbeatReceived = Time.unscaledTime;
-
-                        string[] parts = text.Split('|');
-                        FighterBodyType clientBody = parts.Length > 2 ? (FighterBodyType)int.Parse(parts[2]) : FighterBodyType.Gordo;
-
-                        // Aceptar cliente
-                        int hostBodyInt = BattleManager.Instance != null ? (int)BattleManager.Instance.p1BodyType : 2;
-                        int stageInt = BattleManager.Instance != null ? (int)BattleManager.Instance.selectedStage : 3;
-                        string acceptMsg = $"FF_ACCEPT|{hostBodyInt}|{(int)clientBody}|{stageInt}";
-                        byte[] accData = Encoding.UTF8.GetBytes(acceptMsg);
-                        gameSocket.Send(accData, accData.Length, remoteEndPoint);
-
-                        // Iniciar la pelea de inmediato en el hilo principal
-                        EnqueueMainThread(() =>
-                        {
-                            Time.timeScale = 1.0f;
-                            if (NetworkLobbyUI.Instance != null)
-                            {
-                                NetworkLobbyUI.Instance.CloseLobby();
-                            }
-                            if (CharacterSelectUI.Instance != null)
-                            {
-                                CharacterSelectUI.Instance.gameObject.SetActive(false);
-                            }
-                            if (BattleUI.Instance != null)
-                            {
-                                BattleUI.Instance.HideCharacterSelectMenu();
-                            }
-                            if (BattleManager.Instance != null)
-                            {
-                                BattleManager.Instance.StartFightWithCharacters(
-                                    BattleManager.Instance.p1BodyType,
-                                    clientBody,
-                                    p2AI: false,
-                                    training: false,
-                                    stage: BattleManager.Instance.selectedStage
-                                );
-                            }
-                            if (BattleUI.Instance != null)
-                            {
-                                BattleUI.Instance.ShowBanner("📶 ¡OPONENTE CONECTADO POR WI-FI!\n¡A PELEAR!", 2.5f);
-                            }
-                            onClientConnected?.Invoke();
-                        });
+                        HandleClientJoinRequest(text, clientEp, gameSocket);
                     }
                     else if (text.StartsWith("FF_INPUT|"))
                     {
@@ -521,6 +515,60 @@ namespace FightFace
             }
         }
 
+        private void HandleClientJoinRequest(string text, IPEndPoint clientEp, UdpClient sendingSocket)
+        {
+            remoteEndPoint = clientEp;
+            isConnected = true;
+            lastHeartbeatReceived = Time.unscaledTime;
+
+            string[] parts = text.Split('|');
+            FighterBodyType clientBody = parts.Length > 2 ? (FighterBodyType)int.Parse(parts[2]) : FighterBodyType.Gordo;
+
+            int hostBodyInt = (int)hostFighterBody;
+            int stageInt = (int)hostStage;
+            string acceptMsg = $"FF_ACCEPT|{hostBodyInt}|{(int)clientBody}|{stageInt}";
+            byte[] accData = Encoding.UTF8.GetBytes(acceptMsg);
+
+            // Enviar múltiples ráfagas para garantizar recepción inmediata en UDP
+            for (int i = 0; i < 4; i++)
+            {
+                try { sendingSocket?.Send(accData, accData.Length, clientEp); } catch { }
+                try { gameSocket?.Send(accData, accData.Length, clientEp); } catch { }
+            }
+
+            EnqueueMainThread(() =>
+            {
+                Time.timeScale = 1.0f;
+                if (NetworkLobbyUI.Instance != null)
+                {
+                    NetworkLobbyUI.Instance.CloseLobby();
+                }
+                if (CharacterSelectUI.Instance != null)
+                {
+                    CharacterSelectUI.Instance.gameObject.SetActive(false);
+                }
+                if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.HideCharacterSelectMenu();
+                }
+                if (BattleManager.Instance != null)
+                {
+                    BattleManager.Instance.StartFightWithCharacters(
+                        hostFighterBody,
+                        clientBody,
+                        p2AI: false,
+                        training: false,
+                        stage: hostStage
+                    );
+                }
+                if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.ShowBanner("📶 ¡OPONENTE CONECTADO POR WI-FI!\n¡A PELEAR!", 2.5f);
+                }
+                onClientConnected?.Invoke();
+            });
+        }
+
         // =========================================================================
         // 4. RECEPCIÓN DE PAQUETES (CLIENTE)
         // =========================================================================
@@ -539,6 +587,11 @@ namespace FightFace
                     {
                         isConnected = true;
                         lastHeartbeatReceived = Time.unscaledTime;
+                        remoteEndPoint = hostEp;
+
+                        // Confirmar recepción al Host
+                        byte[] ack = Encoding.UTF8.GetBytes("FF_ACK");
+                        try { gameSocket?.Send(ack, ack.Length, hostEp); } catch { }
 
                         string[] parts = text.Split('|');
                         FighterBodyType hostBody = (FighterBodyType)int.Parse(parts[1]);
@@ -827,11 +880,25 @@ namespace FightFace
         public static string GetLocalIPAddress()
         {
             var list = GetAllLocalIPv4Addresses();
-            // Priorizar direcciones de red local Wi-Fi / Hotspot comunes
+            // 1. Priorizar redes 192.168.x.x (Wi-Fi residencial estándar y Hotspot de Android)
             foreach (var ip in list)
             {
                 string s = ip.ToString();
-                if (s.StartsWith("192.168.") || s.StartsWith("10.") || s.StartsWith("172."))
+                if (s.StartsWith("192.168."))
+                    return s;
+            }
+            // 2. Redes privadas clase B
+            foreach (var ip in list)
+            {
+                string s = ip.ToString();
+                if (s.StartsWith("172."))
+                    return s;
+            }
+            // 3. Redes privadas clase A
+            foreach (var ip in list)
+            {
+                string s = ip.ToString();
+                if (s.StartsWith("10."))
                     return s;
             }
             return list.Count > 0 ? list[0].ToString() : "127.0.0.1";
@@ -869,13 +936,26 @@ namespace FightFace
             if (string.IsNullOrEmpty(input)) return GetLocalIPAddress();
             input = input.Trim();
 
-            // Si ya contiene un punto (ej: "192.168.137.2") es una IP completa
+            // 1. Si coincide con el PIN de alguna sala ya descubierta en memoria, usar la IP exacta de esa sala
+            if (Instance != null && Instance.discoveredRooms != null)
+            {
+                for (int i = 0; i < Instance.discoveredRooms.Count; i++)
+                {
+                    var r = Instance.discoveredRooms[i];
+                    if (r != null && (r.roomPin == input || r.ip.EndsWith("." + input)))
+                    {
+                        return r.ip;
+                    }
+                }
+            }
+
+            // 2. Si ya contiene un punto (ej: "192.168.69.22") es una IP completa
             if (input.Contains("."))
             {
                 return input;
             }
 
-            // Si es un código corto (ej: "2"), autocompletar con la subred local actual
+            // 3. Si es un código corto (ej: "22"), autocompletar con la subred local actual
             string prefix = GetSubnetPrefix();
             return prefix + input;
         }

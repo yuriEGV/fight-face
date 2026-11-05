@@ -2600,8 +2600,8 @@ namespace FightFace
             GameObject fightBtnObj = new GameObject("Btn_StartFight");
             fightBtnObj.transform.SetParent(menuObj.transform, false);
             var fbRect = fightBtnObj.AddComponent<RectTransform>();
-            fbRect.anchorMin = new Vector2(0.16f, 0.015f);
-            fbRect.anchorMax = new Vector2(0.36f, 0.078f);
+            fbRect.anchorMin = new Vector2(0.145f, 0.015f);
+            fbRect.anchorMax = new Vector2(0.320f, 0.078f);
             fbRect.offsetMin = Vector2.zero;
             fbRect.offsetMax = Vector2.zero;
 
@@ -2623,7 +2623,7 @@ namespace FightFace
             var fbTxt = fbTxtObj.AddComponent<Text>();
             fbTxt.text = "🔥 ¡A PELEAR! [ENTER]";
             fbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            fbTxt.fontSize = 16;
+            fbTxt.fontSize = 15;
             fbTxt.fontStyle = FontStyle.Bold;
             fbTxt.alignment = TextAnchor.MiddleCenter;
             fbTxt.color = Color.white;
@@ -2633,8 +2633,8 @@ namespace FightFace
             GameObject tourneyBtnObj = new GameObject("Btn_TournamentMode");
             tourneyBtnObj.transform.SetParent(menuObj.transform, false);
             var tbTourneyRect = tourneyBtnObj.AddComponent<RectTransform>();
-            tbTourneyRect.anchorMin = new Vector2(0.37f, 0.015f);
-            tbTourneyRect.anchorMax = new Vector2(0.56f, 0.078f);
+            tbTourneyRect.anchorMin = new Vector2(0.326f, 0.015f);
+            tbTourneyRect.anchorMax = new Vector2(0.500f, 0.078f);
             tbTourneyRect.offsetMin = Vector2.zero;
             tbTourneyRect.offsetMax = Vector2.zero;
 
@@ -2656,7 +2656,7 @@ namespace FightFace
             var tbTourneyTxt = tbTourneyTxtObj.AddComponent<Text>();
             tbTourneyTxt.text = "🏆 MODO TORNEO [F3]";
             tbTourneyTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            tbTourneyTxt.fontSize = 15;
+            tbTourneyTxt.fontSize = 14;
             tbTourneyTxt.fontStyle = FontStyle.Bold;
             tbTourneyTxt.alignment = TextAnchor.MiddleCenter;
             tbTourneyTxt.color = Color.black;
@@ -2666,8 +2666,8 @@ namespace FightFace
             GameObject trainBtnObj = new GameObject("Btn_TrainingMode");
             trainBtnObj.transform.SetParent(menuObj.transform, false);
             var tbRect = trainBtnObj.AddComponent<RectTransform>();
-            tbRect.anchorMin = new Vector2(0.57f, 0.015f);
-            tbRect.anchorMax = new Vector2(0.76f, 0.078f);
+            tbRect.anchorMin = new Vector2(0.506f, 0.015f);
+            tbRect.anchorMax = new Vector2(0.680f, 0.078f);
             tbRect.offsetMin = Vector2.zero;
             tbRect.offsetMax = Vector2.zero;
 
@@ -2689,7 +2689,7 @@ namespace FightFace
             var tbTxt = tbTxtObj.AddComponent<Text>();
             tbTxt.text = "🥋 ENTRENAR [F2]";
             tbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            tbTxt.fontSize = 15;
+            tbTxt.fontSize = 14;
             tbTxt.fontStyle = FontStyle.Bold;
             tbTxt.alignment = TextAnchor.MiddleCenter;
             tbTxt.color = Color.white;
@@ -2699,8 +2699,8 @@ namespace FightFace
             GameObject wifiBtnObj = new GameObject("Btn_WifiLobby");
             wifiBtnObj.transform.SetParent(menuObj.transform, false);
             var wbRect = wifiBtnObj.AddComponent<RectTransform>();
-            wbRect.anchorMin = new Vector2(0.77f, 0.015f);
-            wbRect.anchorMax = new Vector2(0.98f, 0.078f);
+            wbRect.anchorMin = new Vector2(0.686f, 0.015f);
+            wbRect.anchorMax = new Vector2(0.865f, 0.078f);
             wbRect.offsetMin = Vector2.zero;
             wbRect.offsetMax = Vector2.zero;
 
@@ -2726,9 +2726,9 @@ namespace FightFace
             wbTRect.anchorMax = Vector2.one;
             wbTRect.sizeDelta = Vector2.zero;
             var wbTxt = wbTxtObj.AddComponent<Text>();
-            wbTxt.text = "📶 MULTIJUGADOR WI-FI [N]";
+            wbTxt.text = "📶 MULTIJUGADOR [N]";
             wbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            wbTxt.fontSize = 15;
+            wbTxt.fontSize = 14;
             wbTxt.fontStyle = FontStyle.Bold;
             wbTxt.alignment = TextAnchor.MiddleCenter;
             wbTxt.color = Color.white;
@@ -2738,23 +2738,23 @@ namespace FightFace
             GameObject hintObj = new GameObject("ControlsHint");
             hintObj.transform.SetParent(menuObj.transform, false);
             var hiRect = hintObj.AddComponent<RectTransform>();
-            hiRect.anchorMin = new Vector2(0.010f, 0.015f);
-            hiRect.anchorMax = new Vector2(0.15f, 0.078f);
+            hiRect.anchorMin = new Vector2(0.008f, 0.012f);
+            hiRect.anchorMax = new Vector2(0.140f, 0.078f);
             hiRect.offsetMin = Vector2.zero;
             hiRect.offsetMax = Vector2.zero;
 
             var hiTxt = hintObj.AddComponent<Text>();
-            hiTxt.text = "🎮 1P: Teclado o Joystick [D-Pad] • 📱 [T] Touch Móvil\n[M] Música • [V] Volumen Voces • [C] Caras";
+            hiTxt.text = "🎮 1P: Teclado/Joystick\n📱 Touch • [C] Caras\n[M] Música • [V] Voces";
             hiTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            hiTxt.fontSize = 11;
+            hiTxt.fontSize = 10;
             hiTxt.alignment = TextAnchor.MiddleLeft;
             hiTxt.color = new Color(0.7f, 0.8f, 0.95f);
 
-            // Botón 4: Control de Música Opcional (ON / OFF)
+            // Botón 5: Control de Música Opcional (ON / OFF)
             GameObject musicBtnObj = new GameObject("Btn_MusicToggle");
             musicBtnObj.transform.SetParent(menuObj.transform, false);
             var mbRect = musicBtnObj.AddComponent<RectTransform>();
-            mbRect.anchorMin = new Vector2(0.885f, 0.048f);
+            mbRect.anchorMin = new Vector2(0.872f, 0.048f);
             mbRect.anchorMax = new Vector2(0.992f, 0.082f);
             mbRect.offsetMin = Vector2.zero;
             mbRect.offsetMax = Vector2.zero;
@@ -2786,11 +2786,11 @@ namespace FightFace
             selectUI.musicToggleText = mbTxt;
             selectUI.musicToggleImage = mbImg;
 
-            // Botón 5: Control de Volumen de Voces de Batalla (100%, 150%, 200%, 250%, etc.)
+            // Botón 6: Control de Volumen de Voces de Batalla (100%, 150%, 200%, 250%, etc.)
             GameObject voiceBtnObj = new GameObject("Btn_VoiceVolume");
             voiceBtnObj.transform.SetParent(menuObj.transform, false);
             var vbRect = voiceBtnObj.AddComponent<RectTransform>();
-            vbRect.anchorMin = new Vector2(0.885f, 0.012f);
+            vbRect.anchorMin = new Vector2(0.872f, 0.012f);
             vbRect.anchorMax = new Vector2(0.992f, 0.046f);
             vbRect.offsetMin = Vector2.zero;
             vbRect.offsetMax = Vector2.zero;

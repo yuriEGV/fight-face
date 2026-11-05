@@ -39,7 +39,7 @@ namespace FightFace
 
         public void BuildCrowd()
         {
-            // Limpiar si ya existían
+            // El usuario solicitó retirar al público que estaba sobre el escenario para mantener la arena limpia y sin distracciones
             foreach (var m in crowdMembers)
             {
                 if (m != null) Destroy(m.gameObject);
@@ -48,81 +48,9 @@ namespace FightFace
             crowdBasePositions.Clear();
             crowdFlags.Clear();
 
-            GameObject crowdRoot = new GameObject("ArenaCrowdRoot");
-            crowdRoot.transform.SetParent(transform, false);
-
-            float startX = -8.5f;
-            float endX = 8.5f;
-            int count = 10;
-            float step = (endX - startX) / (count - 1);
-
-            Color[] shirtColors = {
-                new Color(0.9f, 0.25f, 0.25f),
-                new Color(0.2f, 0.6f, 0.95f),
-                new Color(0.95f, 0.8f, 0.2f),
-                new Color(0.3f, 0.85f, 0.4f),
-                new Color(0.8f, 0.3f, 0.9f),
-                new Color(1f, 0.5f, 0.1f)
-            };
-
-            for (int i = 0; i < count; i++)
-            {
-                float x = startX + (i * step) + Random.Range(-0.25f, 0.25f);
-                float y = Random.Range(-0.75f, -0.45f);
-                Vector3 basePos = new Vector3(x, y, 2.5f);
-
-                GameObject person = new GameObject($"Spectator_{i + 1}");
-                person.transform.SetParent(crowdRoot.transform, false);
-                person.transform.position = basePos;
-                person.transform.localScale = new Vector3(0.70f, 0.70f, 1f);
-
-                // Cuerpo / Torso
-                GameObject body = new GameObject("Body");
-                body.transform.SetParent(person.transform, false);
-                var bSr = body.AddComponent<SpriteRenderer>();
-                bSr.sprite = CreateSpectatorBodySprite();
-                bSr.color = shirtColors[i % shirtColors.Length];
-                bSr.sortingOrder = -3;
-
-                // Cabeza con la foto de uno de los 6 luchadores / amigos
-                int fighterId = (i % 6) + 1;
-                FaceProfile prof = FaceLoader.LoadProfileForFighter(fighterId, "Amigo", 0);
-
-                GameObject head = new GameObject("Head");
-                head.transform.SetParent(person.transform, false);
-                head.transform.localPosition = new Vector3(0, 0.75f, 0);
-                var hSr = head.AddComponent<SpriteRenderer>();
-                Sprite headSprite = (prof != null) ? prof.GetSprite(FaceType.Base) : null;
-                if (headSprite == null) headSprite = FaceLoader.CreateDefaultProceduralProfile(fighterId).GetSprite(FaceType.Base);
-                hSr.sprite = headSprite;
-                hSr.sortingOrder = -2;
-
-                // Calibrar escala de cabeza
-                if (headSprite != null)
-                {
-                    float ppu = headSprite.pixelsPerUnit;
-                    float h = headSprite.rect.height / ppu;
-                    float factor = 0.85f / Mathf.Max(0.1f, h);
-                    head.transform.localScale = new Vector3(factor, factor, 1f);
-                }
-
-                // Banderín festivo para algunos espectadores
-                if (i % 2 == 0)
-                {
-                    GameObject flag = new GameObject("Flag");
-                    flag.transform.SetParent(person.transform, false);
-                    flag.transform.localPosition = new Vector3(0.35f, 0.50f, 0);
-                    var fSr = flag.AddComponent<SpriteRenderer>();
-                    fSr.sprite = CreateFlagSprite((i % 4 == 0) ? new Color(1f, 0.2f, 0.2f) : new Color(0.2f, 0.6f, 1f));
-                    fSr.sortingOrder = -1;
-                    crowdFlags.Add(flag.transform);
-                }
-
-                crowdMembers.Add(person.transform);
-                crowdBasePositions.Add(basePos);
-            }
-
-            StartCoroutine(CrowdIdleLoop());
+            Transform existingRoot = transform.Find("ArenaCrowdRoot");
+            if (existingRoot != null) Destroy(existingRoot.gameObject);
+            return;
         }
 
         private IEnumerator CrowdIdleLoop()
