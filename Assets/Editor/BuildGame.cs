@@ -92,6 +92,12 @@ namespace FightFace.Editor
                 File.WriteAllText(readmePath, readmeContent, System.Text.Encoding.UTF8);
                 Debug.Log($"[BuildGame] 📝 Instrucciones creadas en: {readmePath}");
 
+                string batSrc = Path.Combine(projectRoot, "DESBLOQUEAR_RED_MULTIJUGADOR.bat");
+                if (File.Exists(batSrc))
+                {
+                    File.Copy(batSrc, Path.Combine(buildFolder, "DESBLOQUEAR_RED_MULTIJUGADOR.bat"), true);
+                }
+
                 string desktopFolder = @"C:\Users\maritimo13\Desktop\Juego Fight Face (Listos para Jugar)";
                 if (Directory.Exists(desktopFolder))
                 {

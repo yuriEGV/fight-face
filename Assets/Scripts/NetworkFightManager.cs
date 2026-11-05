@@ -59,6 +59,94 @@ namespace FightFace
         private FighterBodyType hostFighterBody = FighterBodyType.Musculoso;
         private StageType hostStage = StageType.Auto;
 
+        // Sockets y streams TCP (para handshake 100% infalible y respaldo)
+        private TcpListener tcpListener;
+        private TcpClient tcpClient;
+        private NetworkStream tcpStream;
+        private Thread tcpListenThread;
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private AndroidJavaObject multicastLock = null;
+
+        private void AcquireMulticastLock()
+        {
+            if (multicastLock != null) return;
+            try
+            {
+                using (AndroidJavaClass activityClass = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                {
+                    AndroidJavaObject currentActivity = activityClass.GetStatic<AndroidJavaObject>("currentActivity");
+                    if (currentActivity != null)
+                    {
+                        AndroidJavaObject wifiManager = currentActivity.Call<AndroidJavaObject>("getSystemService", "wifi");
+                        if (wifiManager != null)
+                        {
+                            multicastLock = wifiManager.Call<AndroidJavaObject>("createMulticastLock", "FightFaceMulticastLock");
+                            if (multicastLock != null)
+                            {
+                                multicastLock.Call("setReferenceCounted", false);
+                                multicastLock.Call("acquire");
+                                Debug.Log("[NetworkFight] 📶 MulticastLock de Android adquirido con éxito.");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[NetworkFight] No se pudo adquirir MulticastLock en Android: " + ex.Message);
+            }
+        }
+
+        private void ReleaseMulticastLock()
+        {
+            try
+            {
+                if (multicastLock != null)
+                {
+                    if (multicastLock.Call<bool>("isHeld"))
+                    {
+                        multicastLock.Call("release");
+                    }
+                    multicastLock.Dispose();
+                    multicastLock = null;
+                    Debug.Log("[NetworkFight] 📶 MulticastLock de Android liberado.");
+                }
+            }
+            catch { }
+        }
+#endif
+
+        public static void RequestWindowsFirewallUnblock()
+        {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            try
+            {
+                string script = 
+                    "Get-NetConnectionProfile | ForEach-Object { Set-NetConnectionProfile -InterfaceIndex $_.InterfaceIndex -NetworkCategory Private -ErrorAction SilentlyContinue }; " +
+                    "Get-NetFirewallRule | Where-Object { $_.DisplayName -like '*Unity*' -and $_.Action -eq 'Block' } | Disable-NetFirewallRule -ErrorAction SilentlyContinue; " +
+                    "Remove-NetFirewallRule -DisplayName 'FightFace_UDP_LAN' -ErrorAction SilentlyContinue; " +
+                    "New-NetFirewallRule -DisplayName 'FightFace_UDP_LAN' -Direction Inbound -Protocol UDP -LocalPort 7777,7778 -Action Allow -Profile Any -ErrorAction SilentlyContinue; " +
+                    "Remove-NetFirewallRule -DisplayName 'FightFace_TCP_LAN' -ErrorAction SilentlyContinue; " +
+                    "New-NetFirewallRule -DisplayName 'FightFace_TCP_LAN' -Direction Inbound -Protocol TCP -LocalPort 7777,7778 -Action Allow -Profile Any -ErrorAction SilentlyContinue";
+
+                System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"" + script + "\"",
+                    Verb = "runas",
+                    UseShellExecute = true,
+                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+                };
+                System.Diagnostics.Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[NetworkFight] No se pudo ejecutar desbloqueo de firewall: " + ex.Message);
+            }
+#endif
+        }
+
         // Cola segura de acciones para ejecutar en el hilo principal de Unity
         private readonly Queue<Action> mainThreadQueue = new Queue<Action>();
 
@@ -157,6 +245,10 @@ namespace FightFace
         {
             StopNetwork();
 
+#if UNITY_ANDROID && !UNITY_EDITOR
+            AcquireMulticastLock();
+#endif
+
             Role = NetworkRole.Host;
             isRunningThreads = true;
             isConnected = false;
@@ -172,9 +264,24 @@ namespace FightFace
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[NetworkFight] Error abriendo puerto de juego {PORT_GAME}: {ex.Message}");
+                Debug.LogError($"[NetworkFight] Error abriendo puerto de juego UDP {PORT_GAME}: {ex.Message}");
                 StopNetwork();
                 return;
+            }
+
+            // Servidor TCP paralelo (para garantizar conexión incluso si Windows Firewall o el router bloquean UDP)
+            try
+            {
+                tcpListener = new TcpListener(IPAddress.Any, PORT_GAME);
+                tcpListener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                tcpListener.Start();
+                tcpListenThread = new Thread(ListenForTcpClientsHost);
+                tcpListenThread.IsBackground = true;
+                tcpListenThread.Start();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[NetworkFight] Aviso abriendo TCP {PORT_GAME}: {ex.Message}");
             }
 
             // Socket de descubrimiento para responder PINGs de clientes
@@ -186,7 +293,7 @@ namespace FightFace
             }
             catch { }
 
-            // Hilo de recepción de paquetes del juego
+            // Hilo de recepción de paquetes del juego UDP
             receiveThread = new Thread(ReceiveGamePacketsHost);
             receiveThread.IsBackground = true;
             receiveThread.Start();
@@ -203,6 +310,58 @@ namespace FightFace
             StartCoroutine(BroadcastRoomPresence(hostName, body, stage));
 
             Debug.Log($"[NetworkFight] 📡 Servidor Host creado en puerto {PORT_GAME}. PIN: {GetQuickRoomCode()}");
+        }
+
+        private void ListenForTcpClientsHost()
+        {
+            while (isRunningThreads && tcpListener != null)
+            {
+                try
+                {
+                    TcpClient client = tcpListener.AcceptTcpClient();
+                    client.NoDelay = true;
+                    client.SendTimeout = 4000;
+                    client.ReceiveTimeout = 4000;
+
+                    NetworkStream stream = client.GetStream();
+                    byte[] buffer = new byte[1024];
+                    int read = stream.Read(buffer, 0, buffer.Length);
+                    if (read > 0)
+                    {
+                        string text = Encoding.UTF8.GetString(buffer, 0, read);
+                        if (text.StartsWith("FF_JOIN|"))
+                        {
+                            tcpClient = client;
+                            tcpStream = stream;
+
+                            IPEndPoint clientIpEp = (IPEndPoint)client.Client.RemoteEndPoint;
+                            string[] parts = text.Split('|');
+                            int clientUdpPort = parts.Length > 3 ? int.Parse(parts[3]) : PORT_GAME;
+                            IPEndPoint clientUdpEp = new IPEndPoint(clientIpEp.Address, clientUdpPort);
+
+                            int hostBodyInt = (int)hostFighterBody;
+                            int stageInt = (int)hostStage;
+                            int clientBodyInt = parts.Length > 2 ? int.Parse(parts[2]) : 0;
+                            string acceptMsg = $"FF_ACCEPT|{hostBodyInt}|{clientBodyInt}|{stageInt}\n";
+                            byte[] accData = Encoding.UTF8.GetBytes(acceptMsg);
+                            try
+                            {
+                                stream.Write(accData, 0, accData.Length);
+                                stream.Flush();
+                            }
+                            catch { }
+
+                            // Despachar unión en el Host inmediatamente
+                            HandleClientJoinRequest(text, clientUdpEp, gameSocket);
+                            break;
+                        }
+                    }
+                }
+                catch
+                {
+                    break;
+                }
+            }
         }
 
         private IEnumerator BroadcastRoomPresence(string hostName, FighterBodyType body, StageType stage)
@@ -279,6 +438,10 @@ namespace FightFace
         public void StartScanningRooms()
         {
             StopNetwork();
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+            AcquireMulticastLock();
+#endif
 
             Role = NetworkRole.Client;
             discoveredRooms.Clear();
@@ -414,6 +577,10 @@ namespace FightFace
             // Detener tareas previas
             StopAllCoroutines();
 
+#if UNITY_ANDROID && !UNITY_EDITOR
+            AcquireMulticastLock();
+#endif
+
             try
             {
                 discoverySocket?.Close();
@@ -453,7 +620,8 @@ namespace FightFace
 
         private IEnumerator HandshakeClientRoutine(List<string> candidateIps, FighterBodyType clientBody)
         {
-            string joinMsg = $"FF_JOIN|{SystemInfo.deviceName}|{(int)clientBody}";
+            int myUdpPort = (gameSocket?.Client.LocalEndPoint as IPEndPoint)?.Port ?? PORT_GAME;
+            string joinMsg = $"FF_JOIN|{SystemInfo.deviceName}|{(int)clientBody}|{myUdpPort}";
             byte[] data = Encoding.UTF8.GetBytes(joinMsg);
 
             var targets = new List<IPEndPoint>();
@@ -466,8 +634,50 @@ namespace FightFace
                 }
             }
 
+            // Intentar conexión TCP paralela (máxima fiabilidad a través de firewalls y routers)
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                foreach (var ipStr in candidateIps)
+                {
+                    if (isConnected || Role != NetworkRole.Client) break;
+                    try
+                    {
+                        TcpClient tc = new TcpClient();
+                        tc.NoDelay = true;
+                        tc.SendTimeout = 2500;
+                        tc.ReceiveTimeout = 2500;
+                        var asyncRes = tc.BeginConnect(ipStr, PORT_GAME, null, null);
+                        bool ok = asyncRes.AsyncWaitHandle.WaitOne(2000);
+                        if (ok && tc.Connected)
+                        {
+                            tc.EndConnect(asyncRes);
+                            NetworkStream ns = tc.GetStream();
+                            byte[] jBytes = Encoding.UTF8.GetBytes(joinMsg + "\n");
+                            ns.Write(jBytes, 0, jBytes.Length);
+                            ns.Flush();
+
+                            byte[] buf = new byte[1024];
+                            int rd = ns.Read(buf, 0, buf.Length);
+                            if (rd > 0)
+                            {
+                                string reply = Encoding.UTF8.GetString(buf, 0, rd).Trim();
+                                if (reply.StartsWith("FF_ACCEPT|"))
+                                {
+                                    tcpClient = tc;
+                                    tcpStream = ns;
+                                    IPEndPoint hostEp = (IPEndPoint)tc.Client.RemoteEndPoint;
+                                    ProcessAcceptPacket(reply, hostEp);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            });
+
             int attempts = 0;
-            while (!isConnected && Role == NetworkRole.Client && attempts < 40)
+            while (!isConnected && Role == NetworkRole.Client && attempts < 50)
             {
                 attempts++;
                 foreach (var ep in targets)
@@ -475,12 +685,12 @@ namespace FightFace
                     try { gameSocket?.Send(data, data.Length, ep); } catch { }
                 }
 
-                yield return new WaitForSecondsRealtime(0.15f);
+                yield return new WaitForSecondsRealtime(0.12f);
             }
 
             if (!isConnected && Role == NetworkRole.Client)
             {
-                Disconnect("No se pudo conectar a la sala (tiempo de espera agotado)");
+                Disconnect("No se pudo conectar a la sala (tiempo de espera agotado). Verifica el Wi-Fi o Hotspot.");
             }
         }
 
@@ -534,6 +744,23 @@ namespace FightFace
 
         private void HandleClientJoinRequest(string text, IPEndPoint clientEp, UdpClient sendingSocket)
         {
+            if (isConnected)
+            {
+                // Si ya estamos conectados, solo re-enviar FF_ACCEPT por si el cliente perdió el paquete inicial
+                int hBody = (int)hostFighterBody;
+                int stg = (int)hostStage;
+                string[] p = text.Split('|');
+                int cBody = p.Length > 2 ? int.Parse(p[2]) : 0;
+                string accMsg = $"FF_ACCEPT|{hBody}|{cBody}|{stg}";
+                byte[] b = Encoding.UTF8.GetBytes(accMsg);
+                for (int i = 0; i < 4; i++)
+                {
+                    try { sendingSocket?.Send(b, b.Length, clientEp); } catch { }
+                    try { gameSocket?.Send(b, b.Length, clientEp); } catch { }
+                }
+                return;
+            }
+
             remoteEndPoint = clientEp;
             isConnected = true;
             lastHeartbeatReceived = Time.unscaledTime;
@@ -547,7 +774,7 @@ namespace FightFace
             byte[] accData = Encoding.UTF8.GetBytes(acceptMsg);
 
             // Enviar múltiples ráfagas para garantizar recepción inmediata en UDP
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 6; i++)
             {
                 try { sendingSocket?.Send(accData, accData.Length, clientEp); } catch { }
                 try { gameSocket?.Send(accData, accData.Length, clientEp); } catch { }
@@ -602,50 +829,7 @@ namespace FightFace
 
                     if (text.StartsWith("FF_ACCEPT|"))
                     {
-                        isConnected = true;
-                        lastHeartbeatReceived = Time.unscaledTime;
-                        remoteEndPoint = hostEp;
-
-                        // Confirmar recepción al Host
-                        byte[] ack = Encoding.UTF8.GetBytes("FF_ACK");
-                        try { gameSocket?.Send(ack, ack.Length, hostEp); } catch { }
-
-                        string[] parts = text.Split('|');
-                        FighterBodyType hostBody = (FighterBodyType)int.Parse(parts[1]);
-                        FighterBodyType clientBody = (FighterBodyType)int.Parse(parts[2]);
-                        StageType stage = (StageType)int.Parse(parts[3]);
-
-                        EnqueueMainThread(() =>
-                        {
-                            Time.timeScale = 1.0f;
-                            if (NetworkLobbyUI.Instance != null)
-                            {
-                                NetworkLobbyUI.Instance.CloseLobby();
-                            }
-                            if (CharacterSelectUI.Instance != null)
-                            {
-                                CharacterSelectUI.Instance.gameObject.SetActive(false);
-                            }
-                            if (BattleUI.Instance != null)
-                            {
-                                BattleUI.Instance.HideCharacterSelectMenu();
-                            }
-                            if (BattleManager.Instance != null)
-                            {
-                                BattleManager.Instance.StartFightWithCharacters(
-                                    hostBody,
-                                    clientBody,
-                                    p2AI: false,
-                                    training: false,
-                                    stage: stage
-                                );
-                            }
-                            if (BattleUI.Instance != null)
-                            {
-                                BattleUI.Instance.ShowBanner("📶 ¡CONECTADO AL HOST POR WI-FI!\n¡COMBATE INICIADO!", 2.5f);
-                            }
-                            onConnectedToHost?.Invoke();
-                        });
+                        ProcessAcceptPacket(text, hostEp);
                     }
                     else if (text.StartsWith("FF_STATE|"))
                     {
@@ -662,6 +846,60 @@ namespace FightFace
                     break;
                 }
             }
+        }
+
+        private void ProcessAcceptPacket(string text, IPEndPoint hostEp)
+        {
+            if (isConnected) return;
+            isConnected = true;
+            lastHeartbeatReceived = Time.unscaledTime;
+
+            // Fijar remoteEndPoint siempre al puerto oficial del juego (7777), no al puerto de broadcast
+            remoteEndPoint = new IPEndPoint(hostEp.Address, PORT_GAME);
+
+            // Confirmar recepción al Host inmediatamente por UDP
+            byte[] ack = Encoding.UTF8.GetBytes("FF_ACK");
+            for (int i = 0; i < 6; i++)
+            {
+                try { gameSocket?.Send(ack, ack.Length, remoteEndPoint); } catch { }
+            }
+
+            string[] parts = text.Split('|');
+            FighterBodyType hostBody = parts.Length > 1 ? (FighterBodyType)int.Parse(parts[1]) : FighterBodyType.Musculoso;
+            FighterBodyType clientBody = parts.Length > 2 ? (FighterBodyType)int.Parse(parts[2]) : FighterBodyType.Gordo;
+            StageType stage = parts.Length > 3 ? (StageType)int.Parse(parts[3]) : StageType.MGMGrand;
+
+            EnqueueMainThread(() =>
+            {
+                Time.timeScale = 1.0f;
+                if (NetworkLobbyUI.Instance != null)
+                {
+                    NetworkLobbyUI.Instance.CloseLobby();
+                }
+                if (CharacterSelectUI.Instance != null)
+                {
+                    CharacterSelectUI.Instance.gameObject.SetActive(false);
+                }
+                if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.HideCharacterSelectMenu();
+                }
+                if (BattleManager.Instance != null)
+                {
+                    BattleManager.Instance.StartFightWithCharacters(
+                        hostBody,
+                        clientBody,
+                        p2AI: false,
+                        training: false,
+                        stage: stage
+                    );
+                }
+                if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.ShowBanner("📶 ¡CONECTADO AL HOST POR WI-FI!\n¡COMBATE INICIADO!", 2.5f);
+                }
+                onConnectedToHost?.Invoke();
+            });
         }
 
         // =========================================================================
@@ -821,12 +1059,23 @@ namespace FightFace
             Role = NetworkRole.None;
             remoteEndPoint = null;
 
+            try { tcpListener?.Stop(); } catch { }
+            try { tcpStream?.Close(); } catch { }
+            try { tcpClient?.Close(); } catch { }
+            tcpListener = null;
+            tcpStream = null;
+            tcpClient = null;
+
             try { gameSocket?.Close(); } catch { }
             try { discoverySocket?.Close(); } catch { }
             gameSocket = null;
             discoverySocket = null;
 
             StopAllCoroutines();
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+            ReleaseMulticastLock();
+#endif
 
             RemoteP2Left = false;
             RemoteP2Right = false;

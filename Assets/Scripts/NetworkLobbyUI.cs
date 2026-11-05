@@ -162,7 +162,8 @@ namespace FightFace
             hostInfoText.alignment = TextAnchor.MiddleCenter;
             hostInfoText.color = Color.white;
 
-            CreateMenuButton(hostWaitingBox.transform, "Btn_CancelHost", new Vector2(0.32f, 0.04f), new Vector2(0.68f, 0.18f),
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            CreateMenuButton(hostWaitingBox.transform, "Btn_CancelHost", new Vector2(0.08f, 0.04f), new Vector2(0.46f, 0.18f),
                 "CANCELAR SALA", new Color(0.85f, 0.25f, 0.25f), () =>
                 {
                     if (NetworkFightManager.Instance != null) NetworkFightManager.Instance.Disconnect();
@@ -170,6 +171,26 @@ namespace FightFace
                     isConnecting = false;
                     statusText.text = "Sala cancelada.";
                 }, 16);
+
+            CreateMenuButton(hostWaitingBox.transform, "Btn_UnblockFirewall", new Vector2(0.50f, 0.04f), new Vector2(0.92f, 0.18f),
+                "🔓 DESBLOQUEAR RED / FIREWALL", new Color(0.18f, 0.55f, 0.90f), () =>
+                {
+                    NetworkFightManager.RequestWindowsFirewallUnblock();
+                    if (statusText != null)
+                    {
+                        statusText.text = "🛡️ Solicitando permiso a Windows... Confirma 'Sí' en pantalla para permitir Wi-Fi.";
+                    }
+                }, 14);
+#else
+            CreateMenuButton(hostWaitingBox.transform, "Btn_CancelHost", new Vector2(0.25f, 0.04f), new Vector2(0.75f, 0.18f),
+                "CANCELAR SALA", new Color(0.85f, 0.25f, 0.25f), () =>
+                {
+                    if (NetworkFightManager.Instance != null) NetworkFightManager.Instance.Disconnect();
+                    hostWaitingBox.SetActive(false);
+                    isConnecting = false;
+                    statusText.text = "Sala cancelada.";
+                }, 16);
+#endif
 
             hostWaitingBox.SetActive(false);
 
@@ -268,6 +289,14 @@ namespace FightFace
                 NetworkFightManager.Instance.onClientConnected = OnCombatReady;
                 NetworkFightManager.Instance.onConnectedToHost = OnCombatReady;
                 NetworkFightManager.Instance.onRoomsUpdated = () => RefreshRoomListUI(arcadeFont);
+                NetworkFightManager.Instance.onDisconnected = () =>
+                {
+                    isConnecting = false;
+                    if (statusText != null)
+                    {
+                        statusText.text = "⚠️ Se ha desconectado o terminó el tiempo de espera. Puedes volver a intentar.";
+                    }
+                };
             }
         }
 
@@ -320,10 +349,16 @@ namespace FightFace
                 }
             }
 
+            string advice = "";
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            advice = "\n<size=12><color=#FFCC44>🛡️ Si juegas con celular y no se conecta: pulsa 'DESBLOQUEAR RED / FIREWALL' abajo o ejecuta el archivo en tu Escritorio.</color></size>";
+#endif
+
             hostInfoText.text = $"👑 <b>SALA CREADA: {myName.ToUpper()}</b>\n\n" +
                                $"🔑 CÓDIGO RÁPIDO DE SALA: <size=34><color=#00FFAA><b>[ {myPin} ]</b></color></size>\n\n" +
                                $"Dile a tu amigo que toque <b>'BUSCAR SALAS'</b> o ingrese el código <b>{myPin}</b>.\n" +
-                               $"<size=13><color=#88AACC>(IP Local Wi-Fi: {ipListStr})</color></size>\n\n" +
+                               $"<size=13><color=#88AACC>(IP Local Wi-Fi: {ipListStr})</color></size>\n" +
+                               advice + "\n" +
                                $"⏳ <i>Transmitiendo en la red Wi-Fi... Esperando al rival...</i>";
 
             statusText.text = "¡Sala transmitiendo en Wi-Fi! El jugador 2 puede unirse ahora con 1 toque.";
