@@ -7,49 +7,95 @@ using UnityEngine.UI;
 
 namespace FightFace
 {
+    public enum TournamentSize
+    {
+        FourPlayers = 4,
+        EightPlayers = 8
+    }
+
+    public enum TournamentParticipationMode
+    {
+        PassAndPlay,        // Turnos entre amigos en el mismo celular o PC
+        SinglePlayerVsAi,   // 1 jugador humano vs la máquina en escalera arcade
+        LocalWifi           // Combates por red local Wi-Fi
+    }
+
     [Serializable]
     public class TournamentFighterData
     {
         public int id;
         public string name;
+        public FighterBodyType bodyType;
         public Color suitColor;
         public Color gloveColor;
         public FaceProfile faceProfile;
+        public bool isHuman;
+        public int humanPlayerNumber = 1; // 1 = P1, 2 = P2
+    }
+
+    [Serializable]
+    public class TournamentMatch
+    {
+        public int matchIndex;
+        public string roundName;
+        public TournamentFighterData fighter1;
+        public TournamentFighterData fighter2;
+        public TournamentFighterData winner;
+        public TournamentFighterData loser;
+        public bool isCompleted;
+        public int nextMatchIndex = -1;
+        public bool nextMatchSlotIsFighter1 = true;
+        public int loserMatchIndex = -1;
+        public bool loserMatchSlotIsFighter1 = true;
+
+        public bool isHumanVsHuman => fighter1 != null && fighter2 != null && fighter1.isHuman && fighter2.isHuman;
+        public bool isHumanVsCpu => (fighter1 != null && fighter1.isHuman && (fighter2 == null || !fighter2.isHuman)) ||
+                                    (fighter2 != null && fighter2.isHuman && (fighter1 == null || !fighter1.isHuman));
+        public bool isCpuVsCpu => (fighter1 == null || !fighter1.isHuman) && (fighter2 == null || !fighter2.isHuman);
     }
 
     /// <summary>
-    /// Gestiona el Modo Campeonato estilo Street Fighter / Arcade Ladder:
-    /// - Roster de hasta 8 luchadores con sus fotos y perfiles propios.
-    /// - Escala de rondas: Cuartos de final -> Semifinal -> Gran Final.
-    /// - Al noquear al rival, avanzas a la siguiente ronda contra el próximo luchador.
-    /// - Coronación como ¡CAMPEÓN DEL TORNEO! al derrotar al Jefe Final.
+    /// Gestiona el Modo Campeonato configurable de 4 u 8 jugadores (Sesión de ~15 o ~30 minutos)
+    /// con modalidad híbrida completa: Pase y Juegue (amigos turnándose), Solitario vs CPU, o Red Wi-Fi.
     /// </summary>
     public class TournamentManager : MonoBehaviour
     {
         public static TournamentManager Instance { get; private set; }
 
-        [Header("Configuración del Campeonato")]
-        public int currentRound = 1;
-        public int totalRounds = 3;
-        public bool isTournamentModeActive = true;
+        [Header("Configuración del Torneo")]
+        public TournamentSize currentTournamentSize = TournamentSize.EightPlayers;
+        public TournamentParticipationMode currentMode = TournamentParticipationMode.PassAndPlay;
+        public bool isTournamentModeActive = false;
 
-        [Header("Luchador del Jugador 1")]
+        [Header("Luchador Inicial P1")]
         public int selectedPlayer1Id = 1;
 
-        [Header("Roster del Torneo")]
+        [Header("Roster General")]
         public List<TournamentFighterData> roster = new List<TournamentFighterData>();
 
-        [Header("Arcade Continue")]
+        [Header("Árbol de Combates (Bracket)")]
+        public List<TournamentMatch> allMatches = new List<TournamentMatch>();
+        public int currentMatchIndex = 0;
+
+        [Header("Podio Final")]
+        public TournamentFighterData firstPlaceWinner;
+        public TournamentFighterData secondPlaceWinner;
+        public TournamentFighterData thirdPlaceWinner;
+
+        [Header("Arcade Continue (Para modo 1P vs CPU)")]
         public GameObject continuePanelRoot;
         public Text continueNumberText;
         public Text continueInfoText;
         public bool isContinueActive = false;
         private Coroutine continueCoroutine;
 
-        private int[] opponentLadder = { 2, 3, 4 }; // Rivales para Ronda 1, Semifinal y Final
-
-        public int CurrentRound => currentRound;
-        public int CurrentOpponentId => (currentRound <= opponentLadder.Length) ? opponentLadder[currentRound - 1] : 2;
+        public int CurrentRound => currentMatchIndex + 1;
+        public int currentRound
+        {
+            get => currentMatchIndex + 1;
+            set => currentMatchIndex = Mathf.Max(0, value - 1);
+        }
+        public int TotalMatches => allMatches.Count;
 
         private void Awake()
         {
@@ -70,34 +116,32 @@ namespace FightFace
         {
             roster.Clear();
 
-            string[] names = {
-                "El Gordo",
-                "El Flaco",
-                "El Musculoso",
-                "La Mujer",
-                "La Guerrera",
-                "Hombre-Máquina"
-            };
-
+            // 9 Luchadores oficiales de Fight Face con personalidades y colores únicos
             Color[] suits = {
-                new Color(0.9f, 0.2f, 0.2f),   // 1. Rojo / Azul
-                new Color(0.2f, 0.65f, 0.35f), // 2. Verde kung-fu
-                new Color(0.95f, 0.8f, 0.1f),  // 3. Dorado / Rojo Muay Thai
-                new Color(0.75f, 0.2f, 0.85f), // 4. Morado / Magenta
-                new Color(0.85f, 0.15f, 0.22f),// 5. Rojo carmesí / Gi artes marciales
-                new Color(0.25f, 0.25f, 0.30f) // 6. Gris combate oscuro Boss
+                new Color(0.9f, 0.2f, 0.2f),   // 1. Gordo (Rojo / Azul)
+                new Color(0.2f, 0.65f, 0.35f), // 2. Flaco (Verde kung-fu Bruce Lee)
+                new Color(0.95f, 0.8f, 0.1f),  // 3. Musculoso (Dorado / Muay Thai)
+                new Color(0.75f, 0.2f, 0.85f), // 4. Mujer (Morado / Magenta Kickboxing)
+                new Color(0.85f, 0.15f, 0.22f),// 5. Guerrera (Rojo carmesí Ninjutsu)
+                new Color(0.25f, 0.25f, 0.30f),// 6. Hombre-Máquina (Cyborg cómico)
+                new Color(0.10f, 0.65f, 0.95f),// 7. Playero (Azul cielo con patito inflable)
+                new Color(0.20f, 0.22f, 0.35f),// 8. Oficinista (Traje ejecutivo y corbata)
+                new Color(0.60f, 0.40f, 0.85f) // 9. Pijamero (Pijama estrellas y pantuflas conejo)
             };
 
             Color[] gloves = {
-                new Color(0.9f, 0.2f, 0.2f),  // Rojo boxeo
-                new Color(0.15f, 0.15f, 0.15f),// Negro kung-fu
-                new Color(0.95f, 0.25f, 0.25f),// Rojo Muay Thai
-                new Color(0.9f, 0.2f, 0.6f),  // Magenta
-                new Color(0.15f, 0.15f, 0.18f),// Muñequeras negras
-                new Color(0.85f, 0.6f, 0.1f)  // Oro oxidado
+                new Color(0.9f, 0.2f, 0.2f),   // Gordo
+                new Color(0.15f, 0.15f, 0.15f),// Flaco
+                new Color(0.95f, 0.25f, 0.25f),// Musculoso
+                new Color(0.9f, 0.2f, 0.6f),   // Mujer
+                new Color(0.15f, 0.15f, 0.18f),// Guerrera
+                new Color(0.85f, 0.6f, 0.1f),  // Hombre-Máquina
+                new Color(1f, 0.85f, 0.1f),   // Playero (Amarillo patito)
+                new Color(0.40f, 0.25f, 0.15f),// Oficinista (Cuero maletín)
+                new Color(1f, 0.75f, 0.85f)    // Pijamero (Rosa conejo)
             };
 
-            for (int i = 1; i <= 6; i++)
+            for (int i = 1; i <= 9; i++)
             {
                 FighterBodyType bType = (FighterBodyType)(i - 1);
                 string fName = FaceLoader.GetFighterDisplayName(bType);
@@ -105,9 +149,12 @@ namespace FightFace
                 {
                     id = i,
                     name = fName,
+                    bodyType = bType,
                     suitColor = suits[i - 1],
                     gloveColor = gloves[i - 1],
-                    faceProfile = LoadOrGenerateProfile(i, fName)
+                    faceProfile = LoadOrGenerateProfile(i, fName),
+                    isHuman = false,
+                    humanPlayerNumber = 1
                 };
                 roster.Add(fighter);
             }
@@ -136,155 +183,454 @@ namespace FightFace
         public TournamentFighterData GetFighterData(int id)
         {
             var data = roster.Find(f => f.id == id);
-            if (data == null)
+            if (data == null && roster.Count > 0)
             {
-                FighterBodyType bType = (FighterBodyType)Mathf.Clamp(id - 1, 0, 8);
-                string fName = FaceLoader.GetFighterDisplayName(bType);
-                data = new TournamentFighterData
-                {
-                    id = id,
-                    name = fName,
-                    suitColor = new Color(0.85f, 0.25f, 0.25f),
-                    gloveColor = new Color(0.95f, 0.2f, 0.2f),
-                    faceProfile = LoadOrGenerateProfile(id, fName)
-                };
-                roster.Add(data);
+                return roster[0];
             }
             return data;
         }
 
         /// <summary>
-        /// Inicia un nuevo Campeonato desde la Ronda 1.
+        /// Inicia el diálogo de configuración del Campeonato (4 u 8 jugadores).
         /// </summary>
         public void StartNewTournament(int player1FighterId = 1)
         {
             selectedPlayer1Id = player1FighterId;
-            currentRound = 1;
-            isTournamentModeActive = true;
-
-            // Elegir escalera de oponentes excluyendo al seleccionado por P1
-            List<int> available = new List<int>();
-            for (int i = 1; i <= 5; i++)
+            if (TournamentBracketUI.Instance != null)
             {
-                if (i != selectedPlayer1Id && i != 5) available.Add(i);
+                TournamentBracketUI.Instance.OpenSetupModal();
             }
-
-            // Los 3 rivales del torneo (Ronda 1, Semifinal, Gran Final)
-            opponentLadder = new int[3];
-            opponentLadder[0] = available.Count > 0 ? available[0] : 2;
-            opponentLadder[1] = available.Count > 1 ? available[1] : 3;
-            // Jefe final: El Dos Cabezas (ID 5), o si P1 lo eligió, el siguiente más fuerte
-            opponentLadder[2] = (selectedPlayer1Id == 5) ? (available.Count > 2 ? available[2] : 1) : 5;
-
-            LoadTournamentRound();
+            else
+            {
+                StartConfiguredTournament(TournamentSize.EightPlayers, TournamentParticipationMode.PassAndPlay, player1FighterId);
+            }
         }
 
         /// <summary>
-        /// Carga los datos de los luchadores para la ronda actual en la arena.
+        /// Genera y arranca el torneo con el tamaño y modalidad seleccionados.
         /// </summary>
-        public void LoadTournamentRound()
+        public void StartConfiguredTournament(TournamentSize size, TournamentParticipationMode mode, int p1Id = 1)
+        {
+            currentTournamentSize = size;
+            currentMode = mode;
+            selectedPlayer1Id = p1Id;
+            isTournamentModeActive = true;
+            currentMatchIndex = 0;
+            firstPlaceWinner = null;
+            secondPlaceWinner = null;
+            thirdPlaceWinner = null;
+
+            InitializeRoster();
+            GenerateBracketMatches();
+
+            // Abrir la pantalla interactiva de llaves (Bracket)
+            if (TournamentBracketUI.Instance != null)
+            {
+                TournamentBracketUI.Instance.OpenBracketModal();
+            }
+            else
+            {
+                LoadCurrentTournamentMatch();
+            }
+        }
+
+        private void GenerateBracketMatches()
+        {
+            allMatches.Clear();
+
+            // Seleccionar participantes aleatorios únicos
+            List<TournamentFighterData> pool = new List<TournamentFighterData>(roster);
+            List<TournamentFighterData> participants = new List<TournamentFighterData>();
+
+            // El luchador elegido por el jugador 1 siempre está presente en el Slot 0
+            var p1Fighter = GetFighterData(selectedPlayer1Id);
+            if (p1Fighter != null)
+            {
+                p1Fighter.isHuman = true;
+                p1Fighter.humanPlayerNumber = 1;
+                participants.Add(p1Fighter);
+                pool.Remove(p1Fighter);
+            }
+
+            int needed = (int)currentTournamentSize;
+            while (participants.Count < needed && pool.Count > 0)
+            {
+                int rnd = UnityEngine.Random.Range(0, pool.Count);
+                var f = pool[rnd];
+                pool.RemoveAt(rnd);
+
+                // En modo Pase y Juegue, asignar como humanos o CPUs según convenga
+                if (currentMode == TournamentParticipationMode.PassAndPlay)
+                {
+                    // En pase y juegue, el segundo slot es Humano (J2) para combate inicial entre 2 amigos
+                    if (participants.Count == 1)
+                    {
+                        f.isHuman = true;
+                        f.humanPlayerNumber = 2;
+                    }
+                    else
+                    {
+                        f.isHuman = true;
+                        f.humanPlayerNumber = (participants.Count % 2 == 0) ? 1 : 2;
+                    }
+                }
+                else
+                {
+                    // En solitario o Wi-Fi, los rivales son controlados por CPU / rival
+                    f.isHuman = false;
+                }
+
+                participants.Add(f);
+            }
+
+            if (currentTournamentSize == TournamentSize.EightPlayers)
+            {
+                BuildEightPlayerBracket(participants);
+            }
+            else
+            {
+                BuildFourPlayerBracket(participants);
+            }
+        }
+
+        private void BuildEightPlayerBracket(List<TournamentFighterData> p)
+        {
+            // Total 8 combates:
+            // Matches 0, 1, 2, 3: Cuartos de Final
+            // Matches 4, 5: Semifinales
+            // Match 6: 3er Puesto (Bronce)
+            // Match 7: Gran Final (Oro)
+
+            for (int i = 0; i < 4; i++)
+            {
+                var m = new TournamentMatch
+                {
+                    matchIndex = i,
+                    roundName = $"CUARTOS DE FINAL {i + 1}/4",
+                    fighter1 = (i * 2 < p.Count) ? p[i * 2] : null,
+                    fighter2 = (i * 2 + 1 < p.Count) ? p[i * 2 + 1] : null,
+                    nextMatchIndex = 4 + (i / 2),
+                    nextMatchSlotIsFighter1 = (i % 2 == 0)
+                };
+                allMatches.Add(m);
+            }
+
+            // Semifinal 1
+            allMatches.Add(new TournamentMatch
+            {
+                matchIndex = 4,
+                roundName = "SEMIFINAL 1/2",
+                fighter1 = null,
+                fighter2 = null,
+                nextMatchIndex = 7, // Gran Final
+                nextMatchSlotIsFighter1 = true,
+                loserMatchIndex = 6, // 3er Puesto
+                loserMatchSlotIsFighter1 = true
+            });
+
+            // Semifinal 2
+            allMatches.Add(new TournamentMatch
+            {
+                matchIndex = 5,
+                roundName = "SEMIFINAL 2/2",
+                fighter1 = null,
+                fighter2 = null,
+                nextMatchIndex = 7, // Gran Final
+                nextMatchSlotIsFighter1 = false,
+                loserMatchIndex = 6, // 3er Puesto
+                loserMatchSlotIsFighter1 = false
+            });
+
+            // 3er Puesto (Bronce)
+            allMatches.Add(new TournamentMatch
+            {
+                matchIndex = 6,
+                roundName = "🥉 DUELO POR EL 3ER PUESTO (BRONCE)",
+                fighter1 = null,
+                fighter2 = null,
+                nextMatchIndex = -1
+            });
+
+            // Gran Final (Oro y Trofeo)
+            allMatches.Add(new TournamentMatch
+            {
+                matchIndex = 7,
+                roundName = "👑 ¡LA GRAN FINAL EN EL MGM GRAND!",
+                fighter1 = null,
+                fighter2 = null,
+                nextMatchIndex = -1
+            });
+        }
+
+        private void BuildFourPlayerBracket(List<TournamentFighterData> p)
+        {
+            // Total 4 combates:
+            // Match 0: Semifinal 1
+            // Match 1: Semifinal 2
+            // Match 2: 3er Puesto
+            // Match 3: Gran Final
+
+            allMatches.Add(new TournamentMatch
+            {
+                matchIndex = 0,
+                roundName = "SEMIFINAL 1/2",
+                fighter1 = p.Count > 0 ? p[0] : null,
+                fighter2 = p.Count > 1 ? p[1] : null,
+                nextMatchIndex = 3,
+                nextMatchSlotIsFighter1 = true,
+                loserMatchIndex = 2,
+                loserMatchSlotIsFighter1 = true
+            });
+
+            allMatches.Add(new TournamentMatch
+            {
+                matchIndex = 1,
+                roundName = "SEMIFINAL 2/2",
+                fighter1 = p.Count > 2 ? p[2] : null,
+                fighter2 = p.Count > 3 ? p[3] : null,
+                nextMatchIndex = 3,
+                nextMatchSlotIsFighter1 = false,
+                loserMatchIndex = 2,
+                loserMatchSlotIsFighter1 = false
+            });
+
+            // 3er Puesto
+            allMatches.Add(new TournamentMatch
+            {
+                matchIndex = 2,
+                roundName = "🥉 DUELO POR EL 3ER PUESTO (BRONCE)",
+                fighter1 = null,
+                fighter2 = null,
+                nextMatchIndex = -1
+            });
+
+            // Gran Final
+            allMatches.Add(new TournamentMatch
+            {
+                matchIndex = 3,
+                roundName = "👑 ¡LA GRAN FINAL EN EL MGM GRAND!",
+                fighter1 = null,
+                fighter2 = null,
+                nextMatchIndex = -1
+            });
+        }
+
+        public TournamentMatch GetCurrentMatch()
+        {
+            if (currentMatchIndex >= 0 && currentMatchIndex < allMatches.Count)
+            {
+                return allMatches[currentMatchIndex];
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Carga y ejecuta el combate actual del torneo en el ring.
+        /// </summary>
+        public void LoadCurrentTournamentMatch()
         {
             if (BattleManager.Instance == null) return;
 
-            int p1Id = selectedPlayer1Id;
-            int p2Id = CurrentOpponentId;
+            var match = GetCurrentMatch();
+            if (match == null || match.isCompleted) return;
 
-            var p1Data = GetFighterData(p1Id);
-            var p2Data = GetFighterData(p2Id);
+            var p1Data = match.fighter1;
+            var p2Data = match.fighter2;
+
+            if (p1Data == null || p2Data == null)
+            {
+                Debug.LogWarning("[TournamentManager] Esperando contendientes del combate...");
+                return;
+            }
 
             // Configurar P1
-            if (BattleManager.Instance.player1 != null && p1Data != null)
+            if (BattleManager.Instance.player1 != null)
             {
                 BattleManager.Instance.player1.playerId = 1;
                 BattleManager.Instance.player1.fighterName = p1Data.name;
                 BattleManager.Instance.player1.faceController.SetProfile(p1Data.faceProfile);
+                BattleManager.Instance.player1.bodyController.SetClassicBody(p1Data.bodyType);
                 BattleManager.Instance.player1.bodyController.suitColor = p1Data.suitColor;
                 BattleManager.Instance.player1.bodyController.gloveColor = p1Data.gloveColor;
+                BattleManager.Instance.player1.isAI = !p1Data.isHuman;
             }
 
-            // Configurar P2 (Oponente del Torneo)
-            if (BattleManager.Instance.player2 != null && p2Data != null)
+            // Configurar P2
+            if (BattleManager.Instance.player2 != null)
             {
                 BattleManager.Instance.player2.playerId = 2;
                 BattleManager.Instance.player2.fighterName = p2Data.name;
-                BattleManager.Instance.player2.isAI = true; // CPU bot en el torneo
                 BattleManager.Instance.player2.faceController.SetProfile(p2Data.faceProfile);
+                BattleManager.Instance.player2.bodyController.SetClassicBody(p2Data.bodyType);
                 BattleManager.Instance.player2.bodyController.suitColor = p2Data.suitColor;
                 BattleManager.Instance.player2.bodyController.gloveColor = p2Data.gloveColor;
+                BattleManager.Instance.player2.isAI = !p2Data.isHuman;
             }
 
-            // En la Gran Final (Ronda 3) se pelea en el MGM Grand Arena. En rondas previas, en el escenario casa del rival.
-            if (currentRound >= 3)
+            // Escenario: La Gran Final siempre en el MGM Grand Arena; los demás en su escenario
+            bool isGrandFinal = (match.matchIndex == allMatches.Count - 1);
+            if (isGrandFinal)
             {
                 BattleManager.Instance.ApplyStage(StageType.MGMGrand);
             }
-            else if (p2Data != null)
+            else
             {
-                FighterBodyType oppBody = (FighterBodyType)Mathf.Clamp(p2Data.id - 1, 0, 5);
-                StageType homeStage = FaceLoader.GetHomeStageForFighter(oppBody);
-                BattleManager.Instance.ApplyStage(homeStage);
+                StageType stage = FaceLoader.GetHomeStageForFighter(p2Data.bodyType);
+                BattleManager.Instance.ApplyStage(stage);
             }
 
-            string roundTitle = GetRoundTitle(currentRound);
+            // Anuncios en pantalla
             if (BattleUI.Instance != null)
             {
-                BattleUI.Instance.p1NameText.text = "P1: " + p1Data.name;
-                BattleUI.Instance.p2NameText.text = "Rival: " + p2Data.name + " (CPU)";
-                BattleUI.Instance.ShowBanner($"🥊 {roundTitle} 🥊\n{p1Data.name} VS {p2Data.name}", 3f);
+                string tag1 = p1Data.isHuman ? $"[J{p1Data.humanPlayerNumber}]" : "[CPU]";
+                string tag2 = p2Data.isHuman ? $"[J{p2Data.humanPlayerNumber}]" : "[CPU]";
+                BattleUI.Instance.p1NameText.text = $"{p1Data.name} {tag1}";
+                BattleUI.Instance.p2NameText.text = $"{p2Data.name} {tag2}";
+
+                string vsMsg = match.isHumanVsHuman
+                    ? $"⚔️ ¡DUELO DE AMIGOS EN VIVO! ⚔️\n{p1Data.name} (J1)  VS  {p2Data.name} (J2)"
+                    : $"🥊 {match.roundName.ToUpper()} 🥊\n{p1Data.name} {tag1}  VS  {p2Data.name} {tag2}";
+
+                BattleUI.Instance.ShowBanner(vsMsg, 3.2f);
             }
 
             BattleManager.Instance.RestartMatch();
         }
 
-        public string GetRoundTitle(int round)
+        /// <summary>
+        /// Simula rápidamente el resultado en peleas entre bots de la máquina.
+        /// </summary>
+        public void SimulateCurrentCpuMatch()
         {
-            switch (round)
+            var match = GetCurrentMatch();
+            if (match == null || !match.isCpuVsCpu || match.isCompleted) return;
+
+            bool f1Wins = UnityEngine.Random.value >= 0.5f;
+            var winner = f1Wins ? match.fighter1 : match.fighter2;
+            var loser = f1Wins ? match.fighter2 : match.fighter1;
+
+            CompleteMatch(match, winner, loser);
+
+            if (TournamentBracketUI.Instance != null)
             {
-                case 1: return "CUARTOS DE FINAL";
-                case 2: return "SEMIFINAL DEL CAMPEONATO";
-                case 3: return "¡LA GRAN FINAL EN EL MGM GRAND!";
-                default: return $"RONDA {round}";
+                TournamentBracketUI.Instance.RefreshBracketView();
             }
         }
 
         /// <summary>
-        /// Se invoca cuando un luchador gana una pelea del campeonato.
+        /// Se invoca cuando un luchador gana un combate en la arena.
         /// </summary>
-        public void OnMatchWonBy(FighterController winner)
+        public void OnMatchWonBy(FighterController winnerController)
         {
             if (!isTournamentModeActive) return;
 
-            if (winner == BattleManager.Instance.player1)
-            {
-                // El Jugador 1 ganó
-                if (currentRound < totalRounds)
-                {
-                    currentRound++;
-                    string nextTitle = GetRoundTitle(currentRound);
-                    if (BattleUI.Instance != null)
-                    {
-                        BattleUI.Instance.ShowBanner($"¡K.O.! ¡VICTORIA!\nAVANZAS A: {nextTitle}", 3.5f);
-                    }
-                    Invoke(nameof(LoadTournamentRound), 3.5f);
-                }
-                else
-                {
-                    // ¡GANÓ EL CAMPEONATO!
-                    if (BattleUI.Instance != null)
-                    {
-                        BattleUI.Instance.ShowBanner($"🏆 ¡CAMPEÓN DEL TORNEO! 🏆\n¡{winner.fighterName.ToUpper()} ES EL REY!", 3f);
-                    }
+            var match = GetCurrentMatch();
+            if (match == null) return;
 
-                    StartCoroutine(LaunchTournamentCelebrationRoutine(winner));
+            bool p1Won = (winnerController == BattleManager.Instance.player1);
+            var winnerData = p1Won ? match.fighter1 : match.fighter2;
+            var loserData = p1Won ? match.fighter2 : match.fighter1;
+
+            CompleteMatch(match, winnerData, loserData);
+
+            bool isGrandFinal = (match.matchIndex == allMatches.Count - 1);
+            if (isGrandFinal)
+            {
+                // ¡CORONACIÓN TOTAL DEL CAMPEÓN!
+                firstPlaceWinner = winnerData;
+                secondPlaceWinner = loserData;
+
+                if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.ShowBanner($"🏆 ¡¡¡CAMPEÓN DE LA COPA FIGHT FACE!!! 🏆\n👑 ¡{winnerData.name.ToUpper()} SE LLEVA EL GRAN TROFEO! 👑", 3.8f);
                 }
+
+                StartCoroutine(LaunchTournamentCelebrationRoutine(winnerController));
             }
             else
             {
-                // El Jugador 1 perdió -> Cuenta regresiva estilo Arcade para continuar
-                StartContinueCountdown();
+                // Volver a la pantalla del Bracket mostrando quién avanzó
+                if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.ShowBanner($"¡K.O. TOTAL!\n👑 ¡{winnerData.name.ToUpper()} AVANZA EN EL TORNEO!", 2.8f);
+                }
+
+                StartCoroutine(ReturnToBracketAfterDelay(2.5f));
             }
         }
 
+        private void CompleteMatch(TournamentMatch match, TournamentFighterData winner, TournamentFighterData loser)
+        {
+            match.winner = winner;
+            match.loser = loser;
+            match.isCompleted = true;
+
+            // Avanzar al ganador a la siguiente ronda
+            if (match.nextMatchIndex >= 0 && match.nextMatchIndex < allMatches.Count)
+            {
+                var nextM = allMatches[match.nextMatchIndex];
+                if (match.nextMatchSlotIsFighter1) nextM.fighter1 = winner;
+                else nextM.fighter2 = winner;
+            }
+
+            // Enviar al perdedor al duelo por el 3er puesto
+            if (match.loserMatchIndex >= 0 && match.loserMatchIndex < allMatches.Count)
+            {
+                var loserM = allMatches[match.loserMatchIndex];
+                if (match.loserMatchSlotIsFighter1) loserM.fighter1 = loser;
+                else loserM.fighter2 = loser;
+            }
+
+            // Si fue el combate por el 3er puesto
+            if (match.roundName.Contains("3ER PUESTO"))
+            {
+                thirdPlaceWinner = winner;
+            }
+
+            currentMatchIndex++;
+        }
+
+        private IEnumerator ReturnToBracketAfterDelay(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+
+            if (TournamentBracketUI.Instance != null)
+            {
+                TournamentBracketUI.Instance.OpenBracketModal();
+            }
+            else
+            {
+                LoadCurrentTournamentMatch();
+            }
+        }
+
+        private IEnumerator LaunchTournamentCelebrationRoutine(FighterController winner)
+        {
+            yield return new WaitForSeconds(2.0f);
+            try
+            {
+                if (TournamentCelebrationUI.Instance != null)
+                {
+                    TournamentCelebrationUI.Instance.ShowCelebration(winner);
+                }
+                else if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.ShowCharacterSelectMenu();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[TournamentManager] Error al mostrar pantalla de celebración: {ex}");
+                if (BattleUI.Instance != null)
+                {
+                    BattleUI.Instance.ShowCharacterSelectMenu();
+                }
+            }
+        }
+
+        // =========================================================================
+        // CONTINUE COUNTDOWN
+        // =========================================================================
         private void Update()
         {
             if (isContinueActive)
@@ -311,7 +657,6 @@ namespace FightFace
 
         private IEnumerator ContinueCountdownRoutine()
         {
-            // Pausa breve para apreciar el K.O.
             yield return new WaitForSeconds(1.8f);
 
             if (continuePanelRoot == null && BattleUI.Instance != null)
@@ -327,15 +672,14 @@ namespace FightFace
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
 
-            var p2Data = GetFighterData(CurrentOpponentId);
-            string oppName = p2Data != null ? p2Data.name : "Rival";
-            string roundTitle = GetRoundTitle(currentRound);
+            var match = GetCurrentMatch();
+            string oppName = (match != null && match.fighter2 != null) ? match.fighter2.name : "Rival";
+            string roundTitle = match != null ? match.roundName : "TORNEO";
             if (continueInfoText != null)
             {
-                continueInfoText.text = $"🥊 {roundTitle} • VS {oppName.ToUpper()}\n¿Deseas continuar este combate?";
+                continueInfoText.text = $"🥊 {roundTitle} • VS {oppName.ToUpper()}\n¿Deseas reintentar este combate?";
             }
 
-            // Cuenta regresiva arcade de 9 a 0
             for (int sec = 9; sec >= 0; sec--)
             {
                 if (!isContinueActive) yield break;
@@ -359,153 +703,99 @@ namespace FightFace
                 }
             }
 
-            // Tiempo agotado: Game Over
-            if (continueNumberText != null)
-            {
-                continueNumberText.text = "0";
-            }
-            if (continueInfoText != null)
-            {
-                continueInfoText.text = "☠️ ¡TIEMPO AGOTADO! GAME OVER ☠️";
-            }
-
-            yield return new WaitForSeconds(1.5f);
             OnGiveUpTournamentClicked();
         }
 
         public void OnContinueTournamentClicked()
         {
-            if (!isContinueActive) return;
             isContinueActive = false;
-
-            if (continueCoroutine != null)
-            {
-                StopCoroutine(continueCoroutine);
-                continueCoroutine = null;
-            }
-
-            if (continuePanelRoot != null)
-            {
-                continuePanelRoot.SetActive(false);
-            }
-
-            if (BattleUI.Instance != null)
-            {
-                BattleUI.Instance.ShowBanner($"¡CONTINUAR COMBATE!\n{GetRoundTitle(currentRound)}", 2.2f);
-            }
-
-            // Reanuda el torneo desde la ronda actual en la que cayó
-            LoadTournamentRound();
+            if (continuePanelRoot != null) continuePanelRoot.SetActive(false);
+            LoadCurrentTournamentMatch();
         }
 
         public void OnGiveUpTournamentClicked()
         {
             isContinueActive = false;
-
-            if (continueCoroutine != null)
-            {
-                StopCoroutine(continueCoroutine);
-                continueCoroutine = null;
-            }
-
-            if (continuePanelRoot != null)
-            {
-                continuePanelRoot.SetActive(false);
-            }
-
             isTournamentModeActive = false;
-            currentRound = 1;
-
-            if (BattleUI.Instance != null)
-            {
-                BattleUI.Instance.ShowCharacterSelectMenu();
-            }
+            if (continuePanelRoot != null) continuePanelRoot.SetActive(false);
+            if (TournamentBracketUI.Instance != null) TournamentBracketUI.Instance.CloseAll();
+            if (BattleUI.Instance != null) BattleUI.Instance.ShowCharacterSelectMenu();
         }
 
-        public void BuildContinueUI(Transform canvasTransform)
+        private void BuildContinueUI(Transform canvas)
         {
             if (continuePanelRoot != null) return;
 
             continuePanelRoot = new GameObject("Panel_ArcadeContinue");
-            continuePanelRoot.transform.SetParent(canvasTransform, false);
-            var prRect = continuePanelRoot.AddComponent<RectTransform>();
-            prRect.anchorMin = Vector2.zero;
-            prRect.anchorMax = Vector2.one;
-            prRect.offsetMin = Vector2.zero;
-            prRect.offsetMax = Vector2.zero;
+            continuePanelRoot.transform.SetParent(canvas, false);
+            var rect = continuePanelRoot.AddComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
 
             var bg = continuePanelRoot.AddComponent<Image>();
-            bg.color = new Color(0.02f, 0.03f, 0.08f, 0.88f);
-            bg.raycastTarget = true;
+            bg.color = new Color(0.04f, 0.05f, 0.08f, 0.94f);
 
-            // Cuadro central
-            GameObject boxObj = new GameObject("ContinueBox");
+            GameObject boxObj = new GameObject("CenterBox");
             boxObj.transform.SetParent(continuePanelRoot.transform, false);
             var bRect = boxObj.AddComponent<RectTransform>();
-            bRect.anchorMin = new Vector2(0.24f, 0.20f);
-            bRect.anchorMax = new Vector2(0.76f, 0.80f);
-            bRect.offsetMin = Vector2.zero;
-            bRect.offsetMax = Vector2.zero;
+            bRect.anchorMin = new Vector2(0.5f, 0.5f);
+            bRect.anchorMax = new Vector2(0.5f, 0.5f);
+            bRect.pivot = new Vector2(0.5f, 0.5f);
+            bRect.sizeDelta = new Vector2(650, 480);
 
-            var boxBg = boxObj.AddComponent<Image>();
-            boxBg.color = new Color(0.08f, 0.10f, 0.16f, 0.98f);
-            var boxOut = boxObj.AddComponent<Outline>();
-            boxOut.effectColor = new Color(1f, 0.8f, 0.1f, 0.9f);
-            boxOut.effectDistance = new Vector2(3, 3);
+            var bImg = boxObj.AddComponent<Image>();
+            bImg.color = new Color(0.08f, 0.10f, 0.18f, 0.98f);
+            var bOutline = boxObj.AddComponent<Outline>();
+            bOutline.effectColor = new Color(1f, 0.25f, 0.15f, 0.9f);
+            bOutline.effectDistance = new Vector2(3, 3);
 
-            // Título Arcade: CONTINUE?
-            GameObject titleObj = new GameObject("Title_Continue");
+            GameObject titleObj = new GameObject("Title");
             titleObj.transform.SetParent(boxObj.transform, false);
             var tRect = titleObj.AddComponent<RectTransform>();
-            tRect.anchorMin = new Vector2(0f, 0.76f);
-            tRect.anchorMax = new Vector2(1f, 0.96f);
+            tRect.anchorMin = new Vector2(0.05f, 0.80f);
+            tRect.anchorMax = new Vector2(0.95f, 0.95f);
             tRect.offsetMin = Vector2.zero;
             tRect.offsetMax = Vector2.zero;
             var titleTxt = titleObj.AddComponent<Text>();
-            titleTxt.text = "¡CONTINUE?";
+            titleTxt.text = "¡K.O.! ¿CONTINUAR?";
             titleTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            titleTxt.fontSize = 38;
+            titleTxt.fontSize = 26;
             titleTxt.fontStyle = FontStyle.Bold;
             titleTxt.alignment = TextAnchor.MiddleCenter;
-            titleTxt.color = new Color(1f, 0.25f, 0.25f);
+            titleTxt.color = new Color(1f, 0.3f, 0.2f);
+            titleTxt.raycastTarget = false;
 
-            // Información de combate / Ronda
-            GameObject infoObj = new GameObject("Info_Round");
+            GameObject infoObj = new GameObject("InfoText");
             infoObj.transform.SetParent(boxObj.transform, false);
             var iRect = infoObj.AddComponent<RectTransform>();
-            iRect.anchorMin = new Vector2(0.05f, 0.58f);
-            iRect.anchorMax = new Vector2(0.95f, 0.74f);
+            iRect.anchorMin = new Vector2(0.05f, 0.65f);
+            iRect.anchorMax = new Vector2(0.95f, 0.80f);
             iRect.offsetMin = Vector2.zero;
             iRect.offsetMax = Vector2.zero;
             continueInfoText = infoObj.AddComponent<Text>();
-            continueInfoText.text = "🥊 RONDA DEL CAMPEONATO\n¿Deseas continuar este combate?";
             continueInfoText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            continueInfoText.fontSize = 16;
-            continueInfoText.fontStyle = FontStyle.Bold;
+            continueInfoText.fontSize = 15;
             continueInfoText.alignment = TextAnchor.MiddleCenter;
-            continueInfoText.color = new Color(0.9f, 0.95f, 1f);
+            continueInfoText.color = Color.white;
+            continueInfoText.raycastTarget = false;
 
-            // Número gigante de cuenta regresiva (9 a 0)
-            GameObject numObj = new GameObject("Countdown_Number");
+            GameObject numObj = new GameObject("NumberText");
             numObj.transform.SetParent(boxObj.transform, false);
             var nRect = numObj.AddComponent<RectTransform>();
-            nRect.anchorMin = new Vector2(0.2f, 0.24f);
-            nRect.anchorMax = new Vector2(0.8f, 0.58f);
+            nRect.anchorMin = new Vector2(0.35f, 0.25f);
+            nRect.anchorMax = new Vector2(0.65f, 0.65f);
             nRect.offsetMin = Vector2.zero;
             nRect.offsetMax = Vector2.zero;
             continueNumberText = numObj.AddComponent<Text>();
-            continueNumberText.text = "9";
             continueNumberText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             continueNumberText.fontSize = 90;
             continueNumberText.fontStyle = FontStyle.Bold;
             continueNumberText.alignment = TextAnchor.MiddleCenter;
             continueNumberText.color = new Color(1f, 0.85f, 0.15f);
+            continueNumberText.raycastTarget = false;
 
-            var numShadow = numObj.AddComponent<Outline>();
-            numShadow.effectColor = new Color(0.9f, 0.15f, 0.1f, 0.8f);
-            numShadow.effectDistance = new Vector2(3, -3);
-
-            // Botones de acción inferiores
             GameObject btnRow = new GameObject("ButtonsRow");
             btnRow.transform.SetParent(boxObj.transform, false);
             var bRowRect = btnRow.AddComponent<RectTransform>();
@@ -514,17 +804,8 @@ namespace FightFace
             bRowRect.offsetMin = Vector2.zero;
             bRowRect.offsetMax = Vector2.zero;
 
-            // Botón 1: CONTINUAR
-            CreateContinueActionButton(btnRow.transform, "CONTINUAR [ESPACIO / ENTER]", new Vector2(0f, 0f), new Vector2(0.58f, 1f), new Color(0.12f, 0.65f, 0.35f), () =>
-            {
-                OnContinueTournamentClicked();
-            });
-
-            // Botón 2: RENDIRSE
-            CreateContinueActionButton(btnRow.transform, "SALIR [ESC]", new Vector2(0.62f, 0f), new Vector2(1f, 1f), new Color(0.75f, 0.25f, 0.25f), () =>
-            {
-                OnGiveUpTournamentClicked();
-            });
+            CreateContinueActionButton(btnRow.transform, "CONTINUAR [ESPACIO / ENTER]", new Vector2(0f, 0f), new Vector2(0.58f, 1f), new Color(0.12f, 0.65f, 0.35f), OnContinueTournamentClicked);
+            CreateContinueActionButton(btnRow.transform, "SALIR [ESC]", new Vector2(0.62f, 0f), new Vector2(1f, 1f), new Color(0.75f, 0.25f, 0.25f), OnGiveUpTournamentClicked);
 
             continuePanelRoot.SetActive(false);
         }
@@ -541,6 +822,7 @@ namespace FightFace
 
             var bImg = btnObj.AddComponent<Image>();
             bImg.color = bgColor;
+            bImg.raycastTarget = true;
             var btn = btnObj.AddComponent<Button>();
             btn.targetGraphic = bImg;
             btn.onClick.AddListener(onClick);
@@ -559,30 +841,6 @@ namespace FightFace
             txt.alignment = TextAnchor.MiddleCenter;
             txt.color = Color.white;
             txt.raycastTarget = false;
-        }
-
-        private System.Collections.IEnumerator LaunchTournamentCelebrationRoutine(FighterController winner)
-        {
-            yield return new WaitForSeconds(2.0f);
-            try
-            {
-                if (TournamentCelebrationUI.Instance != null)
-                {
-                    TournamentCelebrationUI.Instance.ShowCelebration(winner);
-                }
-                else if (BattleUI.Instance != null)
-                {
-                    BattleUI.Instance.ShowCharacterSelectMenu();
-                }
-            }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"[TournamentManager] Error al mostrar pantalla de celebración: {ex}");
-                if (BattleUI.Instance != null)
-                {
-                    BattleUI.Instance.ShowCharacterSelectMenu();
-                }
-            }
         }
     }
 }

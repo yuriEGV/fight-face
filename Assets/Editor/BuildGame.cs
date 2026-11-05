@@ -91,6 +91,14 @@ namespace FightFace.Editor
 ";
                 File.WriteAllText(readmePath, readmeContent, System.Text.Encoding.UTF8);
                 Debug.Log($"[BuildGame] 📝 Instrucciones creadas en: {readmePath}");
+
+                string desktopFolder = @"C:\Users\maritimo13\Desktop\Juego Fight Face (Listos para Jugar)";
+                if (Directory.Exists(desktopFolder))
+                {
+                    string destPcFolder = Path.Combine(desktopFolder, "Juego_Para_PC_Pendrive");
+                    CopyDirectoryRecursive(buildFolder, destPcFolder);
+                    Debug.Log($"[BuildGame] 💻 PC Build copiado al Escritorio: {destPcFolder}");
+                }
             }
             else if (summary.result == BuildResult.Failed)
             {

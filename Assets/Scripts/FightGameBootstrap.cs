@@ -335,6 +335,9 @@ namespace FightFace
             var celebrationUI = canvasObj.AddComponent<TournamentCelebrationUI>();
             celebrationUI.BuildCelebrationUI(canvasObj.transform);
 
+            var bracketUI = canvasObj.AddComponent<TournamentBracketUI>();
+            bracketUI.BuildUI(canvasObj.transform);
+
             var netMgr = canvasObj.AddComponent<NetworkFightManager>();
             var netLobby = canvasObj.AddComponent<NetworkLobbyUI>();
             netLobby.BuildLobbyUI(canvasObj.transform);

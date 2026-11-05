@@ -134,9 +134,10 @@ namespace FightFace
                 bool isWinnerActive = BattleUI.Instance != null && BattleUI.Instance.winnerModalPanel != null && BattleUI.Instance.winnerModalPanel.activeInHierarchy;
                 bool isCelebrationActive = TournamentCelebrationUI.Instance != null && TournamentCelebrationUI.Instance.IsActive;
                 bool isLobbyActive = NetworkLobbyUI.Instance != null && NetworkLobbyUI.Instance.IsLobbyOpen();
+                bool isBracketActive = TournamentBracketUI.Instance != null && TournamentBracketUI.Instance.IsActive;
 
                 // Controles visibles en combate normal o entrenamiento mientras no haya menús modales superpuestos
-                bool inArena = !isSelectActive && !isWebcamActive && !isWinnerActive && !isCelebrationActive && !isLobbyActive;
+                bool inArena = !isSelectActive && !isWebcamActive && !isWinnerActive && !isCelebrationActive && !isLobbyActive && !isBracketActive;
                 bool shouldShow = isTouchControlsEnabled && inArena;
 
                 float targetAlpha = shouldShow ? 1f : 0f;
