@@ -328,18 +328,22 @@ namespace FightFace
                 }
             }
 
-            // 2. Barrido activo de subred local (IPs .1 a .30 y .100 a .120 comunes en celulares)
-            string prefix = GetSubnetPrefix();
-            for (int i = 1; i <= 35; i++)
+            // 2. Barrido activo de todas las subredes locales y hotspots
+            var allPrefixes = GetAllLocalSubnetPrefixes();
+            foreach (var prefix in allPrefixes)
             {
                 if (Role != NetworkRole.Client || isConnected) break;
-                try
+                for (int i = 1; i <= 30; i++)
                 {
-                    probeClient?.Send(pingData, pingData.Length, new IPEndPoint(IPAddress.Parse(prefix + i), PORT_DISCOVERY));
-                }
-                catch { }
+                    if (Role != NetworkRole.Client || isConnected) break;
+                    try
+                    {
+                        probeClient?.Send(pingData, pingData.Length, new IPEndPoint(IPAddress.Parse(prefix + i), PORT_DISCOVERY));
+                    }
+                    catch { }
 
-                if (i % 6 == 0) yield return null;
+                    if (i % 8 == 0) yield return null;
+                }
             }
 
             probeClient?.Close();
@@ -404,7 +408,8 @@ namespace FightFace
 
         public void ConnectToHost(string hostIpOrPin, FighterBodyType clientBody)
         {
-            string hostIp = ResolveIpFromQuickCode(hostIpOrPin);
+            var candidateIps = ResolveCandidateIpsFromQuickCode(hostIpOrPin);
+            if (candidateIps.Count == 0) candidateIps.Add(GetLocalIPAddress());
 
             // Detener tareas previas
             StopAllCoroutines();
@@ -421,12 +426,15 @@ namespace FightFace
                 gameSocket = new UdpClient();
                 gameSocket.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 gameSocket.EnableBroadcast = true;
-                remoteEndPoint = new IPEndPoint(IPAddress.Parse(hostIp), PORT_GAME);
+                if (IPAddress.TryParse(candidateIps[0], out IPAddress firstAddr))
+                {
+                    remoteEndPoint = new IPEndPoint(firstAddr, PORT_GAME);
+                }
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[NetworkFight] Error conectando a IP {hostIp}: {ex.Message}");
-                Disconnect("Dirección IP o Código inválido: " + hostIp);
+                Debug.LogError($"[NetworkFight] Error iniciando socket de juego: {ex.Message}");
+                Disconnect("Error de red: " + ex.Message);
                 return;
             }
 
@@ -438,27 +446,36 @@ namespace FightFace
             receiveThread.IsBackground = true;
             receiveThread.Start();
 
-            // Iniciar protocolo de reintento continuo de unión
-            StartCoroutine(HandshakeClientRoutine(hostIp, clientBody));
-            Debug.Log($"[NetworkFight] 🤝 Iniciando protocolo de unión continua hacia {hostIp}...");
+            // Iniciar protocolo de reintento continuo de unión hacia todos los candidatos
+            StartCoroutine(HandshakeClientRoutine(candidateIps, clientBody));
+            Debug.Log($"[NetworkFight] 🤝 Iniciando protocolo de unión hacia: {string.Join(", ", candidateIps)}...");
         }
 
-        private IEnumerator HandshakeClientRoutine(string hostIp, FighterBodyType clientBody)
+        private IEnumerator HandshakeClientRoutine(List<string> candidateIps, FighterBodyType clientBody)
         {
-            IPEndPoint targetGame = new IPEndPoint(IPAddress.Parse(hostIp), PORT_GAME);
-            IPEndPoint targetDisc = new IPEndPoint(IPAddress.Parse(hostIp), PORT_DISCOVERY);
-
             string joinMsg = $"FF_JOIN|{SystemInfo.deviceName}|{(int)clientBody}";
             byte[] data = Encoding.UTF8.GetBytes(joinMsg);
 
+            var targets = new List<IPEndPoint>();
+            foreach (var ipStr in candidateIps)
+            {
+                if (IPAddress.TryParse(ipStr, out IPAddress parsed))
+                {
+                    targets.Add(new IPEndPoint(parsed, PORT_GAME));
+                    targets.Add(new IPEndPoint(parsed, PORT_DISCOVERY));
+                }
+            }
+
             int attempts = 0;
-            while (!isConnected && Role == NetworkRole.Client && attempts < 30)
+            while (!isConnected && Role == NetworkRole.Client && attempts < 40)
             {
                 attempts++;
-                try { gameSocket?.Send(data, data.Length, targetGame); } catch { }
-                try { gameSocket?.Send(data, data.Length, targetDisc); } catch { }
+                foreach (var ep in targets)
+                {
+                    try { gameSocket?.Send(data, data.Length, ep); } catch { }
+                }
 
-                yield return new WaitForSecondsRealtime(0.20f);
+                yield return new WaitForSecondsRealtime(0.15f);
             }
 
             if (!isConnected && Role == NetworkRole.Client)
@@ -904,6 +921,29 @@ namespace FightFace
             return list.Count > 0 ? list[0].ToString() : "127.0.0.1";
         }
 
+        public static List<string> GetAllLocalSubnetPrefixes()
+        {
+            var prefixes = new HashSet<string>();
+
+            // Extraer prefijos de todas las interfaces IPv4 activas
+            foreach (var ip in GetAllLocalIPv4Addresses())
+            {
+                string s = ip.ToString();
+                int lastDot = s.LastIndexOf('.');
+                if (lastDot > 0)
+                {
+                    prefixes.Add(s.Substring(0, lastDot + 1));
+                }
+            }
+
+            // Agregar siempre los prefijos estándar de zona portátil (Hotspot)
+            prefixes.Add("192.168.137."); // Windows Mobile Hotspot
+            prefixes.Add("192.168.43.");  // Android Mobile Hotspot estándar
+            prefixes.Add("172.20.10.");   // iOS Mobile Hotspot estándar
+
+            return new List<string>(prefixes);
+        }
+
         public static string GetSubnetPrefix()
         {
             string ip = GetLocalIPAddress();
@@ -931,12 +971,17 @@ namespace FightFace
             return "1";
         }
 
-        public static string ResolveIpFromQuickCode(string input)
+        public static List<string> ResolveCandidateIpsFromQuickCode(string input)
         {
-            if (string.IsNullOrEmpty(input)) return GetLocalIPAddress();
+            var list = new List<string>();
+            if (string.IsNullOrEmpty(input))
+            {
+                list.Add(GetLocalIPAddress());
+                return list;
+            }
             input = input.Trim();
 
-            // 1. Si coincide con el PIN de alguna sala ya descubierta en memoria, usar la IP exacta de esa sala
+            // 1. Si coincide con el PIN de alguna sala ya descubierta en memoria, priorizarla
             if (Instance != null && Instance.discoveredRooms != null)
             {
                 for (int i = 0; i < Instance.discoveredRooms.Count; i++)
@@ -944,20 +989,44 @@ namespace FightFace
                     var r = Instance.discoveredRooms[i];
                     if (r != null && (r.roomPin == input || r.ip.EndsWith("." + input)))
                     {
-                        return r.ip;
+                        if (!list.Contains(r.ip)) list.Add(r.ip);
                     }
                 }
             }
 
-            // 2. Si ya contiene un punto (ej: "192.168.69.22") es una IP completa
+            // 2. Si ya contiene un punto (ej: "192.168.137.2") es una IP completa directa
             if (input.Contains("."))
             {
-                return input;
+                if (!list.Contains(input)) list.Add(input);
+                return list;
             }
 
-            // 3. Si es un código corto (ej: "22"), autocompletar con la subred local actual
-            string prefix = GetSubnetPrefix();
-            return prefix + input;
+            // 3. Probar el código en TODOS los prefijos de subred conocidos (Wi-Fi, Ethernet y Hotspots)
+            foreach (var prefix in GetAllLocalSubnetPrefixes())
+            {
+                string candidate = prefix + input;
+                if (!list.Contains(candidate)) list.Add(candidate);
+            }
+
+            // Si es un hotspot común y el código fue "2" o "1", agregar también el otro extremo del enlace
+            if (input == "2")
+            {
+                if (!list.Contains("192.168.137.1")) list.Add("192.168.137.1");
+                if (!list.Contains("192.168.43.1")) list.Add("192.168.43.1");
+            }
+            else if (input == "1")
+            {
+                if (!list.Contains("192.168.137.2")) list.Add("192.168.137.2");
+                if (!list.Contains("192.168.43.2")) list.Add("192.168.43.2");
+            }
+
+            return list;
+        }
+
+        public static string ResolveIpFromQuickCode(string input)
+        {
+            var candidates = ResolveCandidateIpsFromQuickCode(input);
+            return candidates.Count > 0 ? candidates[0] : GetLocalIPAddress();
         }
 
         public static List<IPEndPoint> GetSubnetBroadcastEndPoints(int port)
@@ -965,13 +1034,16 @@ namespace FightFace
             var list = new List<IPEndPoint>();
             list.Add(new IPEndPoint(IPAddress.Broadcast, port));
 
-            try
+            foreach (var prefix in GetAllLocalSubnetPrefixes())
             {
-                string prefix = GetSubnetPrefix();
-                list.Add(new IPEndPoint(IPAddress.Parse(prefix + "255"), port));
-                list.Add(new IPEndPoint(IPAddress.Parse(prefix + "1"), port));
+                try
+                {
+                    list.Add(new IPEndPoint(IPAddress.Parse(prefix + "255"), port));
+                    list.Add(new IPEndPoint(IPAddress.Parse(prefix + "1"), port));
+                    list.Add(new IPEndPoint(IPAddress.Parse(prefix + "2"), port));
+                }
+                catch { }
             }
-            catch { }
 
             return list;
         }

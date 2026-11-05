@@ -309,10 +309,21 @@ namespace FightFace
             FighterBodyType body = CharacterSelectUI.Instance != null ? CharacterSelectUI.Instance.p1BodyType : FighterBodyType.Musculoso;
             StageType stage = CharacterSelectUI.Instance != null ? CharacterSelectUI.Instance.selectedStage : StageType.MGMGrand;
 
+            var allIps = NetworkFightManager.GetAllLocalIPv4Addresses();
+            string ipListStr = myIp;
+            if (allIps.Count > 1)
+            {
+                var others = allIps.FindAll(ip => ip.ToString() != myIp && !ip.ToString().StartsWith("127."));
+                if (others.Count > 0)
+                {
+                    ipListStr += " | Hotspot: " + string.Join(", ", others);
+                }
+            }
+
             hostInfoText.text = $"👑 <b>SALA CREADA: {myName.ToUpper()}</b>\n\n" +
-                               $"🔑 CÓDIGO RÁPIDO DE SALA: <size=32><color=#00FFAA><b>[ {myPin} ]</b></color></size>\n\n" +
+                               $"🔑 CÓDIGO RÁPIDO DE SALA: <size=34><color=#00FFAA><b>[ {myPin} ]</b></color></size>\n\n" +
                                $"Dile a tu amigo que toque <b>'BUSCAR SALAS'</b> o ingrese el código <b>{myPin}</b>.\n" +
-                               $"<size=13><color=#88AACC>(IP Local Wi-Fi: {myIp})</color></size>\n\n" +
+                               $"<size=13><color=#88AACC>(IP Local Wi-Fi: {ipListStr})</color></size>\n\n" +
                                $"⏳ <i>Transmitiendo en la red Wi-Fi... Esperando al rival...</i>";
 
             statusText.text = "¡Sala transmitiendo en Wi-Fi! El jugador 2 puede unirse ahora con 1 toque.";

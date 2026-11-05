@@ -406,6 +406,7 @@ namespace FightFace
             }
             RefreshP1UI();
             RefreshRosterHighlights();
+            RefreshStageUI();
         }
 
         public void SelectP2Body(FighterBodyType body)
@@ -428,6 +429,7 @@ namespace FightFace
             }
             RefreshP2UI();
             RefreshRosterHighlights();
+            RefreshStageUI();
         }
 
         public void ToggleP2AI()
@@ -514,11 +516,11 @@ namespace FightFace
         {
             if (stageNameText != null)
             {
-                stageNameText.text = FaceLoader.GetStageDisplayName(selectedStage);
+                stageNameText.text = FaceLoader.GetStageDisplayName(selectedStage, p2BodyType);
             }
             if (stageDescText != null)
             {
-                stageDescText.text = FaceLoader.GetStageDescription(selectedStage);
+                stageDescText.text = FaceLoader.GetStageDescription(selectedStage, p2BodyType);
             }
             if (stagePreviewImage != null)
             {
@@ -570,6 +572,7 @@ namespace FightFace
                 var td = TournamentManager.Instance.GetFighterData(fId);
                 if (td != null) td.name = newName;
             }
+            RefreshStageUI();
         }
 
         public void OnP2NameChanged(string newName)
@@ -586,6 +589,7 @@ namespace FightFace
                 var td = TournamentManager.Instance.GetFighterData(fId);
                 if (td != null) td.name = newName;
             }
+            RefreshStageUI();
         }
 
         public void OnP1UploadPhoto()

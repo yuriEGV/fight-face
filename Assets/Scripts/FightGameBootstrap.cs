@@ -3093,18 +3093,25 @@ namespace FightFace
             nTxt.color = Color.white;
 
             var nInput = nameRow.AddComponent<InputField>();
+            nInput.targetGraphic = nrBg;
             nInput.textComponent = nTxt;
+            nInput.lineType = InputField.LineType.SingleLine;
+            nInput.characterLimit = 24;
             nInput.text = "Luchador";
 
             if (playerNum == 1)
             {
                 selectUI.p1NameText = nTxt;
                 selectUI.p1NameInputField = nInput;
+                nInput.onValueChanged.AddListener(selectUI.OnP1NameChanged);
+                nInput.onEndEdit.AddListener(selectUI.OnP1NameChanged);
             }
             else
             {
                 selectUI.p2NameText = nTxt;
                 selectUI.p2NameInputField = nInput;
+                nInput.onValueChanged.AddListener(selectUI.OnP2NameChanged);
+                nInput.onEndEdit.AddListener(selectUI.OnP2NameChanged);
             }
 
             // Botón 1: Cámara y Voces

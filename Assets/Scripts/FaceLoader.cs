@@ -738,33 +738,33 @@ namespace FightFace
             }
         }
 
-        public static string GetStageDisplayName(StageType stage)
+        public static string GetStageDisplayName(StageType stage, FighterBodyType fallbackOpponent = FighterBodyType.Gordo)
         {
             switch (stage)
             {
-                case StageType.Auto: return "🏠 AUTO (Casa del Oponente)";
-                case StageType.GordoMarket: return "🐟 MERCADO CALLEJERO (El Gordo)";
-                case StageType.FlacoDojo: return "⛩️ TEMPLO DOJO DRAGÓN (El Flaco)";
-                case StageType.MusculosoBeach: return "🌴 PLAYA MUAY THAI (El Musculoso)";
-                case StageType.MujerRooftop: return "🏙️ AZOTEA CYBERPUNK (La Mujer)";
-                case StageType.GuerreraBamboo: return "🎋 BOSQUE DE BAMBÚ (La Guerrera)";
-                case StageType.DosCabezasScrapyard: return "⚙️ HANGAR ROBÓTICO MECHA (Hombre-Máquina)";
+                case StageType.Auto: return $"🏠 AUTO (Ring de {GetFighterDisplayName(fallbackOpponent)})";
+                case StageType.GordoMarket: return $"🐟 MERCADO CALLEJERO ({GetFighterDisplayName(FighterBodyType.Gordo)})";
+                case StageType.FlacoDojo: return $"⛩️ TEMPLO DOJO DRAGÓN ({GetFighterDisplayName(FighterBodyType.Flaco)})";
+                case StageType.MusculosoBeach: return $"🌴 PLAYA MUAY THAI ({GetFighterDisplayName(FighterBodyType.Musculoso)})";
+                case StageType.MujerRooftop: return $"🏙️ AZOTEA CYBERPUNK ({GetFighterDisplayName(FighterBodyType.Mujer)})";
+                case StageType.GuerreraBamboo: return $"🎋 BOSQUE DE BAMBÚ ({GetFighterDisplayName(FighterBodyType.Mujer2)})";
+                case StageType.DosCabezasScrapyard: return $"⚙️ HANGAR ROBÓTICO MECHA ({GetFighterDisplayName(FighterBodyType.DosCabezas)})";
                 case StageType.MGMGrand: return "🏟️ MGM GRAND ARENA (Las Vegas - Gran Final)";
                 default: return "🏟️ MGM GRAND ARENA";
             }
         }
 
-        public static string GetStageDescription(StageType stage)
+        public static string GetStageDescription(StageType stage, FighterBodyType fallbackOpponent = FighterBodyType.Gordo)
         {
             switch (stage)
             {
-                case StageType.Auto: return "Selecciona dinámicamente el ring local del rival según su origen.";
-                case StageType.GordoMarket: return "Lonja tradicional y mercado nocturno de comida callejera entre faroles rojos.";
-                case StageType.FlacoDojo: return "Antiguo santuario Shaolin con dragones tallados en oro y suelo de madera pulida.";
-                case StageType.MusculosoBeach: return "Campamento de Muay Thai al aire libre en la arena frente al mar en pleno ocaso.";
-                case StageType.MujerRooftop: return "Plataforma en lo alto de un rascacielos iluminada por gigantescos letreros de neón.";
-                case StageType.GuerreraBamboo: return "Claro místico en el bosque de bambú iluminado por una inmensa luna llena.";
-                case StageType.DosCabezasScrapyard: return "Taller mecha de alta tecnología con brazos robóticos, computadoras y luces estroboscópicas.";
+                case StageType.Auto: return $"Selecciona dinámicamente el ring local de {GetFighterDisplayName(fallbackOpponent)} según su origen.";
+                case StageType.GordoMarket: return $"Lonja tradicional y mercado nocturno de comida callejera de {GetFighterDisplayName(FighterBodyType.Gordo)}.";
+                case StageType.FlacoDojo: return $"Antiguo santuario Shaolin y dojo de artes marciales de {GetFighterDisplayName(FighterBodyType.Flaco)}.";
+                case StageType.MusculosoBeach: return $"Campamento de Muay Thai al aire libre en la arena frente al mar de {GetFighterDisplayName(FighterBodyType.Musculoso)}.";
+                case StageType.MujerRooftop: return $"Plataforma en lo alto de un rascacielos iluminada por neones de {GetFighterDisplayName(FighterBodyType.Mujer)}.";
+                case StageType.GuerreraBamboo: return $"Claro místico en el bosque de bambú iluminado por luna llena de {GetFighterDisplayName(FighterBodyType.Mujer2)}.";
+                case StageType.DosCabezasScrapyard: return $"Taller mecha de alta tecnología y robótica de {GetFighterDisplayName(FighterBodyType.DosCabezas)}.";
                 case StageType.MGMGrand: return "El gran cuadrilátero de campeonato mundial bajo focos y multitud de Las Vegas.";
                 default: return "";
             }
