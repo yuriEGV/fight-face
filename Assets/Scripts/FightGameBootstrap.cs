@@ -2414,6 +2414,82 @@ namespace FightFace
             qbTxt.verticalOverflow = VerticalWrapMode.Overflow;
 
             // ----------------- CUADRÍCULA ROSTER CENTRAL (5 LUCHADORES) -----------------
+            // 1. Botón Grande Selector PLAYER 1 (ROJO)
+            GameObject p1SelObj = new GameObject("Btn_SelectPlayer1");
+            p1SelObj.transform.SetParent(menuObj.transform, false);
+            var p1sRect = p1SelObj.AddComponent<RectTransform>();
+            p1sRect.anchorMin = new Vector2(0.015f, 0.64f);
+            p1sRect.anchorMax = new Vector2(0.112f, 0.88f);
+            p1sRect.offsetMin = Vector2.zero;
+            p1sRect.offsetMax = Vector2.zero;
+
+            var p1sImg = p1SelObj.AddComponent<Image>();
+            p1sImg.color = new Color(0.92f, 0.18f, 0.12f, 1f);
+            var p1sOutline = p1SelObj.AddComponent<Outline>();
+            p1sOutline.effectColor = new Color(1f, 0.90f, 0.20f, 1f);
+            p1sOutline.effectDistance = new Vector2(4f, 4f);
+
+            var p1sBtn = p1SelObj.AddComponent<Button>();
+            p1sBtn.onClick.AddListener(() => selectUI.SetSelectingPlayer(1));
+
+            GameObject p1sTxtObj = new GameObject("Text");
+            p1sTxtObj.transform.SetParent(p1SelObj.transform, false);
+            var p1stRect = p1sTxtObj.AddComponent<RectTransform>();
+            p1stRect.anchorMin = Vector2.zero;
+            p1stRect.anchorMax = Vector2.one;
+            p1stRect.sizeDelta = Vector2.zero;
+            var p1sTxt = p1sTxtObj.AddComponent<Text>();
+            p1sTxt.text = "<b>🔴\nMOVIENDO\nPLAYER 1\n[ACTIVO]</b>";
+            p1sTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            p1sTxt.fontSize = 13;
+            p1sTxt.fontStyle = FontStyle.Bold;
+            p1sTxt.alignment = TextAnchor.MiddleCenter;
+            p1sTxt.color = Color.white;
+            p1sTxt.verticalOverflow = VerticalWrapMode.Overflow;
+
+            selectUI.p1SelectorButton = p1sBtn;
+            selectUI.p1SelectorBg = p1sImg;
+            selectUI.p1SelectorOutline = p1sOutline;
+            selectUI.p1SelectorText = p1sTxt;
+
+            // 2. Botón Grande Selector PLAYER 2 (AZUL)
+            GameObject p2SelObj = new GameObject("Btn_SelectPlayer2");
+            p2SelObj.transform.SetParent(menuObj.transform, false);
+            var p2sRect = p2SelObj.AddComponent<RectTransform>();
+            p2sRect.anchorMin = new Vector2(0.888f, 0.64f);
+            p2sRect.anchorMax = new Vector2(0.985f, 0.88f);
+            p2sRect.offsetMin = Vector2.zero;
+            p2sRect.offsetMax = Vector2.zero;
+
+            var p2sImg = p2SelObj.AddComponent<Image>();
+            p2sImg.color = new Color(0.10f, 0.18f, 0.30f, 0.85f);
+            var p2sOutline = p2SelObj.AddComponent<Outline>();
+            p2sOutline.effectColor = new Color(0.20f, 0.40f, 0.70f, 0.6f);
+            p2sOutline.effectDistance = new Vector2(1.5f, 1.5f);
+
+            var p2sBtn = p2SelObj.AddComponent<Button>();
+            p2sBtn.onClick.AddListener(() => selectUI.SetSelectingPlayer(2));
+
+            GameObject p2sTxtObj = new GameObject("Text");
+            p2sTxtObj.transform.SetParent(p2SelObj.transform, false);
+            var p2stRect = p2sTxtObj.AddComponent<RectTransform>();
+            p2stRect.anchorMin = Vector2.zero;
+            p2stRect.anchorMax = Vector2.one;
+            p2stRect.sizeDelta = Vector2.zero;
+            var p2sTxt = p2sTxtObj.AddComponent<Text>();
+            p2sTxt.text = "🔵\nELEGIR\nPLAYER 2\n(AZUL)";
+            p2sTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            p2sTxt.fontSize = 13;
+            p2sTxt.fontStyle = FontStyle.Bold;
+            p2sTxt.alignment = TextAnchor.MiddleCenter;
+            p2sTxt.color = Color.white;
+            p2sTxt.verticalOverflow = VerticalWrapMode.Overflow;
+
+            selectUI.p2SelectorButton = p2sBtn;
+            selectUI.p2SelectorBg = p2sImg;
+            selectUI.p2SelectorOutline = p2sOutline;
+            selectUI.p2SelectorText = p2sTxt;
+
             GameObject rosterGridObj = new GameObject("RosterGrid");
             rosterGridObj.transform.SetParent(menuObj.transform, false);
             var rgRect = rosterGridObj.AddComponent<RectTransform>();
@@ -3085,7 +3161,7 @@ namespace FightFace
             GameObject statsObj = new GameObject("StatsBars");
             statsObj.transform.SetParent(rightSide.transform, false);
             var stRect = statsObj.AddComponent<RectTransform>();
-            stRect.anchorMin = new Vector2(0, 0.46f);
+            stRect.anchorMin = new Vector2(0, 0.54f);
             stRect.anchorMax = new Vector2(1, 1.0f);
             stRect.offsetMin = Vector2.zero;
             stRect.offsetMax = Vector2.zero;
@@ -3094,43 +3170,24 @@ namespace FightFace
             stTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             stTxt.fontSize = 15;
             stTxt.fontStyle = FontStyle.Bold;
-            stTxt.lineSpacing = 1.15f;
+            stTxt.lineSpacing = 1.25f;
             stTxt.alignment = TextAnchor.MiddleLeft;
             stTxt.color = new Color(1f, 0.95f, 0.75f);
             stTxt.verticalOverflow = VerticalWrapMode.Overflow;
             var stOutline = statsObj.AddComponent<Outline>();
-            stOutline.effectColor = new Color(0f, 0f, 0f, 0.8f);
-            stOutline.effectDistance = new Vector2(1, 1);
+            stOutline.effectColor = new Color(0f, 0f, 0f, 1f);
+            stOutline.effectDistance = new Vector2(1.5f, 1.5f);
             if (playerNum == 1) selectUI.p1StatsText = stTxt;
             else
             {
                 selectUI.p2StatsText = stTxt;
 
-                // Guía visual de controles para Jugador 2 (Visible en modo 2P Humano)
-                GameObject guideObj = new GameObject("P2ControlsGuide");
-                guideObj.transform.SetParent(rightSide.transform, false);
-                var gRect = guideObj.AddComponent<RectTransform>();
-                gRect.anchorMin = new Vector2(0, 0.55f);
-                gRect.anchorMax = new Vector2(1, 1.0f);
-                gRect.offsetMin = Vector2.zero;
-                gRect.offsetMax = Vector2.zero;
-
-                var gTxt = guideObj.AddComponent<Text>();
-                gTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                gTxt.fontSize = 11;
-                gTxt.fontStyle = FontStyle.Normal;
-                gTxt.lineSpacing = 1.25f;
-                gTxt.alignment = TextAnchor.MiddleLeft;
-                gTxt.color = new Color(0.95f, 0.95f, 1f);
-                gTxt.verticalOverflow = VerticalWrapMode.Overflow;
-                selectUI.p2ControlsGuideText = gTxt;
-
-                // Botón para alternar asignación del Mando 1 entre P1 y P2 (Ubicado en rightSide)
+                // Botón para alternar asignación del Mando 1 entre P1 y P2 (Ubicado en rightSide entre estadísticas y rostros)
                 GameObject padToggleObj = new GameObject("Btn_GamepadAssign");
                 padToggleObj.transform.SetParent(rightSide.transform, false);
                 var ptRect = padToggleObj.AddComponent<RectTransform>();
                 ptRect.anchorMin = new Vector2(0.0f, 0.44f);
-                ptRect.anchorMax = new Vector2(0.98f, 0.53f);
+                ptRect.anchorMax = new Vector2(1.0f, 0.52f);
                 ptRect.offsetMin = Vector2.zero;
                 ptRect.offsetMax = Vector2.zero;
 
@@ -3159,7 +3216,6 @@ namespace FightFace
                 ptTxt.verticalOverflow = VerticalWrapMode.Overflow;
                 selectUI.p2GamepadAssignText = ptTxt;
 
-                guideObj.SetActive(false);
                 padToggleObj.SetActive(false);
             }
 

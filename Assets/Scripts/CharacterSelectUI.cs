@@ -93,6 +93,16 @@ namespace FightFace
         public Button p1CardButton;
         public Button p2CardButton;
 
+        [Header("Botones Selectores Explícitos de Jugador Activo (P1 vs P2)")]
+        public Button p1SelectorButton;
+        public Button p2SelectorButton;
+        public Image p1SelectorBg;
+        public Image p2SelectorBg;
+        public Outline p1SelectorOutline;
+        public Outline p2SelectorOutline;
+        public Text p1SelectorText;
+        public Text p2SelectorText;
+
         [Header("Roster Arcade Grid (Estilo Street Fighter II)")]
         public Button[] rosterSlotButtons;
         public Image[] rosterThumbImages;
@@ -244,6 +254,28 @@ namespace FightFace
             {
                 p2GamepadAssignButton.onClick.AddListener(OnToggleGamepadAssignmentClicked);
             }
+
+            if (p1SelectorButton != null)
+            {
+                p1SelectorButton.onClick.AddListener(() => SetSelectingPlayer(1));
+            }
+
+            if (p2SelectorButton != null)
+            {
+                p2SelectorButton.onClick.AddListener(() => SetSelectingPlayer(2));
+            }
+
+            if (p1CardButton != null)
+            {
+                p1CardButton.onClick.AddListener(() => SetSelectingPlayer(1));
+            }
+
+            if (p2CardButton != null)
+            {
+                p2CardButton.onClick.AddListener(() => SetSelectingPlayer(2));
+            }
+
+            UpdateSelectingPlayerVisuals();
 
             UpdateMusicToggleVisuals();
             UpdateVoiceVolumeVisuals();
@@ -442,14 +474,116 @@ namespace FightFace
         {
             if (slotIndex >= 0 && slotIndex < Roster.Length)
             {
-                // Clic selecciona para P1 por defecto, o si ya tiene a este, alterna P2
-                if (p1BodyType != Roster[slotIndex])
+                if (selectingPlayer == 1)
                 {
                     SelectP1Body(Roster[slotIndex]);
                 }
                 else
                 {
                     SelectP2Body(Roster[slotIndex]);
+                }
+                UpdateSelectingPlayerVisuals();
+            }
+        }
+
+        public void SetSelectingPlayer(int playerNum)
+        {
+            selectingPlayer = Mathf.Clamp(playerNum, 1, 2);
+            FightAudioManager.Instance?.PlayButtonClick();
+            UpdateSelectingPlayerVisuals();
+        }
+
+        public void UpdateSelectingPlayerVisuals()
+        {
+            if (selectingPlayer == 1)
+            {
+                // Tarjeta 1 Activa (Dorado brillante)
+                if (p1CardOutline != null)
+                {
+                    p1CardOutline.effectColor = new Color(1f, 0.85f, 0.15f, 1f);
+                    p1CardOutline.effectDistance = new Vector2(5f, 5f);
+                }
+                if (p2CardOutline != null)
+                {
+                    p2CardOutline.effectColor = new Color(0.15f, 0.60f, 1f, 0.55f);
+                    p2CardOutline.effectDistance = new Vector2(2.5f, 2.5f);
+                }
+
+                // Botón selector P1 (Rojo Activo)
+                if (p1SelectorBg != null) p1SelectorBg.color = new Color(0.92f, 0.18f, 0.12f, 1f);
+                if (p1SelectorOutline != null)
+                {
+                    p1SelectorOutline.effectColor = new Color(1f, 0.90f, 0.20f, 1f);
+                    p1SelectorOutline.effectDistance = new Vector2(4f, 4f);
+                }
+                if (p1SelectorText != null) p1SelectorText.text = "<b>🔴\nMOVIENDO\nPLAYER 1\n[ACTIVO]</b>";
+
+                // Botón selector P2 (Azul Inactivo)
+                if (p2SelectorBg != null) p2SelectorBg.color = new Color(0.10f, 0.18f, 0.30f, 0.85f);
+                if (p2SelectorOutline != null)
+                {
+                    p2SelectorOutline.effectColor = new Color(0.20f, 0.40f, 0.70f, 0.6f);
+                    p2SelectorOutline.effectDistance = new Vector2(1.5f, 1.5f);
+                }
+                if (p2SelectorText != null) p2SelectorText.text = "🔵\nELEGIR\nPLAYER 2\n(AZUL)";
+
+                if (selectionBannerText != null)
+                {
+                    selectionBannerText.text = "<color=#FF5533>👉 MOVIENDO: <b>🔴 PLAYER 1 (ROJO)</b></color>  •  <color=#FFD700>Toca un personaje de la lista</color>";
+                }
+                if (p1HeaderText != null)
+                {
+                    p1HeaderText.text = "🔴 JUGADOR 1  <color=#FFFF00>[▶ MOVIENDO]</color>";
+                }
+                if (p2HeaderText != null)
+                {
+                    p2HeaderText.text = "🔵 OPONENTE  <color=#7799BB>(Toca para mover)</color>";
+                }
+            }
+            else
+            {
+                // Tarjeta 1 Inactiva
+                if (p1CardOutline != null)
+                {
+                    p1CardOutline.effectColor = new Color(1f, 0.25f, 0.15f, 0.55f);
+                    p1CardOutline.effectDistance = new Vector2(2.5f, 2.5f);
+                }
+                // Tarjeta 2 Activa (Dorado brillante)
+                if (p2CardOutline != null)
+                {
+                    p2CardOutline.effectColor = new Color(1f, 0.85f, 0.15f, 1f);
+                    p2CardOutline.effectDistance = new Vector2(5f, 5f);
+                }
+
+                // Botón selector P1 (Rojo Inactivo)
+                if (p1SelectorBg != null) p1SelectorBg.color = new Color(0.28f, 0.10f, 0.10f, 0.85f);
+                if (p1SelectorOutline != null)
+                {
+                    p1SelectorOutline.effectColor = new Color(0.60f, 0.25f, 0.20f, 0.6f);
+                    p1SelectorOutline.effectDistance = new Vector2(1.5f, 1.5f);
+                }
+                if (p1SelectorText != null) p1SelectorText.text = "🔴\nELEGIR\nPLAYER 1\n(ROJO)";
+
+                // Botón selector P2 (Azul Activo)
+                if (p2SelectorBg != null) p2SelectorBg.color = new Color(0.12f, 0.55f, 0.98f, 1f);
+                if (p2SelectorOutline != null)
+                {
+                    p2SelectorOutline.effectColor = new Color(1f, 0.90f, 0.20f, 1f);
+                    p2SelectorOutline.effectDistance = new Vector2(4f, 4f);
+                }
+                if (p2SelectorText != null) p2SelectorText.text = "<b>🔵\nMOVIENDO\nPLAYER 2\n[ACTIVO]</b>";
+
+                if (selectionBannerText != null)
+                {
+                    selectionBannerText.text = "<color=#33B4FF>👉 MOVIENDO: <b>🔵 PLAYER 2 (AZUL)</b></color>  •  <color=#FFD700>Toca un personaje de la lista</color>";
+                }
+                if (p1HeaderText != null)
+                {
+                    p1HeaderText.text = "🔴 JUGADOR 1  <color=#7799BB>(Toca para mover)</color>";
+                }
+                if (p2HeaderText != null)
+                {
+                    p2HeaderText.text = "🔵 OPONENTE  <color=#FFFF00>[▶ MOVIENDO]</color>";
                 }
             }
         }
@@ -551,17 +685,15 @@ namespace FightFace
                 p2AILabelText.text = p2IsAI ? "🤖 MODO: CPU (IA)" : "👥 MODO: 2P HUMANO";
             }
 
+            // Las características (FUERZA, VELOCIDAD, DEFENSA, TÉCNICA) SIEMPRE DEBEN ESTAR VISIBLES Y NUNCA TAPADAS
+            if (p2StatsText != null)
+            {
+                p2StatsText.gameObject.SetActive(true);
+            }
+
             if (p2ControlsGuideText != null)
             {
-                p2ControlsGuideText.gameObject.SetActive(!p2IsAI);
-                string padInfo = FightInput.IsGamepad1AssignedToP2
-                    ? "<color=#00FF99>🎮 MANDO 1 ASIGNADO A: <b>JUGADOR 2 (P2)</b></color>"
-                    : "<color=#FFCC00>🎮 MANDO 1 ASIGNADO A: <b>JUGADOR 1 (P1)</b></color>";
-
-                p2ControlsGuideText.text =
-                    $"<b>🕹️ MOVERSE / SALTAR:</b> Flechas [←] [→] [↑] [↓]\n" +
-                    $"<b>🥊 GOLPES:</b> [L] Puño • [K] Patada • [P] Fuerte • [O] Pat.Fuerte • [I] Hadouken\n" +
-                    $"<b>🔢 NUMPAD:</b> [1, 2, 4, 5, 6, 3]  •  {padInfo}";
+                p2ControlsGuideText.gameObject.SetActive(false);
             }
 
             if (p2GamepadAssignButton != null)
@@ -1052,6 +1184,7 @@ namespace FightFace
             UpdateMusicToggleVisuals();
             UpdateVoiceVolumeVisuals();
             UpdateP2ControllerModeUI();
+            UpdateSelectingPlayerVisuals();
         }
     }
 }
