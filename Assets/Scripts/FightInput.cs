@@ -11,15 +11,34 @@ namespace FightFace
     /// </summary>
     public static class FightInput
     {
+        // Asignación flexible de mandos USB / Joysticks para jugar 2 personas en 1 PC con 1 teclado y 1 joystick
+        public static bool IsGamepad1AssignedToP2 = false;
+
+        public static bool ToggleGamepadAssignment()
+        {
+            IsGamepad1AssignedToP2 = !IsGamepad1AssignedToP2;
+            return IsGamepad1AssignedToP2;
+        }
+
 #if ENABLE_INPUT_SYSTEM
         public static Gamepad GetGamepad1()
         {
+            if (IsGamepad1AssignedToP2)
+            {
+                if (Gamepad.all.Count > 1) return Gamepad.all[1];
+                return null;
+            }
             if (Gamepad.all.Count > 0) return Gamepad.all[0];
             return Gamepad.current;
         }
 
         public static Gamepad GetGamepad2()
         {
+            if (IsGamepad1AssignedToP2)
+            {
+                if (Gamepad.all.Count > 0) return Gamepad.all[0];
+                return Gamepad.current;
+            }
             if (Gamepad.all.Count > 1) return Gamepad.all[1];
             return null;
         }

@@ -153,6 +153,12 @@ namespace FightFace
                 openSelectMenuButton.onClick.AddListener(ToggleCharacterSelectMenu);
             }
 
+            // Reproducir sonido arcade en todos los botones de la interfaz de batalla
+            foreach (var btn in GetComponentsInChildren<Button>(true))
+            {
+                btn.onClick.AddListener(() => FightAudioManager.Instance?.PlayButtonClick());
+            }
+
             if (centerBannerPanel != null) centerBannerPanel.SetActive(false);
             if (comboPanel != null) comboPanel.SetActive(false);
             if (winnerModalPanel != null) winnerModalPanel.SetActive(false);

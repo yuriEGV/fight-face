@@ -531,6 +531,7 @@ namespace FightFace
             outline.effectDistance = new Vector2(2f, 2f);
 
             var btn = bObj.AddComponent<Button>();
+            btn.onClick.AddListener(() => FightAudioManager.Instance?.PlayButtonClick());
             btn.onClick.AddListener(action);
 
             GameObject tObj = new GameObject("Text");

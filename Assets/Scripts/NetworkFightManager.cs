@@ -124,11 +124,14 @@ namespace FightFace
             {
                 string script = 
                     "Get-NetConnectionProfile | ForEach-Object { Set-NetConnectionProfile -InterfaceIndex $_.InterfaceIndex -NetworkCategory Private -ErrorAction SilentlyContinue }; " +
-                    "Get-NetFirewallRule | Where-Object { $_.DisplayName -like '*Unity*' -and $_.Action -eq 'Block' } | Disable-NetFirewallRule -ErrorAction SilentlyContinue; " +
+                    "Get-NetFirewallRule | Where-Object { ($_.DisplayName -like '*Unity*' -or $_.DisplayName -like '*fightface*') -and $_.Action -eq 'Block' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue; " +
+                    "Get-NetFirewallApplicationFilter -Program '*FightFace.exe*' -ErrorAction SilentlyContinue | Get-NetFirewallRule | Where-Object { $_.Action -eq 'Block' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue; " +
                     "Remove-NetFirewallRule -DisplayName 'FightFace_UDP_LAN' -ErrorAction SilentlyContinue; " +
                     "New-NetFirewallRule -DisplayName 'FightFace_UDP_LAN' -Direction Inbound -Protocol UDP -LocalPort 7777,7778 -Action Allow -Profile Any -ErrorAction SilentlyContinue; " +
                     "Remove-NetFirewallRule -DisplayName 'FightFace_TCP_LAN' -ErrorAction SilentlyContinue; " +
-                    "New-NetFirewallRule -DisplayName 'FightFace_TCP_LAN' -Direction Inbound -Protocol TCP -LocalPort 7777,7778 -Action Allow -Profile Any -ErrorAction SilentlyContinue";
+                    "New-NetFirewallRule -DisplayName 'FightFace_TCP_LAN' -Direction Inbound -Protocol TCP -LocalPort 7777,7778 -Action Allow -Profile Any -ErrorAction SilentlyContinue; " +
+                    "Remove-NetFirewallRule -DisplayName 'FightFace_Exe_Allow' -ErrorAction SilentlyContinue; " +
+                    "New-NetFirewallRule -DisplayName 'FightFace_Exe_Allow' -Direction Inbound -Program '" + Application.dataPath.Replace('/', '\\').Replace("FightFace_Data", "FightFace.exe") + "' -Action Allow -Profile Any -ErrorAction SilentlyContinue";
 
                 System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo
                 {
@@ -640,44 +643,48 @@ namespace FightFace
                 foreach (var ipStr in candidateIps)
                 {
                     if (isConnected || Role != NetworkRole.Client) break;
-                    try
+                    string targetIp = ipStr;
+                    ThreadPool.QueueUserWorkItem(__ =>
                     {
-                        TcpClient tc = new TcpClient();
-                        tc.NoDelay = true;
-                        tc.SendTimeout = 2500;
-                        tc.ReceiveTimeout = 2500;
-                        var asyncRes = tc.BeginConnect(ipStr, PORT_GAME, null, null);
-                        bool ok = asyncRes.AsyncWaitHandle.WaitOne(2000);
-                        if (ok && tc.Connected)
+                        if (isConnected || Role != NetworkRole.Client) return;
+                        try
                         {
-                            tc.EndConnect(asyncRes);
-                            NetworkStream ns = tc.GetStream();
-                            byte[] jBytes = Encoding.UTF8.GetBytes(joinMsg + "\n");
-                            ns.Write(jBytes, 0, jBytes.Length);
-                            ns.Flush();
-
-                            byte[] buf = new byte[1024];
-                            int rd = ns.Read(buf, 0, buf.Length);
-                            if (rd > 0)
+                            TcpClient tc = new TcpClient();
+                            tc.NoDelay = true;
+                            tc.SendTimeout = 2000;
+                            tc.ReceiveTimeout = 2000;
+                            var asyncRes = tc.BeginConnect(targetIp, PORT_GAME, null, null);
+                            bool ok = asyncRes.AsyncWaitHandle.WaitOne(1200);
+                            if (ok && tc.Connected)
                             {
-                                string reply = Encoding.UTF8.GetString(buf, 0, rd).Trim();
-                                if (reply.StartsWith("FF_ACCEPT|"))
+                                tc.EndConnect(asyncRes);
+                                NetworkStream ns = tc.GetStream();
+                                byte[] jBytes = Encoding.UTF8.GetBytes(joinMsg + "\n");
+                                ns.Write(jBytes, 0, jBytes.Length);
+                                ns.Flush();
+
+                                byte[] buf = new byte[1024];
+                                int rd = ns.Read(buf, 0, buf.Length);
+                                if (rd > 0)
                                 {
-                                    tcpClient = tc;
-                                    tcpStream = ns;
-                                    IPEndPoint hostEp = (IPEndPoint)tc.Client.RemoteEndPoint;
-                                    ProcessAcceptPacket(reply, hostEp);
-                                    break;
+                                    string reply = Encoding.UTF8.GetString(buf, 0, rd).Trim();
+                                    if (reply.StartsWith("FF_ACCEPT|"))
+                                    {
+                                        tcpClient = tc;
+                                        tcpStream = ns;
+                                        IPEndPoint hostEp = (IPEndPoint)tc.Client.RemoteEndPoint;
+                                        ProcessAcceptPacket(reply, hostEp);
+                                    }
                                 }
                             }
                         }
-                    }
-                    catch { }
+                        catch { }
+                    });
                 }
             });
 
             int attempts = 0;
-            while (!isConnected && Role == NetworkRole.Client && attempts < 50)
+            while (!isConnected && Role == NetworkRole.Client && attempts < 75)
             {
                 attempts++;
                 foreach (var ep in targets)
@@ -685,7 +692,7 @@ namespace FightFace
                     try { gameSocket?.Send(data, data.Length, ep); } catch { }
                 }
 
-                yield return new WaitForSecondsRealtime(0.12f);
+                yield return new WaitForSecondsRealtime(0.10f);
             }
 
             if (!isConnected && Role == NetworkRole.Client)
@@ -1112,12 +1119,18 @@ namespace FightFace
                     if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback)
                         continue;
 
+                    string desc = (ni.Description + " " + ni.Name).ToLowerInvariant();
+                    bool isVirtual = desc.Contains("tailscale") || desc.Contains("virtual") || desc.Contains("hyper-v") || desc.Contains("wsl") || desc.Contains("vpn") || desc.Contains("pseudo");
+
                     var ipProps = ni.GetIPProperties();
                     foreach (var u in ipProps.UnicastAddresses)
                     {
-                        if (u.Address.AddressFamily == AddressFamily.InterNetwork && !u.Address.ToString().StartsWith("127."))
+                        if (u.Address.AddressFamily == AddressFamily.InterNetwork && !u.Address.ToString().StartsWith("127.") && !u.Address.ToString().StartsWith("169.254."))
                         {
-                            list.Add(u.Address);
+                            if (!isVirtual)
+                                list.Insert(0, u.Address); // Interfaces físicas (Ethernet / Wi-Fi) al inicio
+                            else
+                                list.Add(u.Address);       // Interfaces virtuales / VPN al final
                         }
                     }
                 }
@@ -1172,25 +1185,36 @@ namespace FightFace
 
         public static List<string> GetAllLocalSubnetPrefixes()
         {
-            var prefixes = new HashSet<string>();
+            var prefixes = new List<string>();
 
-            // Extraer prefijos de todas las interfaces IPv4 activas
+            // 1. Prefijo principal del adaptador actual (SIEMPRE PRIMERO)
+            string mainPrefix = GetSubnetPrefix();
+            if (!string.IsNullOrEmpty(mainPrefix) && !prefixes.Contains(mainPrefix))
+            {
+                prefixes.Add(mainPrefix);
+            }
+
+            // 2. Extraer prefijos de todas las interfaces IPv4 activas
             foreach (var ip in GetAllLocalIPv4Addresses())
             {
                 string s = ip.ToString();
                 int lastDot = s.LastIndexOf('.');
                 if (lastDot > 0)
                 {
-                    prefixes.Add(s.Substring(0, lastDot + 1));
+                    string p = s.Substring(0, lastDot + 1);
+                    if (!prefixes.Contains(p) && !p.StartsWith("100."))
+                    {
+                        prefixes.Add(p);
+                    }
                 }
             }
 
-            // Agregar siempre los prefijos estándar de zona portátil (Hotspot)
-            prefixes.Add("192.168.137."); // Windows Mobile Hotspot
-            prefixes.Add("192.168.43.");  // Android Mobile Hotspot estándar
-            prefixes.Add("172.20.10.");   // iOS Mobile Hotspot estándar
+            // 3. Agregar siempre los prefijos estándar de zona portátil (Hotspot)
+            if (!prefixes.Contains("192.168.137.")) prefixes.Add("192.168.137."); // Windows Mobile Hotspot
+            if (!prefixes.Contains("192.168.43.")) prefixes.Add("192.168.43.");  // Android Mobile Hotspot estándar
+            if (!prefixes.Contains("172.20.10.")) prefixes.Add("172.20.10.");   // iOS Mobile Hotspot estándar
 
-            return new List<string>(prefixes);
+            return prefixes;
         }
 
         public static string GetSubnetPrefix()

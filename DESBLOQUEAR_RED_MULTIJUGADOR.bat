@@ -22,12 +22,16 @@ echo [+] Permisos concedidos.
 echo [+] 1. Configurando perfil de red de Windows a PRIVADA (para permitir juego en LAN)...
 powershell -NoProfile -Command "Get-NetConnectionProfile | ForEach-Object { Set-NetConnectionProfile -InterfaceIndex $_.InterfaceIndex -NetworkCategory Private -ErrorAction SilentlyContinue }"
 
-echo [+] 2. Desactivando bloqueos de Firewall para Unity...
-powershell -NoProfile -Command "Get-NetFirewallRule | Where-Object { $_.DisplayName -like '*Unity*' -and $_.Action -eq 'Block' } | Disable-NetFirewallRule -ErrorAction SilentlyContinue"
+echo [+] 2. Eliminando bloqueos de Firewall para Fight Face y Unity...
+powershell -NoProfile -Command "Get-NetFirewallRule | Where-Object { ($_.DisplayName -like '*Unity*' -or $_.DisplayName -like '*fightface*') -and $_.Action -eq 'Block' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue"
+powershell -NoProfile -Command "Get-NetFirewallApplicationFilter -Program '*FightFace.exe*' -ErrorAction SilentlyContinue | Get-NetFirewallRule | Where-Object { $_.Action -eq 'Block' } | Remove-NetFirewallRule -ErrorAction SilentlyContinue"
 
 echo [+] 3. Habilitando puertos 7777 y 7778 (UDP y TCP) para Fight Face...
 powershell -NoProfile -Command "Remove-NetFirewallRule -DisplayName 'FightFace_UDP_LAN' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'FightFace_UDP_LAN' -Direction Inbound -Protocol UDP -LocalPort 7777,7778 -Action Allow -Profile Any -ErrorAction SilentlyContinue"
 powershell -NoProfile -Command "Remove-NetFirewallRule -DisplayName 'FightFace_TCP_LAN' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'FightFace_TCP_LAN' -Direction Inbound -Protocol TCP -LocalPort 7777,7778 -Action Allow -Profile Any -ErrorAction SilentlyContinue"
+
+echo [+] 4. Habilitando ejecutable FightFace en el Firewall...
+powershell -NoProfile -Command "Remove-NetFirewallRule -DisplayName 'FightFace_Exe_Allow' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'FightFace_Exe_Allow' -Direction Inbound -Program '%~dp0FightFace.exe' -Action Allow -Profile Any -ErrorAction SilentlyContinue"
 
 echo.
 echo ========================================================

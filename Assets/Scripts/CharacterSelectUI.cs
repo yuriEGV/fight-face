@@ -94,6 +94,12 @@ namespace FightFace
         public Button fightButton;
         public Button trainingButton;
         public Button tournamentButton;
+        public Button quitGameButton;
+
+        [Header("Controles y Asignación de Mandos P2")]
+        public Text p2ControlsGuideText;
+        public Button p2GamepadAssignButton;
+        public Text p2GamepadAssignText;
 
         [Header("Control de Música Opcional")]
         public Button musicToggleButton;
@@ -219,6 +225,16 @@ namespace FightFace
                 trainingButton.onClick.AddListener(OnStartTrainingMode);
             }
 
+            if (quitGameButton != null)
+            {
+                quitGameButton.onClick.AddListener(OnQuitGameClicked);
+            }
+
+            if (p2GamepadAssignButton != null)
+            {
+                p2GamepadAssignButton.onClick.AddListener(OnToggleGamepadAssignmentClicked);
+            }
+
             UpdateMusicToggleVisuals();
             UpdateVoiceVolumeVisuals();
 
@@ -237,6 +253,22 @@ namespace FightFace
                 p2ModeHumanButton.onClick.AddListener(() => SetP2ControllerMode(false));
             }
             UpdateP2ControllerModeUI();
+
+            // Sonido táctil y arcade en todos los botones de la interfaz
+            foreach (var btn in GetComponentsInChildren<Button>(true))
+            {
+                btn.onClick.AddListener(() =>
+                {
+                    if (btn == fightButton || btn == tournamentButton)
+                    {
+                        FightAudioManager.Instance?.PlayButtonConfirm();
+                    }
+                    else
+                    {
+                        FightAudioManager.Instance?.PlayButtonClick();
+                    }
+                });
+            }
 
             if (p1WebcamButton != null)
             {
@@ -306,6 +338,13 @@ namespace FightFace
         private void Update()
         {
             if (!gameObject.activeSelf) return;
+
+            // Salir del juego con tecla ESC
+            if (FightInput.GetMenuToggle())
+            {
+                OnQuitGameClicked();
+                return;
+            }
 
             // Confirmar y empezar pelea (Enter / Espacio)
             if (FightInput.GetConfirm())
@@ -501,6 +540,47 @@ namespace FightFace
             {
                 p2AILabelText.text = p2IsAI ? "🤖 MODO: CPU (IA)" : "👥 MODO: 2P HUMANO";
             }
+
+            if (p2ControlsGuideText != null)
+            {
+                p2ControlsGuideText.gameObject.SetActive(!p2IsAI);
+                string padInfo = FightInput.IsGamepad1AssignedToP2
+                    ? "<color=#00FF99>🎮 MANDO 1 ASIGNADO A: <b>JUGADOR 2 (P2)</b></color>"
+                    : "<color=#FFCC00>🎮 MANDO 1 ASIGNADO A: <b>JUGADOR 1 (P1)</b></color>";
+
+                p2ControlsGuideText.text =
+                    $"<b>🕹️ MOVERSE / SALTAR:</b> Flechas [←] [→] [↑] [↓]\n" +
+                    $"<b>🥊 GOLPES:</b> [L] Puño • [K] Patada • [P] Fuerte • [O] Pat.Fuerte • [I] Hadouken\n" +
+                    $"<b>🔢 NUMPAD:</b> [1, 2, 4, 5, 6, 3]  •  {padInfo}";
+            }
+
+            if (p2GamepadAssignButton != null)
+            {
+                p2GamepadAssignButton.gameObject.SetActive(!p2IsAI);
+            }
+            if (p2GamepadAssignText != null)
+            {
+                p2GamepadAssignText.text = FightInput.IsGamepad1AssignedToP2
+                    ? "🎮 MANDO 1 -> EN JUGADOR 2 (CLIC PARA PASAR A 1P)"
+                    : "🎮 MANDO 1 -> EN JUGADOR 1 (CLIC PARA ASIGNAR A 2P)";
+            }
+        }
+
+        public void OnToggleGamepadAssignmentClicked()
+        {
+            FightInput.ToggleGamepadAssignment();
+            FightAudioManager.Instance?.PlayButtonClick();
+            UpdateP2ControllerModeUI();
+        }
+
+        public void OnQuitGameClicked()
+        {
+            FightAudioManager.Instance?.PlayButtonClick();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
 
         public void OpenP1Webcam()

@@ -45,6 +45,8 @@ namespace FightFace
         private AudioClip clipKO;
         private AudioClip clipRoundBell;
         private AudioClip clipAmbience;
+        private AudioClip clipButtonClick;
+        private AudioClip clipButtonConfirm;
 
         private AudioClip clipVoiceAttackDefault;
         private AudioClip clipVoiceSpecialDefault;
@@ -107,6 +109,8 @@ namespace FightFace
             clipKO = GenerateKOClip();
             clipRoundBell = GenerateRoundBellClip();
             clipAmbience = GenerateAmbienceClip();
+            clipButtonClick = GenerateButtonClickClip();
+            clipButtonConfirm = GenerateButtonConfirmClip();
 
             clipVoiceAttackDefault = GenerateProceduralAttackVoice();
             clipVoiceSpecialDefault = GenerateProceduralSpecialVoice();
@@ -341,6 +345,24 @@ namespace FightFace
             {
                 sfxHeavySource.pitch = 1.0f;
                 sfxHeavySource.PlayOneShot(clipRoundBell, 0.95f);
+            }
+        }
+
+        public void PlayButtonClick(float volume = 0.85f)
+        {
+            if (sfxSource != null && clipButtonClick != null)
+            {
+                sfxSource.pitch = UnityEngine.Random.Range(0.96f, 1.05f);
+                sfxSource.PlayOneShot(clipButtonClick, volume);
+            }
+        }
+
+        public void PlayButtonConfirm(float volume = 1f)
+        {
+            if (sfxHeavySource != null && clipButtonConfirm != null)
+            {
+                sfxHeavySource.pitch = 1.0f;
+                sfxHeavySource.PlayOneShot(clipButtonConfirm, volume);
             }
         }
 
@@ -655,6 +677,50 @@ namespace FightFace
             }
 
             AudioClip clip = AudioClip.Create("Ambience_StreetLoop", totalSamples, 1, SampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateButtonClickClip()
+        {
+            float duration = 0.045f;
+            int totalSamples = (int)(SampleRate * duration);
+            float[] data = new float[totalSamples];
+
+            for (int i = 0; i < totalSamples; i++)
+            {
+                float t = (float)i / SampleRate;
+                float env = Mathf.Exp(-75f * t);
+                // Beep retro arcade ascendente (700Hz -> 1400Hz) con micro-impacto
+                float freq = Mathf.Lerp(700f, 1400f, t / duration);
+                float tone = Mathf.Sin(2f * Mathf.PI * freq * t);
+                float click = (i < 30) ? 0.5f : 0f;
+                data[i] = Mathf.Clamp((tone * 0.85f + click) * env, -1f, 1f);
+            }
+
+            AudioClip clip = AudioClip.Create("SFX_ButtonClick", totalSamples, 1, SampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private AudioClip GenerateButtonConfirmClip()
+        {
+            float duration = 0.24f;
+            int totalSamples = (int)(SampleRate * duration);
+            float[] data = new float[totalSamples];
+
+            for (int i = 0; i < totalSamples; i++)
+            {
+                float t = (float)i / SampleRate;
+                float env = Mathf.Exp(-16f * t);
+                // Acorde arcade confirmatorio ascendente (Do -> Sol: 523Hz -> 784Hz)
+                float freq = t < 0.08f ? 523.25f : 783.99f;
+                float tone = Mathf.Sin(2f * Mathf.PI * freq * t);
+                float sub = Mathf.Sin(2f * Mathf.PI * (freq * 0.5f) * t) * 0.35f;
+                data[i] = Mathf.Clamp((tone + sub) * env, -1f, 1f);
+            }
+
+            AudioClip clip = AudioClip.Create("SFX_ButtonConfirm", totalSamples, 1, SampleRate, false);
             clip.SetData(data, 0);
             return clip;
         }

@@ -1065,6 +1065,46 @@ namespace FightFace
             sText.alignment = TextAnchor.MiddleCenter;
             sText.color = Color.white;
 
+            // Botón Salir del Juego desde pantalla de victoria
+            GameObject quitWinObj = new GameObject("Btn_WinnerQuit");
+            quitWinObj.transform.SetParent(cardObj.transform, false);
+            var qwRect = quitWinObj.AddComponent<RectTransform>();
+            qwRect.anchorMin = new Vector2(0.80f, 0.88f);
+            qwRect.anchorMax = new Vector2(0.97f, 0.97f);
+            qwRect.offsetMin = Vector2.zero;
+            qwRect.offsetMax = Vector2.zero;
+
+            var qwImg = quitWinObj.AddComponent<Image>();
+            qwImg.color = new Color(0.82f, 0.15f, 0.15f, 0.95f);
+            var qwOutline = quitWinObj.AddComponent<Outline>();
+            qwOutline.effectColor = new Color(1f, 0.88f, 0.2f, 1f);
+            qwOutline.effectDistance = new Vector2(1.5f, 1.5f);
+
+            var qwBtn = quitWinObj.AddComponent<Button>();
+            qwBtn.onClick.AddListener(() =>
+            {
+                FightAudioManager.Instance?.PlayButtonClick();
+#if UNITY_EDITOR
+                UnityEditor.EditorApplication.isPlaying = false;
+#else
+                Application.Quit();
+#endif
+            });
+
+            GameObject qwTxt = new GameObject("Text");
+            qwTxt.transform.SetParent(quitWinObj.transform, false);
+            var qwTRect = qwTxt.AddComponent<RectTransform>();
+            qwTRect.anchorMin = Vector2.zero;
+            qwTRect.anchorMax = Vector2.one;
+            qwTRect.sizeDelta = Vector2.zero;
+            var qwText = qwTxt.AddComponent<Text>();
+            qwText.text = "🚪 SALIR";
+            qwText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            qwText.fontSize = 13;
+            qwText.fontStyle = FontStyle.Bold;
+            qwText.alignment = TextAnchor.MiddleCenter;
+            qwText.color = Color.white;
+
             ui.winnerModalPanel = modalObj;
             modalObj.SetActive(false);
         }
@@ -2339,6 +2379,39 @@ namespace FightFace
             subTxt.alignment = TextAnchor.MiddleCenter;
             subTxt.color = new Color(1f, 0.80f, 0.25f);
 
+            // Botón Salir del Juego (Prominente en esquina superior derecha)
+            GameObject quitBtnObj = new GameObject("Btn_QuitGame");
+            quitBtnObj.transform.SetParent(headerObj.transform, false);
+            var qbRect = quitBtnObj.AddComponent<RectTransform>();
+            qbRect.anchorMin = new Vector2(0.875f, 0.12f);
+            qbRect.anchorMax = new Vector2(0.992f, 0.88f);
+            qbRect.offsetMin = Vector2.zero;
+            qbRect.offsetMax = Vector2.zero;
+
+            var qbImg = quitBtnObj.AddComponent<Image>();
+            qbImg.color = new Color(0.85f, 0.18f, 0.18f, 0.95f);
+            var qbOutline = quitBtnObj.AddComponent<Outline>();
+            qbOutline.effectColor = new Color(1f, 0.88f, 0.2f, 1f);
+            qbOutline.effectDistance = new Vector2(2f, 2f);
+
+            selectUI.quitGameButton = quitBtnObj.AddComponent<Button>();
+            selectUI.quitGameButton.onClick.AddListener(selectUI.OnQuitGameClicked);
+
+            GameObject qbTxtObj = new GameObject("Text");
+            qbTxtObj.transform.SetParent(quitBtnObj.transform, false);
+            var qbTRect = qbTxtObj.AddComponent<RectTransform>();
+            qbTRect.anchorMin = Vector2.zero;
+            qbTRect.anchorMax = Vector2.one;
+            qbTRect.sizeDelta = Vector2.zero;
+            var qbTxt = qbTxtObj.AddComponent<Text>();
+            qbTxt.text = "🚪 SALIR [ESC]";
+            qbTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            qbTxt.fontSize = 14;
+            qbTxt.fontStyle = FontStyle.Bold;
+            qbTxt.alignment = TextAnchor.MiddleCenter;
+            qbTxt.color = Color.white;
+            qbTxt.verticalOverflow = VerticalWrapMode.Overflow;
+
             // ----------------- CUADRÍCULA ROSTER CENTRAL (5 LUCHADORES) -----------------
             GameObject rosterGridObj = new GameObject("RosterGrid");
             rosterGridObj.transform.SetParent(menuObj.transform, false);
@@ -2756,9 +2829,9 @@ namespace FightFace
             hiRect.offsetMax = Vector2.zero;
 
             var hiTxt = hintObj.AddComponent<Text>();
-            hiTxt.text = "🎮 1P: Teclado/Joystick\n📱 Touch • [C] Caras\n[M] Música • [V] Voces";
+            hiTxt.text = "🎮 1P: WASD + [F][G][R][T]\n👥 2P: Flechas + [L][K][P][O] o Mando\n🚪 [ESC] Salir • [M] Música • [V] Voces";
             hiTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            hiTxt.fontSize = 12;
+            hiTxt.fontSize = 11;
             hiTxt.alignment = TextAnchor.MiddleLeft;
             hiTxt.color = new Color(0.7f, 0.8f, 0.95f);
             hiTxt.verticalOverflow = VerticalWrapMode.Overflow;
@@ -3011,7 +3084,66 @@ namespace FightFace
             stOutline.effectColor = new Color(0f, 0f, 0f, 0.8f);
             stOutline.effectDistance = new Vector2(1, 1);
             if (playerNum == 1) selectUI.p1StatsText = stTxt;
-            else selectUI.p2StatsText = stTxt;
+            else
+            {
+                selectUI.p2StatsText = stTxt;
+
+                // Guía visual de controles para Jugador 2 (Visible en modo 2P Humano)
+                GameObject guideObj = new GameObject("P2ControlsGuide");
+                guideObj.transform.SetParent(rightSide.transform, false);
+                var gRect = guideObj.AddComponent<RectTransform>();
+                gRect.anchorMin = new Vector2(0, 0.52f);
+                gRect.anchorMax = new Vector2(1, 1.0f);
+                gRect.offsetMin = Vector2.zero;
+                gRect.offsetMax = Vector2.zero;
+
+                var gTxt = guideObj.AddComponent<Text>();
+                gTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                gTxt.fontSize = 11;
+                gTxt.fontStyle = FontStyle.Normal;
+                gTxt.lineSpacing = 1.25f;
+                gTxt.alignment = TextAnchor.MiddleLeft;
+                gTxt.color = new Color(0.95f, 0.95f, 1f);
+                gTxt.verticalOverflow = VerticalWrapMode.Overflow;
+                selectUI.p2ControlsGuideText = gTxt;
+
+                // Botón para alternar asignación del Mando 1 entre P1 y P2
+                GameObject padToggleObj = new GameObject("Btn_GamepadAssign");
+                padToggleObj.transform.SetParent(cardObj.transform, false);
+                var ptRect = padToggleObj.AddComponent<RectTransform>();
+                ptRect.anchorMin = new Vector2(0.04f, 0.885f);
+                ptRect.anchorMax = new Vector2(0.36f, 0.995f);
+                ptRect.offsetMin = Vector2.zero;
+                ptRect.offsetMax = Vector2.zero;
+
+                var ptImg = padToggleObj.AddComponent<Image>();
+                ptImg.color = new Color(0.18f, 0.22f, 0.35f, 0.95f);
+                var ptOutline = padToggleObj.AddComponent<Outline>();
+                ptOutline.effectColor = new Color(0.3f, 0.8f, 1f, 0.8f);
+                ptOutline.effectDistance = new Vector2(1.5f, 1.5f);
+
+                selectUI.p2GamepadAssignButton = padToggleObj.AddComponent<Button>();
+                selectUI.p2GamepadAssignButton.onClick.AddListener(selectUI.OnToggleGamepadAssignmentClicked);
+
+                GameObject ptTxtObj = new GameObject("Text");
+                ptTxtObj.transform.SetParent(padToggleObj.transform, false);
+                var ptTRect = ptTxtObj.AddComponent<RectTransform>();
+                ptTRect.anchorMin = Vector2.zero;
+                ptTRect.anchorMax = Vector2.one;
+                ptTRect.sizeDelta = Vector2.zero;
+                var ptTxt = ptTxtObj.AddComponent<Text>();
+                ptTxt.text = "🎮 MANDO -> 2P";
+                ptTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                ptTxt.fontSize = 11;
+                ptTxt.fontStyle = FontStyle.Bold;
+                ptTxt.alignment = TextAnchor.MiddleCenter;
+                ptTxt.color = Color.white;
+                ptTxt.verticalOverflow = VerticalWrapMode.Overflow;
+                selectUI.p2GamepadAssignText = ptTxt;
+
+                guideObj.SetActive(false);
+                padToggleObj.SetActive(false);
+            }
 
             // 2. Galería de 5 Rostros Personalizados
             GameObject rackObj = new GameObject("Panel_4Faces");

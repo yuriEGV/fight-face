@@ -130,6 +130,18 @@ namespace FightFace
             if (BattleUI.Instance != null)
             {
                 BattleUI.Instance.HideCharacterSelectMenu();
+                if (!training)
+                {
+                    if (isP2ControlledByAI)
+                    {
+                        BattleUI.Instance.ShowBanner("🎮 1P: WASD / JOYSTICK  vs  🤖 OPONENTE: CPU (IA)", 2.5f);
+                    }
+                    else
+                    {
+                        string padNote = FightInput.IsGamepad1AssignedToP2 ? " (Mando 1 en 2P)" : "";
+                        BattleUI.Instance.ShowBanner("🎮 1P: WASD + [F][G][R][T]\n👥 2P: FLECHAS [←][→][↑][↓] + [L][K][P][O]" + padNote, 3.8f);
+                    }
+                }
             }
 
             if (NetworkLobbyUI.Instance != null && NetworkLobbyUI.Instance.IsLobbyOpen())

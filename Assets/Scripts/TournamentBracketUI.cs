@@ -545,6 +545,7 @@ namespace FightFace
 
             var btn = bObj.AddComponent<Button>();
             btn.targetGraphic = img;
+            btn.onClick.AddListener(() => FightAudioManager.Instance?.PlayButtonClick());
             btn.onClick.AddListener(onClick);
 
             GameObject tObj = new GameObject("Text");
