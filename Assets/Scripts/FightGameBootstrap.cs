@@ -2378,6 +2378,7 @@ namespace FightFace
             subTxt.fontStyle = FontStyle.Bold;
             subTxt.alignment = TextAnchor.MiddleCenter;
             subTxt.color = new Color(1f, 0.80f, 0.25f);
+            selectUI.selectionBannerText = subTxt;
 
             // Botón Salir del Juego (Prominente en esquina superior derecha)
             GameObject quitBtnObj = new GameObject("Btn_QuitGame");
@@ -2932,6 +2933,18 @@ namespace FightFace
             cardOutline.effectColor = playerNum == 1 ? new Color(1f, 0.25f, 0.15f) : new Color(0.15f, 0.60f, 1f);
             cardOutline.effectDistance = new Vector2(3, 3);
 
+            var cardBtn = cardObj.AddComponent<Button>();
+            if (playerNum == 1)
+            {
+                selectUI.p1CardOutline = cardOutline;
+                selectUI.p1CardButton = cardBtn;
+            }
+            else
+            {
+                selectUI.p2CardOutline = cardOutline;
+                selectUI.p2CardButton = cardBtn;
+            }
+
             // Encabezado del perfil
             GameObject pBanner = new GameObject("Header");
             pBanner.transform.SetParent(cardObj.transform, false);
@@ -2949,6 +2962,10 @@ namespace FightFace
             pText.alignment = TextAnchor.MiddleLeft;
             pText.color = playerNum == 1 ? new Color(1f, 0.45f, 0.35f) : new Color(0.35f, 0.8f, 1f);
             pText.verticalOverflow = VerticalWrapMode.Overflow;
+            pText.raycastTarget = false;
+
+            if (playerNum == 1) selectUI.p1HeaderText = pText;
+            else selectUI.p2HeaderText = pText;
 
             // Botones explícitos de selección: [ 🤖 VS CPU ] vs [ 👥 2P HUMANO ]
             if (playerNum == 2)
@@ -3038,6 +3055,7 @@ namespace FightFace
 
             var bodyImg = bodyImgObj.AddComponent<Image>();
             bodyImg.preserveAspect = true;
+            bodyImg.raycastTarget = false;
             if (playerNum == 1) selectUI.p1FighterCardImage = bodyImg;
             else selectUI.p2FighterCardImage = bodyImg;
 
@@ -3067,7 +3085,7 @@ namespace FightFace
             GameObject statsObj = new GameObject("StatsBars");
             statsObj.transform.SetParent(rightSide.transform, false);
             var stRect = statsObj.AddComponent<RectTransform>();
-            stRect.anchorMin = new Vector2(0, 0.52f);
+            stRect.anchorMin = new Vector2(0, 0.46f);
             stRect.anchorMax = new Vector2(1, 1.0f);
             stRect.offsetMin = Vector2.zero;
             stRect.offsetMax = Vector2.zero;
@@ -3092,7 +3110,7 @@ namespace FightFace
                 GameObject guideObj = new GameObject("P2ControlsGuide");
                 guideObj.transform.SetParent(rightSide.transform, false);
                 var gRect = guideObj.AddComponent<RectTransform>();
-                gRect.anchorMin = new Vector2(0, 0.52f);
+                gRect.anchorMin = new Vector2(0, 0.55f);
                 gRect.anchorMax = new Vector2(1, 1.0f);
                 gRect.offsetMin = Vector2.zero;
                 gRect.offsetMax = Vector2.zero;
@@ -3107,12 +3125,12 @@ namespace FightFace
                 gTxt.verticalOverflow = VerticalWrapMode.Overflow;
                 selectUI.p2ControlsGuideText = gTxt;
 
-                // Botón para alternar asignación del Mando 1 entre P1 y P2
+                // Botón para alternar asignación del Mando 1 entre P1 y P2 (Ubicado en rightSide)
                 GameObject padToggleObj = new GameObject("Btn_GamepadAssign");
-                padToggleObj.transform.SetParent(cardObj.transform, false);
+                padToggleObj.transform.SetParent(rightSide.transform, false);
                 var ptRect = padToggleObj.AddComponent<RectTransform>();
-                ptRect.anchorMin = new Vector2(0.04f, 0.885f);
-                ptRect.anchorMax = new Vector2(0.36f, 0.995f);
+                ptRect.anchorMin = new Vector2(0.0f, 0.44f);
+                ptRect.anchorMax = new Vector2(0.98f, 0.53f);
                 ptRect.offsetMin = Vector2.zero;
                 ptRect.offsetMax = Vector2.zero;
 
@@ -3150,7 +3168,7 @@ namespace FightFace
             rackObj.transform.SetParent(rightSide.transform, false);
             var rkRect = rackObj.AddComponent<RectTransform>();
             rkRect.anchorMin = new Vector2(0, 0);
-            rkRect.anchorMax = new Vector2(1, 0.50f);
+            rkRect.anchorMax = new Vector2(1, 0.42f);
             rkRect.offsetMin = Vector2.zero;
             rkRect.offsetMax = Vector2.zero;
 

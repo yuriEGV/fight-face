@@ -83,6 +83,16 @@ namespace FightFace
         public GameObject preFightModal;
         public bool hasDismissedPreFightPrompt = false;
 
+        [Header("Turno y Selección Activa de Jugador (P1 vs P2)")]
+        public int selectingPlayer = 1;
+        public Outline p1CardOutline;
+        public Outline p2CardOutline;
+        public Text selectionBannerText;
+        public Text p1HeaderText;
+        public Text p2HeaderText;
+        public Button p1CardButton;
+        public Button p2CardButton;
+
         [Header("Roster Arcade Grid (Estilo Street Fighter II)")]
         public Button[] rosterSlotButtons;
         public Image[] rosterThumbImages;
